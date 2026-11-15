@@ -439,4 +439,380 @@ export default function BusinessDashboardPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nome da Empresa *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="Ex: Pizzaria Itália"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Segmento Principal *
+                </label>
+                <select
+                  value={form.category}
+                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white"
+                >
+                  {CATEGORIES.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Especialidade / Subcategoria
+                </label>
+                <input
+                  type="text"
+                  value={form.subcategory}
+                  onChange={(e) => setForm({ ...form, subcategory: e.target.value })}
+                  placeholder="Ex: Pizzaria, Hotel, Farmácia..."
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  WhatsApp com DDD *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={form.whatsapp}
+                  onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
+                  placeholder="(64) 99999-9999"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Descrição dos Serviços / Produtos
+              </label>
+              <textarea
+                rows={3}
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Conte o que sua empresa oferece, horários de atendimento, diferenciais..."
+                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Bloco 2: Endereço e Geolocalização */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h2 className="font-extrabold text-slate-900 text-base flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 text-orange-500" /> 2. Endereço e Localização GPS
+              </h2>
+              <button
+                type="button"
+                onClick={handleCaptureGps}
+                className="inline-flex items-center gap-1.5 text-xs font-bold bg-orange-50 text-orange-700 hover:bg-orange-100 px-3.5 py-2 rounded-xl transition"
+              >
+                {gettingGps ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Navigation className="w-3.5 h-3.5" />
+                )}
+                Capturar GPS de onde estou agora
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Bairro *</label>
+                <input
+                  type="text"
+                  required
+                  value={form.neighborhood}
+                  onChange={(e) => setForm({ ...form, neighborhood: e.target.value })}
+                  placeholder="Ex: Centro, Bairro Turista..."
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Endereço Completo *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  placeholder="Rua, Número, Quadra/Lote"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Latitude (opcional - para distância)
+                </label>
+                <input
+                  type="text"
+                  value={form.lat}
+                  onChange={(e) => setForm({ ...form, lat: e.target.value })}
+                  placeholder="-17.7441"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Longitude (opcional - para distância)
+                </label>
+                <input
+                  type="text"
+                  value={form.lng}
+                  onChange={(e) => setForm({ ...form, lng: e.target.value })}
+                  placeholder="-48.6248"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Bloco 3: Cupom de Desconto Exclusivo */}
+          <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-5 sm:p-6 shadow-sm border border-orange-200 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Ticket className="w-5 h-5 text-orange-600" />
+                <div>
+                  <h2 className="font-extrabold text-slate-900 text-base">
+                    3. Cupom de Desconto no App
+                  </h2>
+                  <p className="text-xs text-slate-600">
+                    Empresas com cupom ganham selo de destaque e atraem muito mais clientes!
+                  </p>
+                </div>
+              </div>
+
+              <label className="inline-flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.couponActive}
+                  onChange={(e) => setForm({ ...form, couponActive: e.target.checked })}
+                  className="w-5 h-5 accent-orange-600 rounded"
+                />
+                <span className="text-xs font-extrabold text-slate-800">Ativar Cupom</span>
+              </label>
+            </div>
+
+            {form.couponActive && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Qual é o benefício/desconto? *
+                  </label>
+                  <input
+                    type="text"
+                    required={form.couponActive}
+                    value={form.couponTitle}
+                    onChange={(e) => setForm({ ...form, couponTitle: e.target.value })}
+                    placeholder="Ex: 15% de desconto na Pizza Grande ou Refrigerante Grátis"
+                    className="w-full rounded-xl border border-orange-300 bg-white px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Código do Cupom (ex: CALDAS15)
+                  </label>
+                  <input
+                    type="text"
+                    value={form.couponCode}
+                    onChange={(e) => setForm({ ...form, couponCode: e.target.value })}
+                    placeholder="CALDAS15"
+                    className="w-full rounded-xl border border-orange-300 bg-white px-3.5 py-2.5 text-sm uppercase"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Regras / Validade
+                  </label>
+                  <input
+                    type="text"
+                    value={form.couponRules}
+                    onChange={(e) => setForm({ ...form, couponRules: e.target.value })}
+                    placeholder="Ex: Válido de terça a quinta-feira"
+                    className="w-full rounded-xl border border-orange-300 bg-white px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bloco 4: Redes Sociais */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
+            <h2 className="font-extrabold text-slate-900 text-base">4. Redes Sociais e Site</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Instagram</label>
+                <input
+                  type="text"
+                  value={form.instagram}
+                  onChange={(e) => setForm({ ...form, instagram: e.target.value })}
+                  placeholder="@suaempresa"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Facebook</label>
+                <input
+                  type="text"
+                  value={form.facebook}
+                  onChange={(e) => setForm({ ...form, facebook: e.target.value })}
+                  placeholder="facebook.com/suaempresa"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Site Oficial</label>
+                <input
+                  type="text"
+                  value={form.website}
+                  onChange={(e) => setForm({ ...form, website: e.target.value })}
+                  placeholder="www.suaempresa.com.br"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Bloco 5: Fotos (Compressor Automático + Cloudinary) */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-extrabold text-slate-900 text-base">
+                5. Logomarca e Fotos (Otimizadas para 4G)
+              </h2>
+              {uploading && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0A4D9C]">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Comprimindo e enviando...
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Upload Logo */}
+              <div className="border border-dashed border-slate-300 rounded-2xl p-4 text-center">
+                <p className="text-xs font-bold text-slate-700 mb-2">Logomarca</p>
+                {form.logoUrl && (
+                  <img
+                    src={form.logoUrl}
+                    alt="Logo"
+                    className="w-20 h-20 object-cover rounded-xl mx-auto mb-2"
+                  />
+                )}
+                <label className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3.5 py-2 rounded-xl cursor-pointer">
+                  <Upload className="w-3.5 h-3.5" /> Escolher Logo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, "logo")}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {/* Upload Capa */}
+              <div className="border border-dashed border-slate-300 rounded-2xl p-4 text-center">
+                <p className="text-xs font-bold text-slate-700 mb-2">Foto Principal (Capa)</p>
+                {form.coverUrl && (
+                  <img
+                    src={form.coverUrl}
+                    alt="Capa"
+                    className="w-full h-20 object-cover rounded-xl mx-auto mb-2"
+                  />
+                )}
+                <label className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3.5 py-2 rounded-xl cursor-pointer">
+                  <Upload className="w-3.5 h-3.5" /> Escolher Capa
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, "cover")}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Galeria de Fotos */}
+            <div className="pt-2">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold text-slate-700">
+                  Galeria de Fotos ({form.gallery.length}/8)
+                </p>
+                <label className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-[#0A4D9C] font-bold text-xs px-3.5 py-2 rounded-xl cursor-pointer">
+                  <Upload className="w-3.5 h-3.5" /> Adicionar Fotos
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => handleImageUpload(e, "gallery")}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {form.gallery.length > 0 && (
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 mt-3">
+                  {form.gallery.map((url, idx) => (
+                    <div key={idx} className="relative aspect-square rounded-xl overflow-hidden group">
+                      <img src={url} alt="" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            gallery: prev.gallery.filter((_, i) => i !== idx),
+                          }))
+                        }
+                        className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-lg opacity-90 hover:opacity-100"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {successMsg && (
+            <div className="bg-emerald-600 text-white font-bold text-sm p-4 rounded-2xl text-center shadow">
+              {successMsg}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={saving || uploading}
+            className="w-full bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-base py-4 rounded-2xl shadow-lg transition flex items-center justify-center gap-2"
+          >
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+            SALVAR E PUBLICAR EMPRESA
+          </button>
+        </form>
+      </main>
+
+      <Footer />
+    </div>
+  );
+}
