@@ -446,10 +446,7 @@ export default function HomePage() {
         </section>
       </main>
 
-      <Footer
-        vipGroupUrl={settings.vipGroupUrl}
-        masterWhatsApp={settings.masterWhatsApp}
-      />
+      <Footer settings={settings} />
     </div>
   );
 }
