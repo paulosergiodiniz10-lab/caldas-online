@@ -9,6 +9,7 @@ import {
   TrendingUp,
   Star,
   ShieldAlert,
+  PhoneCall,
   Loader2,
   X,
 } from "lucide-react";
@@ -40,6 +41,9 @@ export default function HomePage() {
   const [utilities, setUtilities] = useState<UtilityDoc[]>(DEFAULT_UTILITIES);
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [loading, setLoading] = useState(true);
+
+  // Modal de Utilidades Rápidas
+  const [showUtilitiesModal, setShowUtilitiesModal] = useState(false);
 
   // Filtros e Busca
   const [searchTerm, setSearchTerm] = useState("");
@@ -179,7 +183,7 @@ export default function HomePage() {
 
   return (
     <div className="flex-1 flex flex-col">
-      <Navbar vipGroupUrl={settings.vipGroupUrl} />
+      <Navbar vipGroupUrl={settings.vipGroupUrl} masterWhatsApp={settings.masterWhatsApp} />
 
       {/* HERO COM BUSCA RÁPIDA E FILTROS NA MÃO */}
       <section className="bg-gradient-to-b from-[#0A4D9C] via-[#0d5bb8] to-[#f4f6f9] pt-6 pb-8 px-4">
@@ -251,37 +255,63 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* GRID DE SEGMENTOS DINÂMICOS */}
+        {/* GRID DE SEGMENTOS DINÂMICOS (COM UTILIDADES ABRINDO TUDO NO TOPO) */}
         <div className="max-w-6xl mx-auto mt-7">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3.5">
-            {categories.map((cat) => (
-              <Link
-                key={cat.id}
-                href={`/categoria/${cat.slug || cat.id}`}
-                className="bg-white rounded-2xl p-3.5 shadow-sm hover:shadow-md border border-slate-100 flex flex-col items-center text-center transition-all hover:-translate-y-0.5 group"
-              >
-                <div
-                  className={`w-12 h-12 rounded-2xl ${cat.bgColor} flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform`}
+            {categories.map((cat) => {
+              const catSlug = (cat.slug || cat.id || "").toLowerCase();
+              const isUtilitiesCard =
+                catSlug === "utilidades" ||
+                cat.name.toLowerCase().includes("utilidade");
+
+              const cardContent = (
+                <>
+                  <div
+                    className={`w-12 h-12 rounded-2xl ${cat.bgColor} flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform`}
+                  >
+                    <CategoryIcon
+                      name={cat.iconName}
+                      customIconUrl={cat.customIconUrl}
+                      className="w-6 h-6 text-white"
+                    />
+                  </div>
+                  <span className="font-bold text-slate-900 text-sm mt-2.5 leading-tight">
+                    {cat.name}
+                  </span>
+                  <span className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
+                    {cat.subtitle}
+                  </span>
+                </>
+              );
+
+              if (isUtilitiesCard) {
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setShowUtilitiesModal(true)}
+                    className="bg-white rounded-2xl p-3.5 shadow-sm hover:shadow-md border border-slate-100 flex flex-col items-center text-center transition-all hover:-translate-y-0.5 group cursor-pointer"
+                  >
+                    {cardContent}
+                  </button>
+                );
+              }
+
+              return (
+                <Link
+                  key={cat.id}
+                  href={`/categoria/${cat.slug || cat.id}`}
+                  className="bg-white rounded-2xl p-3.5 shadow-sm hover:shadow-md border border-slate-100 flex flex-col items-center text-center transition-all hover:-translate-y-0.5 group"
                 >
-                  <CategoryIcon
-                    name={cat.iconName}
-                    customIconUrl={cat.customIconUrl}
-                    className="w-6 h-6 text-white"
-                  />
-                </div>
-                <span className="font-bold text-slate-900 text-sm mt-2.5 leading-tight">
-                  {cat.name}
-                </span>
-                <span className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
-                  {cat.subtitle}
-                </span>
-              </Link>
-            ))}
+                  {cardContent}
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      <main className="max-w-6xl w-full mx-auto px-4 space-y-8 flex-1">
+      <main className="max-w-6xl w-full mx-auto px-4 space-y-8 flex-1 pb-10">
         {/* RESULTADOS DE BUSCA / FILTRO EM TEMPO REAL */}
         {isFiltering && (
           <section className="bg-white rounded-2xl p-5 shadow-sm border border-blue-100">
@@ -403,48 +433,75 @@ export default function HomePage() {
             </div>
           )}
         </section>
+      </main>
 
-        {/* UTILIDADES RÁPIDAS DINÂMICAS */}
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <ShieldAlert className="w-5 h-5 text-[#0A4D9C]" />
-            <div>
-              <h2 className="text-lg font-extrabold text-slate-900 leading-none">
-                {settings.utilitiesTitle}
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {settings.utilitiesSubtitle}
-              </p>
+      {/* POP-UP COMPLETO DE UTILIDADES RÁPIDAS (ABERTO PELO CARD DO TOPO) */}
+      {showUtilitiesModal && (
+        <div
+          onClick={() => setShowUtilitiesModal(false)}
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden"
+          >
+            {/* Cabeçalho do Modal */}
+            <div className="bg-[#0A4D9C] text-white p-5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                  <ShieldAlert className="w-5 h-5 text-[#FFB800]" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black leading-tight">
+                    {settings.utilitiesTitle || "Utilidades Públicas"}
+                  </h3>
+                  <p className="text-xs text-blue-100">
+                    {settings.utilitiesSubtitle ||
+                      "Toque no serviço desejado para ligar diretamente"}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowUtilitiesModal(false)}
+                aria-label="Fechar"
+                className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition cursor-pointer shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Grade de Telefones Úteis */}
+            <div className="p-4 sm:p-6 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {utilities.map((util) => (
+                <a
+                  key={util.id}
+                  href={`tel:${util.number.replace(/\D/g, "")}`}
+                  className="bg-slate-50 hover:bg-blue-50/70 border border-slate-200/80 hover:border-[#0A4D9C]/40 rounded-2xl p-3.5 flex flex-col items-center text-center shadow-2xs transition group"
+                >
+                  <div
+                    className={`w-11 h-11 rounded-xl ${util.color} text-white flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform`}
+                  >
+                    <CategoryIcon
+                      name={util.iconName}
+                      customIconUrl={util.customIconUrl}
+                      className="w-5 h-5 text-white"
+                    />
+                  </div>
+                  <span className="text-xs font-extrabold text-slate-900 leading-tight">
+                    {util.name}
+                  </span>
+                  <span className="mt-1.5 inline-flex items-center gap-1 bg-white border border-red-200 text-red-600 text-xs font-black px-2.5 py-1 rounded-full">
+                    <PhoneCall className="w-3 h-3" />
+                    {util.number}
+                  </span>
+                </a>
+              ))}
             </div>
           </div>
-
-          <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2.5">
-            {utilities.map((util) => (
-              <a
-                key={util.id}
-                href={`tel:${util.number.replace(/\D/g, "")}`}
-                className="bg-white hover:bg-slate-50 border border-slate-100 rounded-2xl p-3 flex flex-col items-center text-center shadow-sm transition"
-              >
-                <div
-                  className={`w-10 h-10 rounded-xl ${util.color} text-white flex items-center justify-center mb-2 shadow-sm`}
-                >
-                  <CategoryIcon
-                    name={util.iconName}
-                    customIconUrl={util.customIconUrl}
-                    className="w-5 h-5 text-white"
-                  />
-                </div>
-                <span className="text-xs font-bold text-slate-800 leading-tight">
-                  {util.name}
-                </span>
-                <span className="text-[11px] font-extrabold text-red-600 mt-0.5">
-                  {util.number}
-                </span>
-              </a>
-            ))}
-          </div>
-        </section>
-      </main>
+        </div>
+      )}
 
       <Footer settings={settings} />
     </div>
