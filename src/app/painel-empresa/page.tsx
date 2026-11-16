@@ -43,7 +43,6 @@ import {
   MessageCircle,
   Lock,
   Building2,
-  KeyRound,
 } from "lucide-react";
 
 function createSlug(text: string) {
@@ -264,7 +263,7 @@ export default function BusinessDashboardPage() {
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
-    } catch (err: any) {
+    } catch {
       if (isForgotMode) {
         setAuthError("Não foi possível enviar o e-mail. Verifique se o endereço está correto.");
       } else {
@@ -571,7 +570,7 @@ export default function BusinessDashboardPage() {
       <Navbar vipGroupUrl={settings.vipGroupUrl} />
 
       <main className="max-w-5xl w-full mx-auto px-4 py-6 space-y-6 flex-1">
-        {/* Topo do Painel com Nome da Empresa Logada em Destaque */}
+        {/* Topo do Painel com Nome da Empresa Logada */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-blue-50 text-[#0A4D9C] flex items-center justify-center shrink-0">
@@ -648,7 +647,7 @@ export default function BusinessDashboardPage() {
         )}
 
         <form onSubmit={handleSaveBusiness} className="space-y-6">
-          {/* 1. DADOS PRINCIPAIS COM CEP DINÂMICO E LINK DO MAPS */}
+          {/* 1. DADOS PRINCIPAIS */}
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
             <h2 className="font-extrabold text-slate-900">1. Informações da Empresa</h2>
 
@@ -819,7 +818,7 @@ export default function BusinessDashboardPage() {
             </div>
           </div>
 
-          {/* 2. LOGOMARCA, CAPA E GALERIA */}
+          {/* 2. LOGOMARCA, CAPA E GALERIA COM LEGENDAS DE TAMANHO IDEAL */}
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -828,12 +827,13 @@ export default function BusinessDashboardPage() {
                   2. Logomarca, Capa e Galeria ({gallery.length}/{maxPhotos} fotos)
                 </h2>
               </div>
-              <span className="text-[11px] font-bold bg-amber-50 text-amber-800 px-2.5 py-1 rounded-lg">
-                Tamanho máximo por foto: 1 MB
+              <span className="text-[11px] font-bold bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-lg">
+                Compressão automática • Máx. 1 MB final
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Logomarca */}
               <div className="border border-dashed border-slate-300 rounded-2xl p-4 flex items-center gap-4">
                 {logoUrl ? (
                   <img
@@ -846,9 +846,12 @@ export default function BusinessDashboardPage() {
                     Logo
                   </div>
                 )}
-                <div>
-                  <p className="text-xs font-bold text-slate-800 mb-1">Logomarca Quadrada</p>
-                  <label className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl cursor-pointer">
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-slate-800">Logomarca Quadrada</p>
+                  <p className="text-[11px] text-slate-500">
+                    Tamanho ideal: <strong>500x500px</strong> (1:1)
+                  </p>
+                  <label className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl cursor-pointer mt-1">
                     {uploadingLogo ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : (
@@ -865,6 +868,7 @@ export default function BusinessDashboardPage() {
                 </div>
               </div>
 
+              {/* Capa */}
               <div className="border border-dashed border-slate-300 rounded-2xl p-4 flex items-center gap-4">
                 {coverUrl ? (
                   <img
@@ -877,9 +881,12 @@ export default function BusinessDashboardPage() {
                     Capa
                   </div>
                 )}
-                <div>
-                  <p className="text-xs font-bold text-slate-800 mb-1">Foto de Capa</p>
-                  <label className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl cursor-pointer">
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-slate-800">Foto de Capa</p>
+                  <p className="text-[11px] text-slate-500">
+                    Tamanho ideal: <strong>1200x400px</strong> (Horizontal)
+                  </p>
+                  <label className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl cursor-pointer mt-1">
                     {uploadingCover ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : (
@@ -897,14 +904,20 @@ export default function BusinessDashboardPage() {
               </div>
             </div>
 
+            {/* Galeria */}
             <div className="pt-2 border-t border-slate-100 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-700">
-                  Fotos da Galeria ({gallery.length} de {maxPhotos} utilizadas)
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-bold text-slate-700">
+                    Fotos da Galeria ({gallery.length} de {maxPhotos} utilizadas)
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Ideal: <strong>1080x1080px</strong> ou <strong>1080x1350px</strong> (aceita horizontal ou vertical direto do celular)
+                  </p>
+                </div>
 
                 {gallery.length < maxPhotos ? (
-                  <label className="inline-flex items-center gap-1.5 text-xs font-extrabold bg-[#0A4D9C] hover:bg-[#062F63] text-white px-3.5 py-2 rounded-xl cursor-pointer">
+                  <label className="inline-flex items-center gap-1.5 text-xs font-extrabold bg-[#0A4D9C] hover:bg-[#062F63] text-white px-3.5 py-2 rounded-xl cursor-pointer shrink-0 self-start sm:self-auto">
                     {uploadingGallery ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : (
@@ -1103,4 +1116,3 @@ export default function BusinessDashboardPage() {
     </div>
   );
 }
-
