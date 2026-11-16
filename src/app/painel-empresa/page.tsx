@@ -38,6 +38,7 @@ import {
   Image as ImageIcon,
   ExternalLink,
   Eye,
+  EyeOff,
   MessageCircle,
   Lock,
 } from "lucide-react";
@@ -62,6 +63,7 @@ export default function BusinessDashboardPage() {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState("");
   const [submittingAuth, setSubmittingAuth] = useState(false);
 
@@ -69,17 +71,17 @@ export default function BusinessDashboardPage() {
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [gettingGps, setGettingGps] = useState(false);
+  const [loadingCep, setLoadingCep] = useState(false);
 
   // Campos da Empresa
   const [name, setName] = useState("");
   const [category, setCategory] = useState("alimentacao");
   const [subcategory, setSubcategory] = useState("");
   const [description, setDescription] = useState("");
+  const [cep, setCep] = useState("");
   const [neighborhood, setNeighborhood] = useState("");
   const [address, setAddress] = useState("");
-  const [lat, setLat] = useState<number | null>(null);
-  const [lng, setLng] = useState<number | null>(null);
+  const [googleMapsUrl, setGoogleMapsUrl] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [instagram, setInstagram] = useState("");
   const [website, setWebsite] = useState("");
@@ -87,7 +89,7 @@ export default function BusinessDashboardPage() {
   const [coverUrl, setCoverUrl] = useState("");
   const [gallery, setGallery] = useState<string[]>([]);
 
-  // Limites controlados pelo Master (Padrão: 5 fotos e 1 vídeo)
+  // Limites controlados pelo Master
   const [maxPhotos, setMaxPhotos] = useState(5);
   const [maxVideos, setMaxVideos] = useState(1);
   const [isFeatured, setIsFeatured] = useState(false);
@@ -148,16 +150,16 @@ export default function BusinessDashboardPage() {
       const snap = await getDocs(q);
       if (!snap.empty) {
         const docSnap = snap.docs[0];
-        const data = docSnap.data() as Business;
+        const data = docSnap.data() as Business & { cep?: string; googleMapsUrl?: string };
         setBusinessId(docSnap.id);
         setName(data.name || "");
         setCategory(data.category || "alimentacao");
         setSubcategory(data.subcategory || "");
         setDescription(data.description || "");
+        setCep(data.cep || "");
         setNeighborhood(data.neighborhood || "");
         setAddress(data.address || "");
-        setLat(data.lat ?? null);
-        setLng(data.lng ?? null);
+        setGoogleMapsUrl(data.googleMapsUrl || "");
         setWhatsapp(data.whatsapp || "");
         setInstagram(data.instagram || "");
         setWebsite(data.website || "");
@@ -186,6 +188,25 @@ export default function BusinessDashboardPage() {
     }
   }
 
+  // BUSCA CEP DINÂMICO VIA VIACEP
+  const handleCepBlur = async (inputCep: string) => {
+    const cleanCep = inputCep.replace(/\D/g, "");
+    if (cleanCep.length !== 8) return;
+    setLoadingCep(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await res.json();
+      if (!data.erro) {
+        if (data.bairro) setNeighborhood(data.bairro);
+        if (data.logradouro) setAddress(`${data.logradouro}, `);
+      }
+    } catch {
+      console.error("Erro ao buscar CEP");
+    } finally {
+      setLoadingCep(false);
+    }
+  };
+
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
@@ -205,27 +226,6 @@ export default function BusinessDashboardPage() {
     } finally {
       setSubmittingAuth(false);
     }
-  };
-
-  const handleCaptureGps = () => {
-    if (!navigator.geolocation) {
-      alert("Seu navegador não suporta GPS.");
-      return;
-    }
-    setGettingGps(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLat(pos.coords.latitude);
-        setLng(pos.coords.longitude);
-        setGettingGps(false);
-        alert("Localização GPS capturada com sucesso!");
-      },
-      () => {
-        setGettingGps(false);
-        alert("Permita o acesso à localização no navegador para marcar no mapa.");
-      },
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
   };
 
   const handleUploadSingle = async (
@@ -256,7 +256,7 @@ export default function BusinessDashboardPage() {
 
     if (gallery.length >= maxPhotos) {
       alert(
-        `Você atingiu o limite de ${maxPhotos} fotos do seu plano. Fale com o Caldas Online para liberar mais fotos!`
+        `Você atingiu o limite de ${maxPhotos} fotos do seu plano. Fale com o suporte para liberar mais fotos!`
       );
       e.target.value = "";
       return;
@@ -282,7 +282,6 @@ export default function BusinessDashboardPage() {
     e.preventDefault();
     if (!user) return;
 
-    // Validar links do YouTube
     const allVideoInputs = [
       youtubeHorizontal,
       youtubeVertical1,
@@ -301,25 +300,23 @@ export default function BusinessDashboardPage() {
     setSaving(true);
     try {
       const slug = businessId || `${createSlug(name)}-${user.uid.slice(0, 5)}`;
-
-      // Monta lista de vídeos verticais respeitando o limite maxVideos (1 = só horizontal; 2..4 = libera verticais)
       const allowedVerticalCount = Math.max(0, maxVideos - 1);
       const verticalVideos = [youtubeVertical1, youtubeVertical2, youtubeVertical3]
         .map((v) => v.trim())
         .filter(Boolean)
         .slice(0, allowedVerticalCount);
 
-      const payload: Omit<Business, "id"> = {
+      const payload = {
         ownerId: user.uid,
         name: name.trim(),
         slug,
         category,
         subcategory: subcategory.trim(),
         description: description.trim(),
+        cep: cep.trim(),
         neighborhood: neighborhood.trim(),
         address: address.trim(),
-        lat,
-        lng,
+        googleMapsUrl: googleMapsUrl.trim(),
         whatsapp: whatsapp.replace(/\D/g, ""),
         instagram: instagram.trim(),
         website: website.trim(),
@@ -367,6 +364,7 @@ export default function BusinessDashboardPage() {
     );
   }
 
+  // TELA DE LOGIN / CADASTRO COM OLHO MÁGICO
   if (!user) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -404,15 +402,25 @@ export default function BusinessDashboardPage() {
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Senha (mínimo 6 caracteres) *
                 </label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    title={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               {authError && (
@@ -466,7 +474,7 @@ export default function BusinessDashboardPage() {
       <Navbar vipGroupUrl={settings.vipGroupUrl} />
 
       <main className="max-w-5xl w-full mx-auto px-4 py-6 space-y-6 flex-1">
-        {/* Topo do Painel do Lojista */}
+        {/* Topo do Painel */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-black text-slate-900">
@@ -497,7 +505,7 @@ export default function BusinessDashboardPage() {
           </div>
         </div>
 
-        {/* Métricas Rápidas */}
+        {/* Métricas */}
         {businessId && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-3">
@@ -535,7 +543,7 @@ export default function BusinessDashboardPage() {
         )}
 
         <form onSubmit={handleSaveBusiness} className="space-y-6">
-          {/* 1. DADOS PRINCIPAIS */}
+          {/* 1. DADOS PRINCIPAIS COM CEP DINÂMICO E LINK DO MAPS */}
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
             <h2 className="font-extrabold text-slate-900">1. Informações da Empresa</h2>
 
@@ -598,6 +606,29 @@ export default function BusinessDashboardPage() {
                 />
               </div>
 
+              {/* CEP COM BUSCA AUTOMÁTICA */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    CEP (Preenche automático)
+                  </label>
+                  {loadingCep && (
+                    <span className="text-[10px] text-blue-600 font-bold flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Buscando CEP...
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={cep}
+                  maxLength={9}
+                  onChange={(e) => setCep(e.target.value)}
+                  onBlur={(e) => handleCepBlur(e.target.value)}
+                  placeholder="75650-000"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Bairro *
@@ -612,18 +643,38 @@ export default function BusinessDashboardPage() {
                 />
               </div>
 
-              <div>
+              <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Endereço Completo *
+                  Endereço Completo (Rua, Número / Quadra, Lote) *
                 </label>
                 <input
                   type="text"
                   required
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Rua, Quadra, Lote..."
+                  placeholder="Ex: Av. Coronel Bento de Godoy, 120"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
+              </div>
+
+              {/* LINK DO GOOGLE MAPS EM VEZ DE GPS AUTOMÁTICO */}
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Link do Google Maps da Empresa (opcional)
+                </label>
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
+                  <input
+                    type="url"
+                    value={googleMapsUrl}
+                    onChange={(e) => setGoogleMapsUrl(e.target.value)}
+                    placeholder="Cole aqui o link do Google Maps (ex: https://maps.app.goo.gl/...)"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Evita marcações erradas por GPS. Abra o Google Maps, clique em Compartilhar e cole o link do seu estabelecimento aqui.
+                </p>
               </div>
 
               <div>
@@ -666,35 +717,9 @@ export default function BusinessDashboardPage() {
                 />
               </div>
             </div>
-
-            {/* GPS */}
-            <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
-              <div className="text-xs text-slate-600">
-                {lat && lng ? (
-                  <span className="text-emerald-700 font-bold">
-                    ✓ Localização GPS salva ({lat.toFixed(4)}, {lng.toFixed(4)})
-                  </span>
-                ) : (
-                  <span>Marque sua localização para aparecer no filtro &quot;Perto de mim&quot;.</span>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={handleCaptureGps}
-                disabled={gettingGps}
-                className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3.5 py-2 rounded-xl"
-              >
-                {gettingGps ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <MapPin className="w-3.5 h-3.5 text-orange-500" />
-                )}
-                Capturar Minha Localização Atual
-              </button>
-            </div>
           </div>
 
-          {/* 2. LOGOMARCA, CAPA E GALERIA DE FOTOS (TRAVA 1MB + LIMITE DINÂMICO) */}
+          {/* 2. LOGOMARCA, CAPA E GALERIA */}
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -704,12 +729,11 @@ export default function BusinessDashboardPage() {
                 </h2>
               </div>
               <span className="text-[11px] font-bold bg-amber-50 text-amber-800 px-2.5 py-1 rounded-lg">
-                Tamanho máximo por foto: 1 MB (Horizontal ou Vertical)
+                Tamanho máximo por foto: 1 MB
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Logo */}
               <div className="border border-dashed border-slate-300 rounded-2xl p-4 flex items-center gap-4">
                 {logoUrl ? (
                   <img
@@ -741,7 +765,6 @@ export default function BusinessDashboardPage() {
                 </div>
               </div>
 
-              {/* Capa */}
               <div className="border border-dashed border-slate-300 rounded-2xl p-4 flex items-center gap-4">
                 {coverUrl ? (
                   <img
@@ -774,7 +797,6 @@ export default function BusinessDashboardPage() {
               </div>
             </div>
 
-            {/* Galeria Adaptável */}
             <div className="pt-2 border-t border-slate-100 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-bold text-slate-700">
@@ -835,7 +857,7 @@ export default function BusinessDashboardPage() {
             </div>
           </div>
 
-          {/* 3. VÍDEOS DO YOUTUBE (1 HORIZONTAL + ATÉ 3 VERTICAIS) */}
+          {/* 3. VÍDEOS DO YOUTUBE */}
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -845,11 +867,10 @@ export default function BusinessDashboardPage() {
                 </h2>
               </div>
               <span className="text-[11px] font-semibold text-slate-500">
-                Somente links do YouTube (se deixar em branco, não aparece nada)
+                Somente links do YouTube
               </span>
             </div>
 
-            {/* Vídeo 1: Horizontal (sempre primeiro) */}
             {maxVideos >= 1 ? (
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -867,7 +888,6 @@ export default function BusinessDashboardPage() {
               <p className="text-xs text-slate-500">Nenhum vídeo habilitado para este cadastro.</p>
             )}
 
-            {/* Vídeos Verticais (Shorts) */}
             <div className="pt-2 border-t border-slate-100 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-bold text-slate-700">
