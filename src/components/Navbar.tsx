@@ -22,27 +22,27 @@ export function Navbar({
 
   return (
     <header className="sticky top-0 z-40 w-full bg-[#0A4D9C] text-white shadow-md border-b border-white/10">
-      <div className="max-w-6xl mx-auto px-3 sm:px-4 h-16 sm:h-[76px] flex items-center justify-between gap-2.5">
-        {/* LOGO OFICIAL */}
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 h-16 sm:h-[76px] flex items-center justify-between gap-2">
+        {/* LOGO OFICIAL COM PROPORÇÃO ORIGINAL (SEM ACHATAR) */}
         <Link
           href="/"
           onClick={() => setMenuOpen(false)}
-          className="flex items-center min-w-0 shrink"
+          className="flex items-center shrink-0"
         >
           <img
             src="https://ldsite.com.br/wp-content/uploads/2026/11/logo-caldas-online_site-scaled.jpg"
             alt="Caldas Online • Guia Comercial de Caldas Novas"
-            className="h-11 sm:h-[54px] w-auto max-w-[205px] sm:max-w-none object-contain rounded-lg sm:rounded-xl"
+            className="h-9 sm:h-12 w-auto object-contain rounded-lg"
           />
         </Link>
 
         {/* BOTÃO GRUPO VIP + MENU HAMBÚRGUER */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <a
             href={vipGroupUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-[#FF7A00] hover:bg-orange-500 text-slate-950 font-extrabold text-xs px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-full inline-flex items-center gap-1.5 shadow-sm transition whitespace-nowrap"
+            className="bg-[#FF7A00] hover:bg-orange-500 text-slate-950 font-extrabold text-[11px] sm:text-xs px-3 sm:px-4 py-2 sm:py-2.5 rounded-full inline-flex items-center gap-1.5 shadow-sm transition whitespace-nowrap"
           >
             <Flame className="w-3.5 h-3.5 fill-slate-950 shrink-0" />
             <span>Grupo VIP</span>
@@ -63,7 +63,7 @@ export function Navbar({
             type="button"
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label="Abrir menu"
-            className="w-10 h-10 rounded-xl bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition shrink-0"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition shrink-0"
           >
             {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
