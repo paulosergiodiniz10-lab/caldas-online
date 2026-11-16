@@ -24,6 +24,10 @@ export interface Business {
   logoUrl: string;
   coverUrl: string;
   gallery: string[];
+  maxPhotos?: number; // Nasce com 5 (Master pode aumentar por cliente)
+  maxVideos?: number; // Nasce com 1 (Master pode aumentar até 4 por cliente)
+  youtubeHorizontal?: string; // 1 vídeo horizontal (exibe primeiro)
+  youtubeVerticals?: string[]; // Até 3 vídeos verticais (Shorts/YouTube)
   coupon?: Coupon;
   isFeatured: boolean;
   isApproved: boolean;
@@ -71,7 +75,6 @@ export interface MostSearchedItem {
 }
 
 export interface SiteSettings {
-  // Hero e Textos da Home
   heroBadge: string;
   heroTitlePrefix: string;
   heroTitleHighlight: string;
@@ -84,7 +87,6 @@ export interface SiteSettings {
   utilitiesSubtitle: string;
   mostSearchedItems: MostSearchedItem[];
 
-  // Banner 1: Grupo VIP
   vipGroupBadge: string;
   vipGroupTitle: string;
   vipGroupSubtitle: string;
@@ -92,7 +94,6 @@ export interface SiteSettings {
   vipGroupUrl: string;
   vipGroupMessage: string;
 
-  // Banner 2: Anuncie no Caldas Online
   advertiseTitle: string;
   advertiseSubtitle: string;
   advertiseRegisterText: string;
