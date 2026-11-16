@@ -14,11 +14,17 @@ import {
 } from "lucide-react";
 import { collection, getDocs, query, where, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Business, PromoBanner, SiteSettings } from "@/types";
 import {
-  CATEGORIES,
-  MOST_SEARCHED,
-  PUBLIC_UTILITIES,
+  Business,
+  PromoBanner,
+  SiteSettings,
+  CategoryDoc,
+  UtilityDoc,
+} from "@/types";
+import {
+  DEFAULT_CATEGORIES,
+  DEFAULT_UTILITIES,
+  DEFAULT_SITE_SETTINGS,
   calculateDistanceKm,
 } from "@/lib/constants";
 import { Navbar } from "@/components/Navbar";
@@ -30,12 +36,9 @@ import { BusinessCard } from "@/components/BusinessCard";
 export default function HomePage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [banners, setBanners] = useState<PromoBanner[]>([]);
-  const [settings, setSettings] = useState<SiteSettings>({
-    vipGroupUrl: "https://chat.whatsapp.com/",
-    vipGroupTitle: "Grupo VIP Caldas Online",
-    vipGroupSubtitle: "Receba cupons secretos em primeira mão!",
-    masterWhatsApp: "5564981005505",
-  });
+  const [categories, setCategories] = useState<CategoryDoc[]>(DEFAULT_CATEGORIES);
+  const [utilities, setUtilities] = useState<UtilityDoc[]>(DEFAULT_UTILITIES);
+  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [loading, setLoading] = useState(true);
 
   // Filtros e Busca
@@ -47,7 +50,7 @@ export default function HomePage() {
   useEffect(() => {
     async function loadInitialData() {
       try {
-        // Carregar empresas aprovadas
+        // 1. Carregar empresas aprovadas
         const qBiz = query(collection(db, "businesses"), where("isApproved", "==", true));
         const snapBiz = await getDocs(qBiz);
         const listBiz: Business[] = snapBiz.docs.map((d) => ({
@@ -56,7 +59,7 @@ export default function HomePage() {
         }));
         setBusinesses(listBiz);
 
-        // Carregar banners da Home
+        // 2. Carregar banners ativos da Home
         const qBan = query(
           collection(db, "banners"),
           where("active", "==", true),
@@ -68,10 +71,33 @@ export default function HomePage() {
           .sort((a, b) => (a.order || 0) - (b.order || 0));
         setBanners(listBan);
 
-        // Carregar configurações globais (Link Grupo VIP)
+        // 3. Carregar Categorias dinâmicas (se existirem no Firestore)
+        const snapCats = await getDocs(collection(db, "categories"));
+        if (!snapCats.empty) {
+          const listCats = snapCats.docs
+            .map((d) => ({ id: d.id, ...(d.data() as Omit<CategoryDoc, "id">) }))
+            .filter((c) => c.active !== false)
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
+          if (listCats.length > 0) setCategories(listCats);
+        }
+
+        // 4. Carregar Utilidades Rápidas dinâmicas (se existirem no Firestore)
+        const snapUtils = await getDocs(collection(db, "utilities"));
+        if (!snapUtils.empty) {
+          const listUtils = snapUtils.docs
+            .map((d) => ({ id: d.id, ...(d.data() as Omit<UtilityDoc, "id">) }))
+            .filter((u) => u.active !== false)
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
+          if (listUtils.length > 0) setUtilities(listUtils);
+        }
+
+        // 5. Carregar configurações e textos globais
         const snapSettings = await getDoc(doc(db, "settings", "global"));
         if (snapSettings.exists()) {
-          setSettings((prev) => ({ ...prev, ...(snapSettings.data() as Partial<SiteSettings>) }));
+          setSettings((prev) => ({
+            ...prev,
+            ...(snapSettings.data() as Partial<SiteSettings>),
+          }));
         }
       } catch (err) {
         console.error("Erro ao carregar dados do guia:", err);
@@ -109,7 +135,6 @@ export default function HomePage() {
     );
   };
 
-  // Empresas processadas com distância e filtros
   const processedBusinesses = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
@@ -132,7 +157,6 @@ export default function HomePage() {
         );
       })
       .sort((a, b) => {
-        // Se GPS ativo, ordena do mais próximo para o mais distante
         if (userCoords) {
           if (a.distanceKm !== null && b.distanceKm !== null) {
             return a.distanceKm - b.distanceKm;
@@ -140,7 +164,6 @@ export default function HomePage() {
           if (a.distanceKm !== null) return -1;
           if (b.distanceKm !== null) return 1;
         }
-        // Caso contrário, destaques pagos aparecem primeiro
         if (a.isFeatured && !b.isFeatured) return -1;
         if (!a.isFeatured && b.isFeatured) return 1;
         return 0;
@@ -162,10 +185,11 @@ export default function HomePage() {
       <section className="bg-gradient-to-b from-[#0A4D9C] via-[#0d5bb8] to-[#f4f6f9] pt-6 pb-8 px-4">
         <div className="max-w-5xl mx-auto text-center">
           <p className="text-blue-100 text-xs sm:text-sm font-semibold uppercase tracking-wider mb-1">
-            Tudo o que você precisa em um só lugar!
+            {settings.heroBadge}
           </p>
           <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
-            O Guia Comercial de <span className="text-[#FFB800]">Caldas Novas</span>
+            {settings.heroTitlePrefix}{" "}
+            <span className="text-[#FFB800]">{settings.heroTitleHighlight}</span>
           </h1>
 
           {/* Barra de Busca Principal */}
@@ -175,7 +199,7 @@ export default function HomePage() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="O que você procura hoje? Ex: pizza, hotel, farmácia..."
+              placeholder={settings.searchPlaceholder}
               className="w-full py-2.5 px-1 text-sm sm:text-base text-slate-800 placeholder:text-slate-400 focus:outline-none"
             />
             {searchTerm && (
@@ -227,19 +251,23 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* GRID DE SEGMENTOS (10 ÍCONES LIMPOS E RÁPIDOS) */}
+        {/* GRID DE SEGMENTOS DINÂMICOS */}
         <div className="max-w-6xl mx-auto mt-7">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3.5">
-            {CATEGORIES.map((cat) => (
+            {categories.map((cat) => (
               <Link
                 key={cat.id}
-                href={`/categoria/${cat.id}`}
+                href={`/categoria/${cat.slug || cat.id}`}
                 className="bg-white rounded-2xl p-3.5 shadow-sm hover:shadow-md border border-slate-100 flex flex-col items-center text-center transition-all hover:-translate-y-0.5 group"
               >
                 <div
                   className={`w-12 h-12 rounded-2xl ${cat.bgColor} flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform`}
                 >
-                  <CategoryIcon name={cat.iconName} className="w-6 h-6 text-white" />
+                  <CategoryIcon
+                    name={cat.iconName}
+                    customIconUrl={cat.customIconUrl}
+                    className="w-6 h-6 text-white"
+                  />
                 </div>
                 <span className="font-bold text-slate-900 text-sm mt-2.5 leading-tight">
                   {cat.name}
@@ -309,18 +337,18 @@ export default function HomePage() {
             <TrendingUp className="w-5 h-5 text-red-500" />
             <div>
               <h2 className="text-lg font-extrabold text-slate-900 leading-none">
-                Mais Procurados
+                {settings.mostSearchedTitle}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Acesso rápido aos termos mais buscados em Caldas Novas
+                {settings.mostSearchedSubtitle}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar pb-1">
-            {MOST_SEARCHED.map((item) => (
+            {(settings.mostSearchedItems || []).map((item, idx) => (
               <button
-                key={item.label}
+                key={idx}
                 onClick={() => setSearchTerm(item.query)}
                 className="bg-white hover:bg-blue-50 border border-slate-200 text-slate-800 font-bold text-sm px-4 py-2.5 rounded-xl shadow-sm whitespace-nowrap transition"
               >
@@ -337,10 +365,10 @@ export default function HomePage() {
               <Star className="w-5 h-5 text-[#FFB800] fill-[#FFB800]" />
               <div>
                 <h2 className="text-lg font-extrabold text-slate-900 leading-none">
-                  Empresas em Destaque
+                  {settings.featuredTitle}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Conheça empresas e ofertas especiais da nossa cidade
+                  {settings.featuredSubtitle}
                 </p>
               </div>
             </div>
@@ -376,31 +404,35 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* UTILIDADES RÁPIDAS */}
+        {/* UTILIDADES RÁPIDAS DINÂMICAS */}
         <section>
           <div className="flex items-center gap-2 mb-3">
             <ShieldAlert className="w-5 h-5 text-[#0A4D9C]" />
             <div>
               <h2 className="text-lg font-extrabold text-slate-900 leading-none">
-                Utilidades Rápidas
+                {settings.utilitiesTitle}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Contatos importantes de Caldas Novas sempre à mão (clique para ligar)
+                {settings.utilitiesSubtitle}
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2.5">
-            {PUBLIC_UTILITIES.map((util) => (
+            {utilities.map((util) => (
               <a
-                key={util.name}
+                key={util.id}
                 href={`tel:${util.number.replace(/\D/g, "")}`}
                 className="bg-white hover:bg-slate-50 border border-slate-100 rounded-2xl p-3 flex flex-col items-center text-center shadow-sm transition"
               >
                 <div
                   className={`w-10 h-10 rounded-xl ${util.color} text-white flex items-center justify-center mb-2 shadow-sm`}
                 >
-                  <CategoryIcon name={util.iconName} className="w-5 h-5 text-white" />
+                  <CategoryIcon
+                    name={util.iconName}
+                    customIconUrl={util.customIconUrl}
+                    className="w-5 h-5 text-white"
+                  />
                 </div>
                 <span className="text-xs font-bold text-slate-800 leading-tight">
                   {util.name}
