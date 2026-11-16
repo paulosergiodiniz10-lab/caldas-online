@@ -31,6 +31,7 @@ import {
   Loader2,
   Building2,
   Navigation,
+  Clock,
   X,
 } from "lucide-react";
 
@@ -74,6 +75,15 @@ function wrapCanvasText(
   return currentY;
 }
 
+function formatDateTimePtBr(date: Date): string {
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const yyyy = date.getFullYear();
+  const hh = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  return `${dd}/${mm}/${yyyy} às ${hh}:${min}`;
+}
+
 export default function BusinessPublicPage() {
   const params = useParams();
   const slug = typeof params?.slug === "string" ? params.slug : "";
@@ -83,6 +93,11 @@ export default function BusinessPublicPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [issuedAt, setIssuedAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setIssuedAt(new Date());
+  }, []);
 
   useEffect(() => {
     async function loadData() {
@@ -192,7 +207,11 @@ export default function BusinessPublicPage() {
   const couponTitle = business.coupon?.title || "Desconto Especial";
   const couponRules = business.coupon?.rules || "";
 
-  const fullCouponMessage = `Olá! Estou no site *Caldas Online* na página da empresa *${business.name}* e quero utilizar o cupom *${couponCode}* (${couponTitle}). Como devo proceder?`;
+  const nowDate = issuedAt || new Date();
+  const expiresDate = new Date(nowDate.getTime() + 24 * 60 * 60 * 1000);
+  const validUntilText = formatDateTimePtBr(expiresDate);
+
+  const fullCouponMessage = `Olá! Estou no site *Caldas Online* na página da empresa *${business.name}* e quero utilizar o cupom *${couponCode}* (${couponTitle}), válido até ${validUntilText}. Como devo proceder?`;
 
   const couponWaUrl = cleanPhone
     ? `https://wa.me/${waPhone}?text=${encodeURIComponent(fullCouponMessage)}`
@@ -209,6 +228,9 @@ export default function BusinessPublicPage() {
   };
 
   const handleDownloadCouponImage = () => {
+    const emitNow = new Date();
+    const expire24h = new Date(emitNow.getTime() + 24 * 60 * 60 * 1000);
+
     const canvas = document.createElement("canvas");
     canvas.width = 1080;
     canvas.height = 1080;
@@ -241,7 +263,7 @@ export default function BusinessPublicPage() {
 
     ctx.fillStyle = "#0A4D9C";
     ctx.font = "900 48px sans-serif";
-    const afterNameY = wrapCanvasText(ctx, business.name, 540, 290, 820, 56);
+    const afterNameY = wrapCanvasText(ctx, business.name, 540, 280, 820, 56);
 
     ctx.fillStyle = "#0F172A";
     ctx.font = "800 40px sans-serif";
@@ -249,48 +271,63 @@ export default function BusinessPublicPage() {
       ctx,
       couponTitle,
       540,
-      afterNameY + 85,
+      afterNameY + 80,
       820,
       48
     );
 
-    const boxY = Math.max(510, afterTitleY + 55);
+    const boxY = Math.max(495, afterTitleY + 50);
     ctx.fillStyle = "#FFF7ED";
     ctx.strokeStyle = "#FF7A00";
     ctx.lineWidth = 5;
     ctx.setLineDash([16, 12]);
     ctx.beginPath();
-    ctx.roundRect(170, boxY, 740, 165, 28);
+    ctx.roundRect(170, boxY, 740, 160, 28);
     ctx.fill();
     ctx.stroke();
     ctx.setLineDash([]);
 
     ctx.fillStyle = "#9A3412";
     ctx.font = "700 22px sans-serif";
-    ctx.fillText("CÓDIGO DO CUPOM", 540, boxY + 52);
+    ctx.fillText("CÓDIGO DO CUPOM", 540, boxY + 50);
 
     ctx.fillStyle = "#0F172A";
     ctx.font = "900 64px monospace";
-    ctx.fillText(couponCode, 540, boxY + 125);
+    ctx.fillText(couponCode, 540, boxY + 122);
 
     ctx.fillStyle = "#475569";
-    ctx.font = "600 26px sans-serif";
-    let nextY = boxY + 225;
+    ctx.font = "600 25px sans-serif";
+    let nextY = boxY + 215;
     if (couponRules) {
-      nextY = wrapCanvasText(ctx, `Regras: ${couponRules}`, 540, nextY, 820, 34) + 45;
+      nextY = wrapCanvasText(ctx, `Regras: ${couponRules}`, 540, nextY, 820, 32) + 40;
     }
 
     ctx.fillStyle = "#0A4D9C";
-    ctx.font = "700 25px sans-serif";
+    ctx.font = "700 24px sans-serif";
     ctx.fillText(
       "Apresente este cupom no WhatsApp ou no balcão da empresa",
       540,
-      Math.min(915, nextY + 10)
+      nextY
+    );
+
+    // Selo de Validade de 24h com Data e Hora
+    const badgeY = Math.min(865, nextY + 32);
+    ctx.fillStyle = "#FEF2F2";
+    ctx.beginPath();
+    ctx.roundRect(140, badgeY, 800, 52, 16);
+    ctx.fill();
+
+    ctx.fillStyle = "#B91C1C";
+    ctx.font = "800 22px sans-serif";
+    ctx.fillText(
+      `⏳ VÁLIDO POR 24H • Expira em ${formatDateTimePtBr(expire24h)}`,
+      540,
+      badgeY + 34
     );
 
     ctx.fillStyle = "#94A3B8";
-    ctx.font = "600 22px sans-serif";
-    ctx.fillText("Guia Comercial de Caldas Novas - GO", 540, 965);
+    ctx.font = "600 21px sans-serif";
+    ctx.fillText("Guia Comercial de Caldas Novas - GO", 540, 968);
 
     const link = document.createElement("a");
     link.download = `cupom-${couponCode.toLowerCase()}-${business.slug || "caldas-online"}.png`;
@@ -358,9 +395,9 @@ export default function BusinessPublicPage() {
       </div>
 
       <main className="max-w-5xl w-full mx-auto px-4 -mt-12 sm:-mt-16 relative z-20 space-y-6 flex-1">
-        {/* CARTÃO PRINCIPAL DA EMPRESA */}
+        {/* CARTÃO PRINCIPAL DO TOPO: SOMENTE LOGO + NOME + ESPECIALIDADE */}
         <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-md border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="flex items-start sm:items-center gap-4">
+          <div className="flex items-center gap-4">
             {business.logoUrl ? (
               <img
                 src={business.logoUrl}
@@ -377,14 +414,9 @@ export default function BusinessPublicPage() {
               <h1 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight">
                 {business.name}
               </h1>
-              <p className="text-xs sm:text-sm font-semibold text-slate-500">
-                {business.subcategory ? `${business.subcategory} • ` : ""}
-                {business.neighborhood || "Caldas Novas"}
-              </p>
-              {business.address && (
-                <p className="text-xs text-slate-600 flex items-center gap-1 pt-0.5">
-                  <MapPin className="w-3.5 h-3.5 text-[#FF7A00] shrink-0" />
-                  <span>{business.address}</span>
+              {business.subcategory && (
+                <p className="text-xs sm:text-sm font-semibold text-slate-500">
+                  {business.subcategory}
                 </p>
               )}
             </div>
@@ -404,7 +436,7 @@ export default function BusinessPublicPage() {
           )}
         </div>
 
-        {/* CUPOM DE DESCONTO INTELIGENTE */}
+        {/* CUPOM DE DESCONTO INTELIGENTE (VÁLIDO POR 24H) */}
         {hasCoupon && (
           <div className="rounded-3xl bg-gradient-to-r from-[#FF7A00] via-orange-500 to-[#FFB800] p-5 sm:p-7 shadow-md text-slate-950 space-y-4">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -413,9 +445,14 @@ export default function BusinessPublicPage() {
                   <Ticket className="w-6 h-6" />
                 </div>
                 <div className="space-y-1">
-                  <span className="inline-block bg-slate-950/15 text-slate-950 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full">
-                    Cupom Exclusivo Caldas Online
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-block bg-slate-950/15 text-slate-950 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full">
+                      Cupom Exclusivo Caldas Online
+                    </span>
+                    <span className="inline-flex items-center gap-1 bg-slate-950 text-[#FFB800] text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full">
+                      <Clock className="w-3 h-3" /> Válido por 24h
+                    </span>
+                  </div>
                   <h2 className="text-xl sm:text-2xl font-black leading-tight">
                     {couponTitle}
                   </h2>
@@ -425,7 +462,7 @@ export default function BusinessPublicPage() {
                     </p>
                   )}
                   <p className="text-xs font-semibold text-slate-950/85 pt-1">
-                    💡 Copie a mensagem para enviar no WhatsApp ou baixe o cupom para apresentar no local.
+                    💡 Copie a mensagem para enviar no WhatsApp ou baixe o cupom (válido por 24h até {validUntilText}).
                   </p>
                 </div>
               </div>
