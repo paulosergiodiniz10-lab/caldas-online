@@ -1,72 +1,35 @@
-import {
-  Utensils,
-  ShoppingBag,
-  BedDouble,
-  Cross,
-  Car,
-  Home,
-  Settings,
-  Sparkles,
-  PartyPopper,
-  PhoneCall,
-  Store,
-  Shield,
-  Flame,
-  Ambulance,
-  Hospital,
-  Landmark,
-  Zap,
-  Droplets,
-  Bus,
-  CarTaxiFront,
-} from "lucide-react";
+import type { Config } from "tailwindcss";
 
-interface Props {
-  name: string;
-  className?: string;
-}
+const config: Config = {
+  content: [
+    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
+  safelist: [
+    "bg-orange-500",
+    "bg-red-500",
+    "bg-red-600",
+    "bg-red-700",
+    "bg-blue-600",
+    "bg-blue-900",
+    "bg-emerald-500",
+    "bg-emerald-600",
+    "bg-purple-600",
+    "bg-amber-500",
+    "bg-amber-600",
+    "bg-slate-600",
+    "bg-pink-500",
+    "bg-teal-500",
+    "bg-teal-600",
+    "bg-indigo-600",
+    "bg-yellow-500",
+    "bg-sky-500",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+};
 
-export function CategoryIcon({ name, className = "w-6 h-6 text-white" }: Props) {
-  switch (name) {
-    case "Utensils":
-      return <Utensils className={className} />;
-    case "ShoppingBag":
-      return <ShoppingBag className={className} />;
-    case "BedDouble":
-      return <BedDouble className={className} />;
-    case "Cross":
-      return <Cross className={className} />;
-    case "Car":
-      return <Car className={className} />;
-    case "Home":
-      return <Home className={className} />;
-    case "Settings":
-      return <Settings className={className} />;
-    case "Sparkles":
-      return <Sparkles className={className} />;
-    case "PartyPopper":
-      return <PartyPopper className={className} />;
-    case "PhoneCall":
-      return <PhoneCall className={className} />;
-    case "Shield":
-      return <Shield className={className} />;
-    case "Flame":
-      return <Flame className={className} />;
-    case "Ambulance":
-      return <Ambulance className={className} />;
-    case "Hospital":
-      return <Hospital className={className} />;
-    case "Landmark":
-      return <Landmark className={className} />;
-    case "Zap":
-      return <Zap className={className} />;
-    case "Droplets":
-      return <Droplets className={className} />;
-    case "Bus":
-      return <Bus className={className} />;
-    case "CarTaxiFront":
-      return <CarTaxiFront className={className} />;
-    default:
-      return <Store className={className} />;
-  }
-}
+export default config;
