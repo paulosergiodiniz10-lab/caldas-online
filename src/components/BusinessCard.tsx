@@ -14,9 +14,10 @@ import {
 
 interface BusinessCardProps {
   business: Business;
+  distanceKm?: number | null;
 }
 
-export function BusinessCard({ business }: BusinessCardProps) {
+export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
   const slugOrId = business.slug || business.id;
   const detailsHref = `/empresa/${slugOrId}`;
 
@@ -100,6 +101,7 @@ export function BusinessCard({ business }: BusinessCardProps) {
             <p className="text-xs font-semibold text-slate-500 line-clamp-1">
               {business.subcategory ? `${business.subcategory} • ` : ""}
               {business.neighborhood || "Caldas Novas"}
+              {typeof distanceKm === "number" ? ` • ${distanceKm.toFixed(1)} km` : ""}
             </p>
           </Link>
 
