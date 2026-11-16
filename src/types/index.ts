@@ -37,7 +37,7 @@ export interface PromoBanner {
   title: string;
   imageUrl: string;
   linkUrl: string;
-  placement: string; // 'home' ou o slug da categoria
+  placement: string;
   active: boolean;
   order: number;
 }
@@ -84,12 +84,20 @@ export interface SiteSettings {
   utilitiesSubtitle: string;
   mostSearchedItems: MostSearchedItem[];
 
-  // Grupo VIP e Banner Anuncie
-  vipGroupUrl: string;
+  // Banner 1: Grupo VIP
   vipGroupBadge: string;
   vipGroupTitle: string;
   vipGroupSubtitle: string;
+  vipGroupButtonText: string;
+  vipGroupUrl: string;
+  vipGroupMessage: string;
+
+  // Banner 2: Anuncie no Caldas Online
   advertiseTitle: string;
   advertiseSubtitle: string;
+  advertiseRegisterText: string;
+  advertiseRegisterUrl: string;
+  advertiseWhatsappText: string;
   masterWhatsApp: string;
+  advertiseWhatsappMessage: string;
 }
