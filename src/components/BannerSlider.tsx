@@ -13,9 +13,10 @@ type ExtendedBanner = PromoBanner & {
 
 interface BannerSliderProps {
   banners: ExtendedBanner[];
+  categoryName?: string;
 }
 
-export function BannerSlider({ banners }: BannerSliderProps) {
+export function BannerSlider({ banners, categoryName }: BannerSliderProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
@@ -38,7 +39,9 @@ export function BannerSlider({ banners }: BannerSliderProps) {
   const waPhone = cleanWa.startsWith("55") ? cleanWa : `55${cleanWa}`;
   const waText =
     current.whatsappMessage?.trim() ||
-    `Olá! Vi o anúncio "${current.title || "Promocional"}" no portal Caldas Online e gostaria de mais informações.`;
+    `Olá! Vi o anúncio "${current.title || "Promocional"}"${
+      categoryName ? ` em ${categoryName}` : ""
+    } no portal Caldas Online e gostaria de mais informações.`;
 
   const targetHref = isWhatsapp
     ? cleanWa
