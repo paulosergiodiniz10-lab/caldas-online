@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   signInWithEmailAndPassword,
   onAuthStateChanged,
@@ -10,139 +11,81 @@ import {
 import {
   collection,
   getDocs,
-  addDoc,
+  doc,
+  setDoc,
   updateDoc,
   deleteDoc,
-  doc,
   getDoc,
-  setDoc,
-  writeBatch,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { compressAndUploadImage } from "@/lib/cloudinary";
-import {
-  ICON_OPTIONS,
-  COLOR_OPTIONS,
-  DEFAULT_CATEGORIES,
-  DEFAULT_UTILITIES,
-  DEFAULT_SITE_SETTINGS,
-} from "@/lib/constants";
-import {
-  Business,
-  PromoBanner,
-  SiteSettings,
-  CategoryDoc,
-  UtilityDoc,
-} from "@/types";
+import { DEFAULT_CATEGORIES, DEFAULT_SITE_SETTINGS } from "@/lib/constants";
+import { Business, CategoryDoc, SiteSettings } from "@/types";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
-import { CategoryIcon } from "@/components/CategoryIcon";
 import {
   ShieldCheck,
-  Star,
-  CheckCircle,
-  XCircle,
+  LogOut,
+  Loader2,
+  CheckCircle2,
+  Ban,
   Trash2,
+  ExternalLink,
+  Search,
+  Star,
   Plus,
   Upload,
-  Loader2,
-  LogOut,
-  Image as ImageIcon,
-  Store,
   Save,
-  Pencil,
-  Grid,
-  PhoneCall,
-  Type,
-  AlertTriangle,
-  X,
-  Download,
+  Building2,
+  Clock,
+  Image as ImageIcon,
+  Youtube,
+  Settings,
+  Tag,
 } from "lucide-react";
 
-const MASTER_EMAILS = ["caldasonline10@gmail.com"];
-
-function createSlug(text: string) {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)+/g, "");
-}
-
-interface ConfirmModalState {
-  open: boolean;
-  title: string;
-  message: string;
-  onConfirm: () => Promise<void>;
-}
+const MASTER_EMAIL = "caldasonline10@gmail.com";
 
 export default function MasterAdminPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
-  const [email, setEmail] = useState("caldasonline10@gmail.com");
+
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
-  const [loggingIn, setLoggingIn] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [submittingAuth, setSubmittingAuth] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<
-    "empresas" | "categorias" | "utilidades" | "banners" | "textos"
-  >("empresas");
+  const [activeTab, setActiveTab] = useState<"businesses" | "categories" | "settings">(
+    "businesses"
+  );
 
-  const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
-    open: false,
-    title: "",
-    message: "",
-    onConfirm: async () => {},
-  });
-  const [deletingItem, setDeletingItem] = useState(false);
-
+  // Empresas
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [loadingData, setLoadingData] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved">("all");
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // Categorias
   const [categories, setCategories] = useState<CategoryDoc[]>([]);
-  const [utilities, setUtilities] = useState<UtilityDoc[]>([]);
-  const [banners, setBanners] = useState<PromoBanner[]>([]);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatIcon, setNewCatIcon] = useState("Store");
+
+  // Configurações Globais
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
-
-  // Form Categoria
-  const [editingCatId, setEditingCatId] = useState<string | null>(null);
-  const [catName, setCatName] = useState("");
-  const [catSubtitle, setCatSubtitle] = useState("");
-  const [catIconName, setCatIconName] = useState("Utensils");
-  const [catCustomIconUrl, setCatCustomIconUrl] = useState("");
-  const [catBgColor, setCatBgColor] = useState("bg-orange-500");
-  const [catOrder, setCatOrder] = useState(1);
-  const [uploadingCatIcon, setUploadingCatIcon] = useState(false);
-
-  // Form Utilidade Rápida
-  const [editingUtilId, setEditingUtilId] = useState<string | null>(null);
-  const [utilName, setUtilName] = useState("");
-  const [utilNumber, setUtilNumber] = useState("");
-  const [utilColor, setUtilColor] = useState("bg-blue-900");
-  const [utilIconName, setUtilIconName] = useState("PhoneCall");
-  const [utilCustomIconUrl, setUtilCustomIconUrl] = useState("");
-  const [utilOrder, setUtilOrder] = useState(1);
-  const [uploadingUtilIcon, setUploadingUtilIcon] = useState(false);
-
-  // Form Banner
-  const [editingBannerId, setEditingBannerId] = useState<string | null>(null);
-  const [bannerTitle, setBannerTitle] = useState("");
-  const [bannerPlacement, setBannerPlacement] = useState("home");
-  const [bannerLink, setBannerLink] = useState("");
-  const [bannerOrder, setBannerOrder] = useState(1);
-  const [bannerActive, setBannerActive] = useState(true);
-  const [bannerImageUrl, setBannerImageUrl] = useState("");
-  const [uploadingBanner, setUploadingBanner] = useState(false);
-
-  // Form Mais Procurados
-  const [newTagLabel, setNewTagLabel] = useState("");
-  const [newTagQuery, setNewTagQuery] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser && MASTER_EMAILS.includes(currentUser.email || "")) {
+      if (
+        currentUser &&
+        (currentUser.email || "").toLowerCase() === MASTER_EMAIL
+      ) {
+        setUser(currentUser);
         await loadAllMasterData();
+      } else {
+        setUser(null);
       }
       setLoadingAuth(false);
     });
@@ -150,321 +93,219 @@ export default function MasterAdminPage() {
   }, []);
 
   async function loadAllMasterData() {
+    setLoadingData(true);
     try {
+      // 1. Empresas
       const snapBiz = await getDocs(collection(db, "businesses"));
-      setBusinesses(
-        snapBiz.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Business, "id">) }))
-      );
+      const bizList = snapBiz.docs.map((d) => ({
+        ...(d.data() as Omit<Business, "id">),
+        id: d.id,
+      }));
+      // Ordena: Pendentes primeiro, depois mais recentes
+      bizList.sort((a, b) => {
+        const aPending = a.isApproved === false ? 0 : 1;
+        const bPending = b.isApproved === false ? 0 : 1;
+        if (aPending !== bPending) return aPending - bPending;
+        return (b.createdAt || 0) - (a.createdAt || 0);
+      });
+      setBusinesses(bizList);
 
+      // 2. Categorias
       const snapCats = await getDocs(collection(db, "categories"));
-      setCategories(
-        snapCats.docs
-          .map((d) => ({ id: d.id, ...(d.data() as Omit<CategoryDoc, "id">) }))
-          .sort((a, b) => (a.order || 0) - (b.order || 0))
-      );
+      if (!snapCats.empty) {
+        const catList = snapCats.docs
+          .map((d) => ({ ...(d.data() as Omit<CategoryDoc, "id">), id: d.id }))
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
+        setCategories(catList);
+      } else {
+        setCategories(DEFAULT_CATEGORIES);
+      }
 
-      const snapUtils = await getDocs(collection(db, "utilities"));
-      setUtilities(
-        snapUtils.docs
-          .map((d) => ({ id: d.id, ...(d.data() as Omit<UtilityDoc, "id">) }))
-          .sort((a, b) => (a.order || 0) - (b.order || 0))
-      );
-
-      const snapBan = await getDocs(collection(db, "banners"));
-      setBanners(
-        snapBan.docs
-          .map((d) => ({ id: d.id, ...(d.data() as Omit<PromoBanner, "id">) }))
-          .sort((a, b) => (a.order || 0) - (b.order || 0))
-      );
-
+      // 3. Configurações Globais
       const snapSet = await getDoc(doc(db, "settings", "global"));
       if (snapSet.exists()) {
-        setSettings((prev) => ({ ...prev, ...(snapSet.data() as Partial<SiteSettings>) }));
+        setSettings((prev) => ({
+          ...prev,
+          ...(snapSet.data() as Partial<SiteSettings>),
+        }));
       }
     } catch (err) {
       console.error("Erro ao carregar dados Master:", err);
+    } finally {
+      setLoadingData(false);
     }
   }
 
-  const handleMasterLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoginError("");
-    setLoggingIn(true);
+    setAuthError("");
+    setSubmittingAuth(true);
+
     try {
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      if (!MASTER_EMAILS.includes(cred.user.email || "")) {
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+      if ((cred.user.email || "").toLowerCase() !== MASTER_EMAIL) {
         await signOut(auth);
-        setLoginError("Esta conta não possui permissão de Administrador Master.");
+        setAuthError("Acesso restrito: este e-mail não possui permissão Master.");
       }
     } catch {
-      setLoginError("E-mail ou senha inválidos.");
+      setAuthError("E-mail ou senha inválidos.");
     } finally {
-      setLoggingIn(false);
+      setSubmittingAuth(false);
     }
   };
 
-  const askConfirm = (title: string, message: string, onConfirm: () => Promise<void>) => {
-    setConfirmModal({ open: true, title, message, onConfirm });
-  };
+  // AÇÕES DE MODERAÇÃO (LIBERAR / BLOQUEAR / EXCLUIR) COM ALERTA
+  const handleApproveBusiness = async (biz: Business) => {
+    const confirmed = window.confirm(
+      `✅ LIBERAR EMPRESA?\n\nDeseja aprovar e publicar "${biz.name}" imediatamente no guia Caldas Online?`
+    );
+    if (!confirmed) return;
 
-  const executeConfirm = async () => {
-    setDeletingItem(true);
+    setUpdatingId(biz.id);
     try {
-      await confirmModal.onConfirm();
-      setConfirmModal((prev) => ({ ...prev, open: false }));
+      await updateDoc(doc(db, "businesses", biz.id), {
+        isApproved: true,
+        approvedAt: Date.now(),
+      });
+      setBusinesses((prev) =>
+        prev.map((item) =>
+          item.id === biz.id ? { ...item, isApproved: true } : item
+        )
+      );
+      alert(`"${biz.name}" foi liberada e já está visível no site!`);
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao liberar empresa.");
     } finally {
-      setDeletingItem(false);
+      setUpdatingId(null);
     }
   };
 
-  // ================= EMPRESAS =================
-  const toggleFeatured = async (biz: Business) => {
-    await updateDoc(doc(db, "businesses", biz.id), { isFeatured: !biz.isFeatured });
-    setBusinesses((prev) =>
-      prev.map((item) =>
-        item.id === biz.id ? { ...item, isFeatured: !item.isFeatured } : item
-      )
+  const handleBlockBusiness = async (biz: Business) => {
+    const confirmed = window.confirm(
+      `⚠️ BLOQUEAR EMPRESA?\n\nTem certeza que deseja bloquear "${biz.name}"? A página sairá do ar imediatamente para o público.`
     );
+    if (!confirmed) return;
+
+    setUpdatingId(biz.id);
+    try {
+      await updateDoc(doc(db, "businesses", biz.id), {
+        isApproved: false,
+      });
+      setBusinesses((prev) =>
+        prev.map((item) =>
+          item.id === biz.id ? { ...item, isApproved: false } : item
+        )
+      );
+      alert(`"${biz.name}" foi bloqueada e retirada do ar.`);
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao bloquear empresa.");
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
-  const toggleApproved = async (biz: Business) => {
-    await updateDoc(doc(db, "businesses", biz.id), { isApproved: !biz.isApproved });
-    setBusinesses((prev) =>
-      prev.map((item) =>
-        item.id === biz.id ? { ...item, isApproved: !item.isApproved } : item
-      )
+  const handleDeleteBusiness = async (biz: Business) => {
+    const confirmed = window.confirm(
+      `🚨 EXCLUIR DEFINITIVAMENTE?\n\nAtenção: Esta ação apaga "${biz.name}" permanentemente do guia Caldas Online e NÃO pode ser desfeita.\n\nDeseja realmente excluir?`
     );
+    if (!confirmed) return;
+
+    setUpdatingId(biz.id);
+    try {
+      await deleteDoc(doc(db, "businesses", biz.id));
+      setBusinesses((prev) => prev.filter((item) => item.id !== biz.id));
+      alert(`"${biz.name}" foi excluída definitivamente.`);
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao excluir empresa.");
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
-  const updateBusinessLimits = async (
-    bizId: string,
-    field: "maxPhotos" | "maxVideos",
-    value: number
+  // CONTROLE DE PLANO (FOTOS / VÍDEOS / DESTAQUE)
+  const handleUpdatePlan = async (
+    biz: Business,
+    updates: Partial<Business>
   ) => {
-    const safeValue = Math.max(0, Number(value) || 0);
-    await updateDoc(doc(db, "businesses", bizId), { [field]: safeValue });
-    setBusinesses((prev) =>
-      prev.map((item) =>
-        item.id === bizId ? { ...item, [field]: safeValue } : item
-      )
-    );
-  };
-
-  // ================= CATEGORIAS =================
-  const handleImportDefaultCategories = async () => {
-    const batch = writeBatch(db);
-    DEFAULT_CATEGORIES.forEach((cat) => {
-      const ref = doc(db, "categories", cat.id);
-      batch.set(ref, cat);
-    });
-    await batch.commit();
-    await loadAllMasterData();
-  };
-
-  const handleUploadCategoryIcon = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingCatIcon(true);
+    setUpdatingId(biz.id);
     try {
-      const url = await compressAndUploadImage(file);
-      setCatCustomIconUrl(url);
+      await updateDoc(doc(db, "businesses", biz.id), updates);
+      setBusinesses((prev) =>
+        prev.map((item) => (item.id === biz.id ? { ...item, ...updates } : item))
+      );
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Erro ao enviar ícone personalizado.");
+      console.error(err);
+      alert("Erro ao atualizar plano da empresa.");
     } finally {
-      setUploadingCatIcon(false);
+      setUpdatingId(null);
     }
   };
 
-  const resetCategoryForm = () => {
-    setEditingCatId(null);
-    setCatName("");
-    setCatSubtitle("");
-    setCatIconName("Utensils");
-    setCatCustomIconUrl("");
-    setCatBgColor("bg-orange-500");
-    setCatOrder(categories.length + 1);
-  };
-
-  const startEditCategory = (cat: CategoryDoc) => {
-    setEditingCatId(cat.id);
-    setCatName(cat.name);
-    setCatSubtitle(cat.subtitle);
-    setCatIconName(cat.iconName);
-    setCatCustomIconUrl(cat.customIconUrl || "");
-    setCatBgColor(cat.bgColor);
-    setCatOrder(cat.order || 1);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const handleSaveCategory = async (e: React.FormEvent) => {
+  // CATEGORIAS
+  const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    const slug = editingCatId || createSlug(catName);
-    const payload: Omit<CategoryDoc, "id"> = {
+    if (!newCatName.trim()) return;
+    const slug = newCatName
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)+/g, "");
+
+    const payload: CategoryDoc = {
+      id: slug,
+      name: newCatName.trim(),
       slug,
-      name: catName.trim(),
-      subtitle: catSubtitle.trim(),
-      iconName: catIconName,
-      customIconUrl: catCustomIconUrl.trim(),
-      bgColor: catBgColor,
-      order: Number(catOrder) || 1,
+      icon: newCatIcon || "Store",
+      order: categories.length + 1,
       active: true,
     };
 
-    if (editingCatId) {
-      await updateDoc(doc(db, "categories", editingCatId), payload);
-    } else {
-      await setDoc(doc(db, "categories", slug), payload);
-    }
-    resetCategoryForm();
-    await loadAllMasterData();
-  };
-
-  // ================= UTILIDADES RÁPIDAS =================
-  const handleImportDefaultUtilities = async () => {
-    const batch = writeBatch(db);
-    DEFAULT_UTILITIES.forEach((util) => {
-      const ref = doc(db, "utilities", util.id);
-      batch.set(ref, util);
-    });
-    await batch.commit();
-    await loadAllMasterData();
-  };
-
-  const handleUploadUtilityIcon = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingUtilIcon(true);
     try {
-      const url = await compressAndUploadImage(file);
-      setUtilCustomIconUrl(url);
+      await setDoc(doc(db, "categories", slug), payload);
+      setCategories((prev) => [...prev, payload]);
+      setNewCatName("");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Erro ao enviar ícone personalizado.");
-    } finally {
-      setUploadingUtilIcon(false);
+      console.error(err);
+      alert("Erro ao adicionar categoria.");
     }
   };
 
-  const resetUtilityForm = () => {
-    setEditingUtilId(null);
-    setUtilName("");
-    setUtilNumber("");
-    setUtilColor("bg-blue-900");
-    setUtilIconName("PhoneCall");
-    setUtilCustomIconUrl("");
-    setUtilOrder(utilities.length + 1);
-  };
-
-  const startEditUtility = (util: UtilityDoc) => {
-    setEditingUtilId(util.id);
-    setUtilName(util.name);
-    setUtilNumber(util.number);
-    setUtilColor(util.color);
-    setUtilIconName(util.iconName);
-    setUtilCustomIconUrl(util.customIconUrl || "");
-    setUtilOrder(util.order || 1);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const handleSaveUtility = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const payload: Omit<UtilityDoc, "id"> = {
-      name: utilName.trim(),
-      number: utilNumber.trim(),
-      color: utilColor,
-      iconName: utilIconName,
-      customIconUrl: utilCustomIconUrl.trim(),
-      order: Number(utilOrder) || 1,
-      active: true,
-    };
-
-    if (editingUtilId) {
-      await updateDoc(doc(db, "utilities", editingUtilId), payload);
-    } else {
-      await addDoc(collection(db, "utilities"), payload);
+  const handleToggleCategory = async (cat: CategoryDoc) => {
+    const nextActive = cat.active === false;
+    try {
+      await setDoc(
+        doc(db, "categories", cat.id),
+        { ...cat, active: nextActive },
+        { merge: true }
+      );
+      setCategories((prev) =>
+        prev.map((c) => (c.id === cat.id ? { ...c, active: nextActive } : c))
+      );
+    } catch (err) {
+      console.error(err);
     }
-    resetUtilityForm();
-    await loadAllMasterData();
   };
 
-  // ================= BANNERS =================
-  const handleUploadBannerFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // CONFIGURAÇÕES GLOBAIS
+  const handleUploadHeroBanner = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingBanner(true);
     try {
       const url = await compressAndUploadImage(file);
-      setBannerImageUrl(url);
+      setSettings((prev) => ({ ...prev, heroBannerUrl: url }));
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Erro ao enviar imagem do banner.");
+      alert(err instanceof Error ? err.message : "Erro ao enviar banner.");
     } finally {
       setUploadingBanner(false);
+      e.target.value = "";
     }
-  };
-
-  const resetBannerForm = () => {
-    setEditingBannerId(null);
-    setBannerTitle("");
-    setBannerPlacement("home");
-    setBannerLink("");
-    setBannerOrder(banners.length + 1);
-    setBannerActive(true);
-    setBannerImageUrl("");
-  };
-
-  const startEditBanner = (ban: PromoBanner) => {
-    setEditingBannerId(ban.id);
-    setBannerTitle(ban.title);
-    setBannerPlacement(ban.placement);
-    setBannerLink(ban.linkUrl);
-    setBannerOrder(ban.order || 1);
-    setBannerActive(ban.active);
-    setBannerImageUrl(ban.imageUrl);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const handleSaveBanner = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bannerImageUrl) {
-      alert("Envie a arte do banner antes de salvar.");
-      return;
-    }
-    const payload = {
-      title: bannerTitle.trim() || "Banner Promocional",
-      imageUrl: bannerImageUrl,
-      linkUrl: bannerLink.trim(),
-      placement: bannerPlacement,
-      active: bannerActive,
-      order: Number(bannerOrder) || 1,
-    };
-
-    if (editingBannerId) {
-      await updateDoc(doc(db, "banners", editingBannerId), payload);
-    } else {
-      await addDoc(collection(db, "banners"), payload);
-    }
-    resetBannerForm();
-    await loadAllMasterData();
-  };
-
-  // ================= TEXTOS & CONFIGURAÇÕES =================
-  const handleAddSearchTag = () => {
-    if (!newTagLabel.trim() || !newTagQuery.trim()) return;
-    setSettings((prev) => ({
-      ...prev,
-      mostSearchedItems: [
-        ...(prev.mostSearchedItems || []),
-        { label: newTagLabel.trim(), query: newTagQuery.trim().toLowerCase() },
-      ],
-    }));
-    setNewTagLabel("");
-    setNewTagQuery("");
-  };
-
-  const handleRemoveSearchTag = (index: number) => {
-    setSettings((prev) => ({
-      ...prev,
-      mostSearchedItems: prev.mostSearchedItems.filter((_, i) => i !== index),
-    }));
   };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -472,8 +313,9 @@ export default function MasterAdminPage() {
     setSavingSettings(true);
     try {
       await setDoc(doc(db, "settings", "global"), settings, { merge: true });
-      alert("Todos os textos, botões e mensagens foram atualizados no portal!");
-    } catch {
+      alert("✅ Configurações globais salvas com sucesso!");
+    } catch (err) {
+      console.error(err);
       alert("Erro ao salvar configurações.");
     } finally {
       setSavingSettings(false);
@@ -482,44 +324,46 @@ export default function MasterAdminPage() {
 
   if (loadingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <Loader2 className="w-8 h-8 animate-spin text-[#0A4D9C]" />
       </div>
     );
   }
 
-  const isAuthorized = user && MASTER_EMAILS.includes(user.email || "");
-
-  if (!isAuthorized) {
+  // TELA DE LOGIN MASTER
+  if (!user) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
+      <div className="min-h-screen flex flex-col bg-slate-50">
+        <Navbar vipGroupUrl={settings.vipGroupUrl} />
         <main className="flex-1 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-md border border-slate-100 max-w-md w-full p-6 sm:p-8">
             <div className="w-12 h-12 rounded-2xl bg-slate-900 text-[#FFB800] flex items-center justify-center mb-4">
               <ShieldCheck className="w-6 h-6" />
             </div>
-            <h1 className="text-2xl font-black text-slate-900">Acesso Master</h1>
+            <h1 className="text-2xl font-black text-slate-900">Painel Master</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Painel administrativo exclusivo do Caldas Online.
+              Acesso exclusivo para moderação, planos e gestão do Caldas Online.
             </p>
 
-            <form onSubmit={handleMasterLogin} className="mt-6 space-y-4">
+            <form onSubmit={handleLogin} className="mt-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  E-mail Master
+                  E-mail Administrativo
                 </label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  placeholder="caldasonline10@gmail.com"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Senha</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Senha
+                </label>
                 <input
                   type="password"
                   required
@@ -530,18 +374,18 @@ export default function MasterAdminPage() {
                 />
               </div>
 
-              {loginError && (
+              {authError && (
                 <p className="text-xs font-semibold text-red-600 bg-red-50 p-3 rounded-xl">
-                  {loginError}
+                  {authError}
                 </p>
               )}
 
               <button
                 type="submit"
-                disabled={loggingIn}
+                disabled={submittingAuth}
                 className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm py-3 rounded-xl transition flex items-center justify-center gap-2"
               >
-                {loggingIn && <Loader2 className="w-4 h-4 animate-spin" />}
+                {submittingAuth && <Loader2 className="w-4 h-4 animate-spin" />}
                 Entrar no Painel Master
               </button>
             </form>
@@ -552,1278 +396,510 @@ export default function MasterAdminPage() {
     );
   }
 
-  const activeCategoryChoices =
-    categories.length > 0 ? categories : DEFAULT_CATEGORIES;
+  const pendingCount = businesses.filter((b) => b.isApproved === false).length;
+
+  const filteredBusinesses = businesses.filter((biz) => {
+    const matchesSearch =
+      biz.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (biz.neighborhood || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (biz.category || "").toLowerCase().includes(searchTerm.toLowerCase());
+
+    if (!matchesSearch) return false;
+    if (statusFilter === "pending") return biz.isApproved === false;
+    if (statusFilter === "approved") return biz.isApproved !== false;
+    return true;
+  });
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
+    <div className="min-h-screen flex flex-col bg-slate-50">
+      <Navbar
+        vipGroupUrl={settings.vipGroupUrl}
+        masterWhatsApp={settings.masterWhatsApp}
+      />
 
       <main className="max-w-6xl w-full mx-auto px-4 py-6 space-y-6 flex-1">
-        {/* Cabeçalho Master */}
-        <div className="bg-slate-900 text-white rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow">
+        {/* TOPO MASTER */}
+        <div className="bg-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-[#FFB800] text-slate-950 flex items-center justify-center">
-              <ShieldCheck className="w-6 h-6" />
+            <div className="w-12 h-12 rounded-2xl bg-[#FF7A00] text-slate-950 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-7 h-7" />
             </div>
             <div>
-              <h1 className="text-xl font-black">Painel Master • Caldas Online</h1>
+              <h1 className="text-xl sm:text-2xl font-black">
+                Administração Master • Caldas Online
+              </h1>
               <p className="text-xs text-slate-300">
-                Controle total de empresas, limites de mídia, categorias, ícones, banners e textos
+                {businesses.length} empresa(s) cadastradas •{" "}
+                <strong className="text-[#FFB800]">
+                  {pendingCount} aguardando liberação
+                </strong>
               </p>
             </div>
           </div>
 
           <button
             onClick={() => signOut(auth)}
-            className="inline-flex items-center gap-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-xl self-start sm:self-auto"
+            className="inline-flex items-center gap-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 text-white px-4 py-2.5 rounded-xl self-start sm:self-auto"
           >
-            <LogOut className="w-4 h-4" /> Sair
+            <LogOut className="w-4 h-4" /> Sair do Master
           </button>
         </div>
 
-        {/* Navegação por Abas */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+        {/* ABAS DE NAVEGAÇÃO */}
+        <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => setActiveTab("empresas")}
-            className={`inline-flex items-center gap-2 text-xs font-extrabold px-4 py-3 rounded-xl whitespace-nowrap transition ${
-              activeTab === "empresas"
-                ? "bg-[#0A4D9C] text-white shadow"
-                : "bg-white text-slate-700 border border-slate-200"
+            type="button"
+            onClick={() => setActiveTab("businesses")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer ${
+              activeTab === "businesses"
+                ? "bg-[#0A4D9C] text-white shadow-sm"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
             }`}
           >
-            <Store className="w-4 h-4" /> Empresas ({businesses.length})
+            <Building2 className="w-4 h-4" />
+            Empresas & Moderação
+            {pendingCount > 0 && (
+              <span className="bg-[#FF7A00] text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full">
+                {pendingCount}
+              </span>
+            )}
           </button>
 
           <button
-            onClick={() => setActiveTab("categorias")}
-            className={`inline-flex items-center gap-2 text-xs font-extrabold px-4 py-3 rounded-xl whitespace-nowrap transition ${
-              activeTab === "categorias"
-                ? "bg-[#0A4D9C] text-white shadow"
-                : "bg-white text-slate-700 border border-slate-200"
+            type="button"
+            onClick={() => setActiveTab("categories")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer ${
+              activeTab === "categories"
+                ? "bg-[#0A4D9C] text-white shadow-sm"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
             }`}
           >
-            <Grid className="w-4 h-4" /> Categorias & Ícones ({categories.length})
+            <Tag className="w-4 h-4" />
+            Categorias
           </button>
 
           <button
-            onClick={() => setActiveTab("utilidades")}
-            className={`inline-flex items-center gap-2 text-xs font-extrabold px-4 py-3 rounded-xl whitespace-nowrap transition ${
-              activeTab === "utilidades"
-                ? "bg-[#0A4D9C] text-white shadow"
-                : "bg-white text-slate-700 border border-slate-200"
+            type="button"
+            onClick={() => setActiveTab("settings")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer ${
+              activeTab === "settings"
+                ? "bg-[#0A4D9C] text-white shadow-sm"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
             }`}
           >
-            <PhoneCall className="w-4 h-4" /> Utilidades Rápidas ({utilities.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab("banners")}
-            className={`inline-flex items-center gap-2 text-xs font-extrabold px-4 py-3 rounded-xl whitespace-nowrap transition ${
-              activeTab === "banners"
-                ? "bg-[#0A4D9C] text-white shadow"
-                : "bg-white text-slate-700 border border-slate-200"
-            }`}
-          >
-            <ImageIcon className="w-4 h-4" /> Banners ({banners.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab("textos")}
-            className={`inline-flex items-center gap-2 text-xs font-extrabold px-4 py-3 rounded-xl whitespace-nowrap transition ${
-              activeTab === "textos"
-                ? "bg-[#0A4D9C] text-white shadow"
-                : "bg-white text-slate-700 border border-slate-200"
-            }`}
-          >
-            <Type className="w-4 h-4" /> Textos, Banners & VIP
+            <Settings className="w-4 h-4" />
+            Banners & WhatsApp Master
           </button>
         </div>
 
-        {/* ==================== ABA 1: EMPRESAS ==================== */}
-        {activeTab === "empresas" && (
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <h2 className="font-extrabold text-slate-900">Empresas Cadastradas</h2>
-              <p className="text-xs text-slate-500">
-                Padrão grátis: <strong>5 fotos</strong> e <strong>1 vídeo</strong> (até 4 vídeos para planos pagos)
-              </p>
+        {/* ABA 1: EMPRESAS & MODERAÇÃO */}
+        {activeTab === "businesses" && (
+          <div className="space-y-4">
+            {/* Barra de Busca e Filtros de Status */}
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col md:flex-row gap-3 justify-between">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar empresa por nome, bairro ou categoria..."
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("all")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold cursor-pointer ${
+                    statusFilter === "all"
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  Todas ({businesses.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("pending")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold cursor-pointer ${
+                    statusFilter === "pending"
+                      ? "bg-amber-500 text-slate-950"
+                      : "bg-amber-50 text-amber-800 border border-amber-200"
+                  }`}
+                >
+                  ⏳ Aguardando Liberação ({pendingCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("approved")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold cursor-pointer ${
+                    statusFilter === "approved"
+                      ? "bg-emerald-600 text-white"
+                      : "bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  ✅ Liberadas ({businesses.length - pendingCount})
+                </button>
+              </div>
             </div>
 
-            {businesses.length === 0 ? (
-              <p className="text-sm text-slate-500">Nenhuma empresa cadastrada ainda.</p>
+            {loadingData ? (
+              <div className="py-12 flex justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-[#0A4D9C]" />
+              </div>
+            ) : filteredBusinesses.length === 0 ? (
+              <div className="bg-white rounded-2xl p-8 text-center text-sm text-slate-500 border border-slate-100">
+                Nenhuma empresa encontrada neste filtro.
+              </div>
             ) : (
-              <div className="divide-y divide-slate-100">
-                {businesses.map((biz) => (
-                  <div
-                    key={biz.id}
-                    className="py-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-slate-900">{biz.name}</span>
-                        {biz.isFeatured && (
-                          <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
-                            DESTAQUE PAGO
-                          </span>
-                        )}
-                        {biz.coupon?.active && (
-                          <span className="text-[10px] font-black bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
-                            CUPOM ATIVO
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Segmento: {biz.category} • Bairro: {biz.neighborhood} • Views:{" "}
-                        {biz.viewsCount || 0} • WhatsApp: {biz.whatsappClicks || 0}
-                      </p>
-                    </div>
+              <div className="space-y-4">
+                {filteredBusinesses.map((biz) => {
+                  const isPending = biz.isApproved === false;
+                  const isBusy = updatingId === biz.id;
 
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {/* Controle de Limite de Fotos */}
-                      <div className="inline-flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200">
-                        <span className="text-[11px] font-bold text-slate-600">Fotos:</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={50}
-                          defaultValue={biz.maxPhotos ?? 5}
-                          onBlur={(e) =>
-                            updateBusinessLimits(biz.id, "maxPhotos", Number(e.target.value))
-                          }
-                          className="w-12 text-center text-xs font-extrabold bg-white border border-slate-300 rounded-lg py-1"
-                          title="Limite de fotos liberadas para este cliente"
-                        />
-                      </div>
+                  return (
+                    <div
+                      key={biz.id}
+                      className={`bg-white rounded-2xl p-5 shadow-sm border-2 transition space-y-4 ${
+                        isPending
+                          ? "border-amber-400 bg-amber-50/20"
+                          : "border-slate-100"
+                      }`}
+                    >
+                      {/* TARJA SUPERIOR DE STATUS */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {isPending ? (
+                            <span className="inline-flex items-center gap-1.5 bg-amber-500 text-slate-950 text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-xs">
+                              <Clock className="w-3.5 h-3.5" />
+                              AGUARDANDO LIBERAÇÃO
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 text-xs font-extrabold uppercase tracking-wider px-3 py-1 rounded-full">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              PUBLICADA NO SITE
+                            </span>
+                          )}
 
-                      {/* Controle de Limite de Vídeos */}
-                      <div className="inline-flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200">
-                        <span className="text-[11px] font-bold text-slate-600">Vídeos:</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={4}
-                          defaultValue={biz.maxVideos ?? 1}
-                          onBlur={(e) =>
-                            updateBusinessLimits(
-                              biz.id,
-                              "maxVideos",
-                              Math.min(4, Number(e.target.value))
-                            )
-                          }
-                          className="w-11 text-center text-xs font-extrabold bg-white border border-slate-300 rounded-lg py-1"
-                          title="Limite de vídeos do YouTube (1 = 1 horizontal; até 4 = 1 horizontal + 3 verticais)"
-                        />
+                          {biz.isFeatured && (
+                            <span className="inline-flex items-center gap-1 bg-blue-100 text-[#0A4D9C] text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-full">
+                              <Star className="w-3 h-3 fill-[#0A4D9C]" /> Patrocinada
+                            </span>
+                          )}
+                        </div>
+
+                        {/* BOTÃO VISTORIAR PÁGINA */}
+                        <Link
+                          href={`/empresa/${biz.id}`}
+                          target="_blank"
+                          className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-[#0A4D9C] font-extrabold text-xs px-3.5 py-2 rounded-xl transition"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          Vistoriar Página
+                        </Link>
                       </div>
 
-                      <button
-                        onClick={() => toggleFeatured(biz)}
-                        className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl transition ${
-                          biz.isFeatured
-                            ? "bg-[#FFB800] text-slate-950"
-                            : "bg-slate-100 text-slate-700 hover:bg-amber-50"
-                        }`}
-                      >
-                        <Star className="w-3.5 h-3.5" />
-                        {biz.isFeatured ? "Remover Destaque" : "Destacar"}
-                      </button>
+                      {/* DADOS DA EMPRESA + CONTROLES DE PLANO */}
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div className="flex items-start gap-3.5">
+                          {biz.logoUrl ? (
+                            <img
+                              src={biz.logoUrl}
+                              alt={biz.name}
+                              className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-14 h-14 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
+                              <Building2 className="w-6 h-6" />
+                            </div>
+                          )}
+                          <div className="space-y-0.5">
+                            <h3 className="text-base sm:text-lg font-black text-slate-900">
+                              {biz.name}
+                            </h3>
+                            <p className="text-xs text-slate-500">
+                              Categoria: <strong>{biz.category}</strong> • Bairro:{" "}
+                              <strong>{biz.neighborhood || "Não informado"}</strong>
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              WhatsApp: <strong>{biz.whatsapp || "Não informado"}</strong> •{" "}
+                              Visitas: <strong>{biz.viewsCount || 0}</strong> • Cliques WA:{" "}
+                              <strong>{biz.whatsappClicks || 0}</strong>
+                            </p>
+                          </div>
+                        </div>
 
-                      <button
-                        onClick={() => toggleApproved(biz)}
-                        className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl transition ${
-                          biz.isApproved
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-red-50 text-red-700"
-                        }`}
-                      >
-                        {biz.isApproved ? (
-                          <>
-                            <CheckCircle className="w-3.5 h-3.5" /> Ativa
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="w-3.5 h-3.5" /> Pausada
-                          </>
-                        )}
-                      </button>
+                        {/* CONTROLES DE PLANO (FOTOS, VÍDEOS, DESTAQUE) */}
+                        <div className="flex flex-wrap items-center gap-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200/70">
+                          <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                            <ImageIcon className="w-3.5 h-3.5 text-[#0A4D9C]" />
+                            Fotos:
+                            <select
+                              value={biz.maxPhotos ?? 6}
+                              disabled={isBusy}
+                              onChange={(e) =>
+                                handleUpdatePlan(biz, {
+                                  maxPhotos: Number(e.target.value),
+                                })
+                              }
+                              className="rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white font-extrabold"
+                            >
+                              <option value={6}>6 (Grátis)</option>
+                              <option value={12}>12 fotos</option>
+                              <option value={20}>20 fotos</option>
+                              <option value={30}>30 fotos</option>
+                            </select>
+                          </label>
 
-                      <button
-                        onClick={() =>
-                          askConfirm(
-                            "Excluir Empresa",
-                            `Tem certeza que deseja excluir permanentemente "${biz.name}"?`,
-                            async () => {
-                              await deleteDoc(doc(db, "businesses", biz.id));
-                              setBusinesses((prev) => prev.filter((b) => b.id !== biz.id));
+                          <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                            <Youtube className="w-3.5 h-3.5 text-red-600" />
+                            Vídeos:
+                            <select
+                              value={biz.maxVideos ?? 0}
+                              disabled={isBusy}
+                              onChange={(e) =>
+                                handleUpdatePlan(biz, {
+                                  maxVideos: Number(e.target.value),
+                                })
+                              }
+                              className="rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white font-extrabold"
+                            >
+                              <option value={0}>0 (Grátis)</option>
+                              <option value={1}>1 (Horizontal)</option>
+                              <option value={2}>2 (1H + 1V)</option>
+                              <option value={3}>3 (1H + 2V)</option>
+                              <option value={4}>4 (1H + 3V)</option>
+                            </select>
+                          </label>
+
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() =>
+                              handleUpdatePlan(biz, {
+                                isFeatured: !biz.isFeatured,
+                              })
                             }
-                          )
-                        }
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-xl"
-                        title="Excluir empresa"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                            className={`px-3 py-1.5 rounded-lg text-xs font-extrabold inline-flex items-center gap-1 transition cursor-pointer ${
+                              biz.isFeatured
+                                ? "bg-[#FFB800] text-slate-950"
+                                : "bg-white border border-slate-300 text-slate-600 hover:bg-slate-100"
+                            }`}
+                          >
+                            <Star className="w-3.5 h-3.5" />
+                            {biz.isFeatured ? "Em Destaque" : "Destacar"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* BOTÕES DE MODERAÇÃO: LIBERAR | BLOQUEAR | EXCLUIR */}
+                      <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2.5">
+                        <button
+                          type="button"
+                          disabled={isBusy || !isPending}
+                          onClick={() => handleApproveBusiness(biz)}
+                          className={`px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 transition ${
+                            isPending
+                              ? "bg-[#1DB954] hover:bg-[#18a349] text-white shadow-sm cursor-pointer"
+                              : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                          }`}
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          Liberar Empresa
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isBusy || isPending}
+                          onClick={() => handleBlockBusiness(biz)}
+                          className={`px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 transition ${
+                            !isPending
+                              ? "bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-sm cursor-pointer"
+                              : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                          }`}
+                        >
+                          <Ban className="w-4 h-4" />
+                          Bloquear
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => handleDeleteBusiness(biz)}
+                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Excluir
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         )}
 
-        {/* ==================== ABA 2: CATEGORIAS & ÍCONES ==================== */}
-        {activeTab === "categorias" && (
-          <div className="space-y-6">
-            {categories.length === 0 && (
-              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-extrabold text-[#0A4D9C]">
-                    O site está exibindo as 10 categorias padrão.
-                  </p>
-                  <p className="text-xs text-slate-600">
-                    Clique no botão ao lado para importar todas para o banco e poder editar ou excluir qualquer uma.
-                  </p>
-                </div>
-                <button
-                  onClick={handleImportDefaultCategories}
-                  className="bg-[#0A4D9C] text-white font-bold text-xs px-4 py-2.5 rounded-xl inline-flex items-center gap-1.5 shrink-0"
-                >
-                  <Download className="w-4 h-4" /> Importar 10 Categorias Padrão
-                </button>
-              </div>
-            )}
+        {/* ABA 2: CATEGORIAS */}
+        {activeTab === "categories" && (
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
+            <h2 className="text-lg font-black text-slate-900">
+              Gerenciar Categorias do Guia
+            </h2>
 
             <form
-              onSubmit={handleSaveCategory}
-              className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4"
+              onSubmit={handleAddCategory}
+              className="flex flex-col sm:flex-row gap-3"
             >
-              <div className="flex items-center justify-between">
-                <h2 className="font-extrabold text-slate-900">
-                  {editingCatId ? `Editando Categoria: ${catName}` : "Criar Nova Categoria"}
-                </h2>
-                {editingCatId && (
-                  <button
-                    type="button"
-                    onClick={resetCategoryForm}
-                    className="text-xs font-bold text-slate-500 hover:text-slate-800"
-                  >
-                    Cancelar edição
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Nome da Categoria *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={catName}
-                    onChange={(e) => setCatName(e.target.value)}
-                    placeholder="Ex: Pet Shop & Agro"
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Subtítulo curto *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={catSubtitle}
-                    onChange={(e) => setCatSubtitle(e.target.value)}
-                    placeholder="Ex: Clínicas vet, rações, banho e tosa..."
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Ordem de exibição
-                  </label>
-                  <input
-                    type="number"
-                    value={catOrder}
-                    onChange={(e) => setCatOrder(Number(e.target.value))}
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-2">
-                  Cor do Quadrado
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {COLOR_OPTIONS.map((c) => (
-                    <button
-                      type="button"
-                      key={c.value}
-                      onClick={() => setCatBgColor(c.value)}
-                      className={`w-8 h-8 rounded-xl ${c.value} flex items-center justify-center transition ${
-                        catBgColor === c.value
-                          ? "ring-2 ring-offset-2 ring-slate-900 scale-110"
-                          : "opacity-80 hover:opacity-100"
-                      }`}
-                      title={c.label}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Escolha um Ícone (ou envie uma imagem PNG própria)
-                  </label>
-                  <label className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl cursor-pointer">
-                    {uploadingCatIcon ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Upload className="w-3.5 h-3.5" />
-                    )}
-                    Subir Ícone PNG
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleUploadCategoryIcon}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-
-                {catCustomIconUrl && (
-                  <div className="mb-3 flex items-center gap-2 bg-blue-50 p-2 rounded-xl w-fit">
-                    <img src={catCustomIconUrl} alt="" className="w-6 h-6 object-contain" />
-                    <span className="text-xs font-bold text-[#0A4D9C]">
-                      Ícone personalizado ativo
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setCatCustomIconUrl("")}
-                      className="text-red-500 p-1"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-6 sm:grid-cols-12 gap-2 max-h-44 overflow-y-auto p-2 border border-slate-200 rounded-2xl bg-slate-50">
-                  {ICON_OPTIONS.map((ic) => (
-                    <button
-                      type="button"
-                      key={ic.name}
-                      onClick={() => {
-                        setCatIconName(ic.name);
-                        setCatCustomIconUrl("");
-                      }}
-                      title={ic.label}
-                      className={`p-2.5 rounded-xl flex items-center justify-center transition ${
-                        !catCustomIconUrl && catIconName === ic.name
-                          ? `${catBgColor} text-white shadow`
-                          : "bg-white text-slate-700 hover:bg-slate-200"
-                      }`}
-                    >
-                      <CategoryIcon name={ic.name} className="w-5 h-5" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
+              <input
+                type="text"
+                required
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                placeholder="Nome da nova categoria (ex: Pet Shop)"
+                className="flex-1 rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+              />
+              <input
+                type="text"
+                value={newCatIcon}
+                onChange={(e) => setNewCatIcon(e.target.value)}
+                placeholder="Ícone (ex: Store, Utensils, Hotel)"
+                className="sm:w-56 rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+              />
               <button
                 type="submit"
-                className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-xs px-5 py-3 rounded-xl inline-flex items-center gap-2"
+                className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-xs px-5 py-3 rounded-xl inline-flex items-center justify-center gap-1.5"
               >
-                {editingCatId ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                {editingCatId ? "Salvar Alterações da Categoria" : "Adicionar Categoria"}
+                <Plus className="w-4 h-4" /> Adicionar
               </button>
             </form>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {categories.map((cat) => (
                 <div
                   key={cat.id}
-                  className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between gap-3"
+                  className="p-3.5 rounded-xl border border-slate-200 flex items-center justify-between"
                 >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-11 h-11 rounded-xl ${cat.bgColor} flex items-center justify-center shrink-0`}
-                    >
-                      <CategoryIcon
-                        name={cat.iconName}
-                        customIconUrl={cat.customIconUrl}
-                        className="w-5 h-5 text-white"
-                      />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm text-slate-900">
-                        #{cat.order} • {cat.name}
-                      </p>
-                      <p className="text-xs text-slate-500 line-clamp-1">{cat.subtitle}</p>
-                    </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">{cat.name}</p>
+                    <p className="text-[11px] text-slate-400">Slug: {cat.slug}</p>
                   </div>
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => startEditCategory(cat)}
-                      className="p-2 text-[#0A4D9C] hover:bg-blue-50 rounded-xl"
-                      title="Editar"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() =>
-                        askConfirm(
-                          "Excluir Categoria",
-                          `Deseja realmente excluir a categoria "${cat.name}"?`,
-                          async () => {
-                            await deleteDoc(doc(db, "categories", cat.id));
-                            setCategories((prev) => prev.filter((c) => c.id !== cat.id));
-                          }
-                        )
-                      }
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-xl"
-                      title="Excluir"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCategory(cat)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold ${
+                      cat.active !== false
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-slate-200 text-slate-600"
+                    }`}
+                  >
+                    {cat.active !== false ? "Ativa" : "Oculta"}
+                  </button>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* ==================== ABA 3: UTILIDADES RÁPIDAS ==================== */}
-        {activeTab === "utilidades" && (
-          <div className="space-y-6">
-            {utilities.length === 0 && (
-              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-extrabold text-[#0A4D9C]">
-                    O site está exibindo os 9 telefones úteis padrão.
-                  </p>
-                  <p className="text-xs text-slate-600">
-                    Importe para o banco para editar números, nomes, ícones ou criar novos botões.
-                  </p>
-                </div>
-                <button
-                  onClick={handleImportDefaultUtilities}
-                  className="bg-[#0A4D9C] text-white font-bold text-xs px-4 py-2.5 rounded-xl inline-flex items-center gap-1.5 shrink-0"
-                >
-                  <Download className="w-4 h-4" /> Importar 9 Utilidades Padrão
-                </button>
-              </div>
-            )}
+        {/* ABA 3: CONFIGURAÇÕES GLOBAIS E BANNERS */}
+        {activeTab === "settings" && (
+          <form
+            onSubmit={handleSaveSettings}
+            className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5"
+          >
+            <h2 className="text-lg font-black text-slate-900">
+              Banners, Grupo VIP e WhatsApp Master
+            </h2>
 
-            <form
-              onSubmit={handleSaveUtility}
-              className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <h2 className="font-extrabold text-slate-900">
-                  {editingUtilId
-                    ? `Editando Utilidade: ${utilName}`
-                    : "Adicionar Novo Telefone / Utilidade Rápida"}
-                </h2>
-                {editingUtilId && (
-                  <button
-                    type="button"
-                    onClick={resetUtilityForm}
-                    className="text-xs font-bold text-slate-500 hover:text-slate-800"
-                  >
-                    Cancelar edição
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Nome do Órgão / Serviço *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={utilName}
-                    onChange={(e) => setUtilName(e.target.value)}
-                    placeholder="Ex: Guarda Municipal"
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Número de Telefone *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={utilNumber}
-                    onChange={(e) => setUtilNumber(e.target.value)}
-                    placeholder="Ex: 153 ou (64) 3454-3500"
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Ordem
-                  </label>
-                  <input
-                    type="number"
-                    value={utilOrder}
-                    onChange={(e) => setUtilOrder(Number(e.target.value))}
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-              </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-2">
-                  Cor do Ícone
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  WhatsApp Master (com DDI 55 e DDD)
                 </label>
-                <div className="flex flex-wrap gap-2">
-                  {COLOR_OPTIONS.map((c) => (
-                    <button
-                      type="button"
-                      key={c.value}
-                      onClick={() => setUtilColor(c.value)}
-                      className={`w-8 h-8 rounded-xl ${c.value} transition ${
-                        utilColor === c.value
-                          ? "ring-2 ring-offset-2 ring-slate-900 scale-110"
-                          : "opacity-80 hover:opacity-100"
-                      }`}
-                      title={c.label}
-                    />
-                  ))}
-                </div>
+                <input
+                  type="text"
+                  value={settings.masterWhatsApp || ""}
+                  onChange={(e) =>
+                    setSettings({ ...settings, masterWhatsApp: e.target.value })
+                  }
+                  placeholder="5564981005505"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Escolha um Ícone (ou envie PNG)
-                  </label>
-                  <label className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl cursor-pointer">
-                    {uploadingUtilIcon ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Upload className="w-3.5 h-3.5" />
-                    )}
-                    Subir Ícone PNG
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleUploadUtilityIcon}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-6 sm:grid-cols-12 gap-2 max-h-40 overflow-y-auto p-2 border border-slate-200 rounded-2xl bg-slate-50">
-                  {ICON_OPTIONS.map((ic) => (
-                    <button
-                      type="button"
-                      key={ic.name}
-                      onClick={() => {
-                        setUtilIconName(ic.name);
-                        setUtilCustomIconUrl("");
-                      }}
-                      title={ic.label}
-                      className={`p-2.5 rounded-xl flex items-center justify-center transition ${
-                        !utilCustomIconUrl && utilIconName === ic.name
-                          ? `${utilColor} text-white shadow`
-                          : "bg-white text-slate-700 hover:bg-slate-200"
-                      }`}
-                    >
-                      <CategoryIcon name={ic.name} className="w-5 h-5" />
-                    </button>
-                  ))}
-                </div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Link do Grupo VIP de Ofertas (WhatsApp)
+                </label>
+                <input
+                  type="url"
+                  value={settings.vipGroupUrl || ""}
+                  onChange={(e) =>
+                    setSettings({ ...settings, vipGroupUrl: e.target.value })
+                  }
+                  placeholder="https://chat.whatsapp.com/..."
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
               </div>
 
-              <button
-                type="submit"
-                className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-xs px-5 py-3 rounded-xl inline-flex items-center gap-2"
-              >
-                {editingUtilId ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                {editingUtilId ? "Salvar Utilidade" : "Adicionar Telefone Útil"}
-              </button>
-            </form>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {utilities.map((util) => (
-                <div
-                  key={util.id}
-                  className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between gap-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-xl ${util.color} flex items-center justify-center shrink-0`}
-                    >
-                      <CategoryIcon
-                        name={util.iconName}
-                        customIconUrl={util.customIconUrl}
-                        className="w-5 h-5 text-white"
-                      />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm text-slate-900">{util.name}</p>
-                      <p className="text-xs font-extrabold text-red-600">{util.number}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => startEditUtility(util)}
-                      className="p-2 text-[#0A4D9C] hover:bg-blue-50 rounded-xl"
-                      title="Editar"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() =>
-                        askConfirm(
-                          "Excluir Utilidade Rápida",
-                          `Deseja remover "${util.name} (${util.number})" da barra de utilidades?`,
-                          async () => {
-                            await deleteDoc(doc(db, "utilities", util.id));
-                            setUtilities((prev) => prev.filter((u) => u.id !== util.id));
-                          }
-                        )
-                      }
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-xl"
-                      title="Excluir"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ==================== ABA 4: BANNERS PROMOCIONAIS ==================== */}
-        {activeTab === "banners" && (
-          <div className="space-y-6">
-            <form
-              onSubmit={handleSaveBanner}
-              className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <h2 className="font-extrabold text-slate-900">
-                  {editingBannerId ? "Editando Banner" : "Cadastrar Novo Banner Pago"}
-                </h2>
-                {editingBannerId && (
-                  <button
-                    type="button"
-                    onClick={resetBannerForm}
-                    className="text-xs font-bold text-slate-500 hover:text-slate-800"
-                  >
-                    Cancelar edição
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Cliente / Título *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={bannerTitle}
-                    onChange={(e) => setBannerTitle(e.target.value)}
-                    placeholder="Ex: Hotel Águas do Sol"
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Local de Exibição
-                  </label>
-                  <select
-                    value={bannerPlacement}
-                    onChange={(e) => setBannerPlacement(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white"
-                  >
-                    <option value="home">Página Inicial (Home)</option>
-                    {activeCategoryChoices.map((c) => (
-                      <option key={c.slug || c.id} value={c.slug || c.id}>
-                        Segmento: {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Link de Destino
-                  </label>
-                  <input
-                    type="text"
-                    value={bannerLink}
-                    onChange={(e) => setBannerLink(e.target.value)}
-                    placeholder="https://wa.me/5564..."
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Ordem
-                  </label>
-                  <input
-                    type="number"
-                    value={bannerOrder}
-                    onChange={(e) => setBannerOrder(Number(e.target.value))}
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <label className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-4 py-3 rounded-xl cursor-pointer">
+              <div className="sm:col-span-2 space-y-2">
+                <label className="block text-xs font-bold text-slate-700">
+                  Banner Principal da Home (Opcional)
+                </label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer">
                     {uploadingBanner ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <Upload className="w-4 h-4" />
                     )}
-                    {bannerImageUrl ? "Trocar Arte" : "Enviar Arte (1200x400px, máx 1MB)"}
+                    Enviar Novo Banner
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={handleUploadBannerFile}
+                      onChange={handleUploadHeroBanner}
                       className="hidden"
                     />
                   </label>
-
-                  {bannerImageUrl && (
-                    <img
-                      src={bannerImageUrl}
-                      alt="Preview"
-                      className="h-12 w-32 object-cover rounded-lg border"
-                    />
-                  )}
-
-                  <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={bannerActive}
-                      onChange={(e) => setBannerActive(e.target.checked)}
-                      className="w-4 h-4 accent-[#0A4D9C]"
-                    />
-                    Banner Ativo
-                  </label>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={uploadingBanner}
-                  className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-xs px-5 py-3 rounded-xl flex items-center gap-1.5"
-                >
-                  {editingBannerId ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                  {editingBannerId ? "Salvar Alterações" : "Publicar Banner"}
-                </button>
-              </div>
-            </form>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {banners.map((ban) => (
-                <div
-                  key={ban.id}
-                  className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100"
-                >
-                  <img
-                    src={ban.imageUrl}
-                    alt={ban.title}
-                    className="w-full h-36 object-cover"
-                  />
-                  <div className="p-4 flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-sm text-slate-900">{ban.title}</p>
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            ban.active
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-slate-200 text-slate-600"
-                          }`}
-                        >
-                          {ban.active ? "Ativo" : "Pausado"}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500">
-                        Local: <span className="font-bold uppercase">{ban.placement}</span> • Ordem: {ban.order}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => startEditBanner(ban)}
-                        className="p-2 text-[#0A4D9C] hover:bg-blue-50 rounded-xl"
-                        title="Editar Banner"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() =>
-                          askConfirm(
-                            "Excluir Banner",
-                            `Tem certeza que deseja remover o banner "${ban.title}"?`,
-                            async () => {
-                              await deleteDoc(doc(db, "banners", ban.id));
-                              setBanners((prev) => prev.filter((b) => b.id !== ban.id));
-                            }
-                          )
-                        }
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-xl"
-                        title="Excluir Banner"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ==================== ABA 5: TEXTOS, BANNERS INFERIORES & VIP ==================== */}
-        {activeTab === "textos" && (
-          <form onSubmit={handleSaveSettings} className="space-y-6">
-            {/* 1. Topo e Busca */}
-            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
-              <h2 className="font-extrabold text-slate-900">1. Textos do Topo e Busca</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Frase pequena acima do título
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.heroBadge}
-                    onChange={(e) => setSettings({ ...settings, heroBadge: e.target.value })}
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Texto dentro da caixa de busca
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.searchPlaceholder}
-                    onChange={(e) =>
-                      setSettings({ ...settings, searchPlaceholder: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Título Principal (Parte Branca)
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.heroTitlePrefix}
-                    onChange={(e) =>
-                      setSettings({ ...settings, heroTitlePrefix: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Título Principal (Destaque Amarelo)
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.heroTitleHighlight}
-                    onChange={(e) =>
-                      setSettings({ ...settings, heroTitleHighlight: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 2. Títulos das Seções e Mais Procurados */}
-            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
-              <h2 className="font-extrabold text-slate-900">
-                2. Títulos das Seções & Botões Mais Procurados
-              </h2>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Título Seção Mais Procurados
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.mostSearchedTitle}
-                    onChange={(e) =>
-                      setSettings({ ...settings, mostSearchedTitle: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Subtítulo Mais Procurados
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.mostSearchedSubtitle}
-                    onChange={(e) =>
-                      setSettings({ ...settings, mostSearchedSubtitle: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Título Empresas em Destaque
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.featuredTitle}
-                    onChange={(e) =>
-                      setSettings({ ...settings, featuredTitle: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Título Utilidades Rápidas
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.utilitiesTitle}
-                    onChange={(e) =>
-                      setSettings({ ...settings, utilitiesTitle: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-slate-100">
-                <label className="block text-xs font-bold text-slate-700 mb-2">
-                  Atalhos de Busca Rápida (Mais Procurados)
-                </label>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {(settings.mostSearchedItems || []).map((tag, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-800 text-xs font-bold px-3 py-1.5 rounded-xl"
+                  {settings.heroBannerUrl && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSettings({ ...settings, heroBannerUrl: "" })
+                      }
+                      className="text-xs font-bold text-red-600 hover:underline"
                     >
-                      {tag.label} ({tag.query})
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSearchTag(idx)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </span>
-                  ))}
+                      Remover Banner
+                    </button>
+                  )}
                 </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="text"
-                    value={newTagLabel}
-                    onChange={(e) => setNewTagLabel(e.target.value)}
-                    placeholder="Nome do botão (ex: Açaiteria)"
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-xs"
+                {settings.heroBannerUrl && (
+                  <img
+                    src={settings.heroBannerUrl}
+                    alt="Banner Principal"
+                    className="w-full max-h-48 object-cover rounded-2xl border border-slate-200 mt-2"
                   />
-                  <input
-                    type="text"
-                    value={newTagQuery}
-                    onChange={(e) => setNewTagQuery(e.target.value)}
-                    placeholder="Termo buscado (ex: acai)"
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-xs"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddSearchTag}
-                    className="bg-slate-800 text-white font-bold text-xs px-3.5 py-2 rounded-xl"
-                  >
-                    + Adicionar Atalho
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* 3. BANNER LARANJA: GRUPO VIP & MENSAGEM AUTOMÁTICA */}
-            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border-2 border-orange-200 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-[#FF7A00]" />
-                <h2 className="font-extrabold text-slate-900">
-                  3. Banner Laranja — Clube Exclusivo / Grupo VIP
-                </h2>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Etiqueta Preta (Badge)
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.vipGroupBadge}
-                    onChange={(e) =>
-                      setSettings({ ...settings, vipGroupBadge: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Texto do Botão Preto
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.vipGroupButtonText}
-                    onChange={(e) =>
-                      setSettings({ ...settings, vipGroupButtonText: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Título Grande do Banner Laranja
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.vipGroupTitle}
-                    onChange={(e) =>
-                      setSettings({ ...settings, vipGroupTitle: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Texto Descritivo do Banner Laranja
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={settings.vipGroupSubtitle}
-                    onChange={(e) =>
-                      setSettings({ ...settings, vipGroupSubtitle: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Link do Grupo VIP (https://chat.whatsapp.com/... ou deixe padrão para abrir WhatsApp)
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.vipGroupUrl}
-                    onChange={(e) => setSettings({ ...settings, vipGroupUrl: e.target.value })}
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Mensagem Automática que chega do Cliente (Grupo VIP)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={settings.vipGroupMessage}
-                    onChange={(e) =>
-                      setSettings({ ...settings, vipGroupMessage: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 4. BANNER AZUL: ANUNCIE NO CALDAS ONLINE */}
-            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border-2 border-blue-200 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-[#0A4D9C]" />
-                <h2 className="font-extrabold text-slate-900">
-                  4. Banner Azul — Anuncie no Caldas Online & Botões
-                </h2>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Título Principal do Banner Azul
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.advertiseTitle}
-                    onChange={(e) =>
-                      setSettings({ ...settings, advertiseTitle: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Subtítulo / Descrição do Banner Azul
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={settings.advertiseSubtitle}
-                    onChange={(e) =>
-                      setSettings({ ...settings, advertiseSubtitle: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Texto do Botão Branco (Cadastro)
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.advertiseRegisterText}
-                    onChange={(e) =>
-                      setSettings({ ...settings, advertiseRegisterText: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Link do Botão Branco (Padrão: /painel-empresa)
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.advertiseRegisterUrl}
-                    onChange={(e) =>
-                      setSettings({ ...settings, advertiseRegisterUrl: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Texto do Botão Verde (WhatsApp)
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.advertiseWhatsappText}
-                    onChange={(e) =>
-                      setSettings({ ...settings, advertiseWhatsappText: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Seu Telefone WhatsApp (com 55 + DDD)
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.masterWhatsApp}
-                    onChange={(e) =>
-                      setSettings({ ...settings, masterWhatsApp: e.target.value })
-                    }
-                    placeholder="5564981005505"
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Mensagem Automática que chega no seu WhatsApp (Botão Verde)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={settings.advertiseWhatsappMessage}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        advertiseWhatsappMessage: e.target.value,
-                      })
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
+                )}
               </div>
             </div>
 
             <button
               type="submit"
               disabled={savingSettings}
-              className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-sm px-6 py-3.5 rounded-xl flex items-center gap-2 shadow"
+              className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-sm px-6 py-3.5 rounded-xl inline-flex items-center gap-2"
             >
               {savingSettings ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              SALVAR TODOS OS TEXTOS, BOTÕES E MENSAGENS
+              Salvar Configurações Globais
             </button>
           </form>
         )}
       </main>
-
-      {/* POP-UP DE ALERTA PARA EXCLUSÃO */}
-      {confirmModal.open && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-lg font-black text-slate-900">{confirmModal.title}</h3>
-              <p className="text-sm text-slate-600 mt-1">{confirmModal.message}</p>
-            </div>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                disabled={deletingItem}
-                onClick={() => setConfirmModal((prev) => ({ ...prev, open: false }))}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={deletingItem}
-                onClick={executeConfirm}
-                className="px-4 py-2.5 rounded-xl text-xs font-extrabold bg-red-600 hover:bg-red-700 text-white inline-flex items-center gap-1.5"
-              >
-                {deletingItem && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                Sim, Excluir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <Footer settings={settings} />
     </div>
