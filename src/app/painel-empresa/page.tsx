@@ -54,6 +54,14 @@ function createSlug(text: string) {
     .replace(/(^-|-$)+/g, "");
 }
 
+function formatCep(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length > 5) {
+    return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  }
+  return digits;
+}
+
 function isValidYoutubeUrl(url: string): boolean {
   if (!url.trim()) return true;
   return /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/i.test(url.trim());
@@ -95,7 +103,7 @@ export default function BusinessDashboardPage() {
   const [coverUrl, setCoverUrl] = useState("");
   const [gallery, setGallery] = useState<string[]>([]);
 
-  // Limites controlados pelo Master (Plano Grátis: 6 fotos e 0 vídeos)
+  // Limites controlados pelo Master (Plano Grátis: mínimo 6 fotos e 0 vídeos)
   const [maxPhotos, setMaxPhotos] = useState(6);
   const [maxVideos, setMaxVideos] = useState(0);
   const [isFeatured, setIsFeatured] = useState(false);
@@ -161,7 +169,7 @@ export default function BusinessDashboardPage() {
         setCategory(data.category || "alimentacao");
         setSubcategory(data.subcategory || "");
         setDescription(data.description || "");
-        setCep(data.cep || "");
+        setCep(formatCep(data.cep || ""));
         setNeighborhood(data.neighborhood || "");
         setAddress(data.address || "");
         setGoogleMapsUrl(data.googleMapsUrl || "");
@@ -171,7 +179,7 @@ export default function BusinessDashboardPage() {
         setLogoUrl(data.logoUrl || "");
         setCoverUrl(data.coverUrl || "");
         setGallery(data.gallery || []);
-        setMaxPhotos(data.maxPhotos ?? 6);
+        setMaxPhotos(Math.max(6, data.maxPhotos ?? 6));
         setMaxVideos(data.maxVideos ?? 0);
         setIsFeatured(Boolean(data.isFeatured));
         setViewsCount(data.viewsCount || 0);
@@ -193,21 +201,27 @@ export default function BusinessDashboardPage() {
     }
   }
 
-  const handleCepBlur = async (inputCep: string) => {
-    const cleanCep = inputCep.replace(/\D/g, "");
-    if (cleanCep.length !== 8) return;
-    setLoadingCep(true);
-    try {
-      const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-      const data = await res.json();
-      if (!data.erro) {
-        if (data.bairro) setNeighborhood(data.bairro);
-        if (data.logradouro) setAddress(`${data.logradouro}, `);
+  const handleCepChange = async (rawValue: string) => {
+    const formatted = formatCep(rawValue);
+    setCep(formatted);
+
+    const cleanCep = formatted.replace(/\D/g, "");
+    if (cleanCep.length === 8) {
+      setLoadingCep(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+        const data = await res.json();
+        if (!data.erro) {
+          if (data.bairro) setNeighborhood(data.bairro);
+          if (data.logradouro && !address.trim()) {
+            setAddress(`${data.logradouro}, `);
+          }
+        }
+      } catch {
+        console.error("Erro ao buscar CEP");
+      } finally {
+        setLoadingCep(false);
       }
-    } catch {
-      console.error("Erro ao buscar CEP");
-    } finally {
-      setLoadingCep(false);
     }
   };
 
@@ -356,13 +370,15 @@ export default function BusinessDashboardPage() {
         .filter(Boolean)
         .slice(0, allowedVerticalCount);
 
+      const finalMaxPhotos = Math.max(6, maxPhotos);
+
       const payload = {
         ownerId: user.uid,
         name: name.trim(),
         category,
         subcategory: subcategory.trim(),
         description: description.trim(),
-        cep: cep.trim(),
+        cep: formatCep(cep),
         neighborhood: neighborhood.trim(),
         address: address.trim(),
         googleMapsUrl: googleMapsUrl.trim(),
@@ -371,8 +387,8 @@ export default function BusinessDashboardPage() {
         website: website.trim(),
         logoUrl,
         coverUrl,
-        gallery: gallery.slice(0, maxPhotos),
-        maxPhotos,
+        gallery: gallery.slice(0, finalMaxPhotos),
+        maxPhotos: finalMaxPhotos,
         maxVideos,
         youtubeHorizontal: maxVideos >= 1 ? youtubeHorizontal.trim() : "",
         youtubeVerticals: verticalVideos,
@@ -749,9 +765,8 @@ export default function BusinessDashboardPage() {
                   type="text"
                   value={cep}
                   maxLength={9}
-                  onChange={(e) => setCep(e.target.value)}
-                  onBlur={(e) => handleCepBlur(e.target.value)}
-                  placeholder="75650-000"
+                  onChange={(e) => handleCepChange(e.target.value)}
+                  placeholder="75681-648"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
