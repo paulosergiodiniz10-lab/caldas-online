@@ -46,6 +46,10 @@ import {
 
 const MASTER_EMAIL = "caldasonline10@gmail.com";
 
+type ExtendedSiteSettings = SiteSettings & {
+  heroBannerUrl?: string;
+};
+
 export default function MasterAdminPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
@@ -71,7 +75,7 @@ export default function MasterAdminPage() {
   const [newCatName, setNewCatName] = useState("");
 
   // Configurações Globais
-  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+  const [settings, setSettings] = useState<ExtendedSiteSettings>(DEFAULT_SITE_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
 
@@ -125,7 +129,7 @@ export default function MasterAdminPage() {
       if (snapSet.exists()) {
         setSettings((prev) => ({
           ...prev,
-          ...(snapSet.data() as Partial<SiteSettings>),
+          ...(snapSet.data() as Partial<ExtendedSiteSettings>),
         }));
       }
     } catch (err) {
