@@ -193,16 +193,29 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     { label: "Oficinas", query: "oficina" },
     { label: "Supermercados", query: "supermercado" },
   ],
+
+  // Banner 1: Grupo VIP
+  vipGroupBadge: "CLUBE EXCLUSIVO",
+  vipGroupTitle: "Receba Cupons Secretos em Primeira Mão!",
+  vipGroupSubtitle:
+    "Entre no Grupo VIP do Caldas Online no WhatsApp e receba ofertas relâmpago de pizzarias, hotéis, parques e lojas da cidade antes de todo mundo.",
+  vipGroupButtonText: "ENTRAR NO GRUPO VIP GRÁTIS",
   vipGroupUrl: "https://chat.whatsapp.com/",
-  vipGroupBadge: "Grupo VIP de Ofertas",
-  vipGroupTitle: "Receba Cupons Secretos no WhatsApp!",
-  vipGroupSubtitle: "Entre gratuitamente no grupo oficial do Caldas Online e aproveite descontos exclusivos.",
-  advertiseTitle: "Tem uma empresa em Caldas Novas?",
-  advertiseSubtitle: "Cadastre gratuitamente ou destaque sua marca nos banners principais.",
+  vipGroupMessage:
+    "Olá! Quero entrar no Grupo VIP de Ofertas do Caldas Online para receber os cupons exclusivos de Caldas Novas!",
+
+  // Banner 2: Anuncie no Caldas Online
+  advertiseTitle: "ANUNCIE NO CALDAS ONLINE",
+  advertiseSubtitle:
+    "Cadastre sua empresa grátis ou destaque sua marca nos banners principais para milhares de clientes!",
+  advertiseRegisterText: "Cadastrar Grátis",
+  advertiseRegisterUrl: "/painel-empresa",
+  advertiseWhatsappText: "Falar no WhatsApp",
   masterWhatsApp: "5564981005505",
+  advertiseWhatsappMessage:
+    "Olá! Vi o portal Caldas Online e tenho interesse em anunciar e destacar minha empresa em Caldas Novas.",
 };
 
-// Mantidos para compatibilidade com páginas internas
 export const CATEGORIES = DEFAULT_CATEGORIES;
 export const PUBLIC_UTILITIES = DEFAULT_UTILITIES;
 export const MOST_SEARCHED = DEFAULT_SITE_SETTINGS.mostSearchedItems;
