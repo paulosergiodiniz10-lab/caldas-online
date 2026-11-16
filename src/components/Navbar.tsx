@@ -30,7 +30,7 @@ export function Navbar({
           className="flex items-center min-w-0 shrink"
         >
           <img
-            src="https://ldsite.com.br/wp-content/uploads/2026/11/Logo-3D-Caldas-Online_azul-scaled.jpg"
+            src="https://ldsite.com.br/wp-content/uploads/2026/11/logo-caldas-online_site-scaled.jpg"
             alt="Caldas Online • Guia Comercial de Caldas Novas"
             className="h-11 sm:h-[54px] w-auto max-w-[205px] sm:max-w-none object-contain rounded-lg sm:rounded-xl"
           />
