@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   onAuthStateChanged,
   signOut,
   User,
@@ -41,6 +42,8 @@ import {
   EyeOff,
   MessageCircle,
   Lock,
+  Building2,
+  KeyRound,
 } from "lucide-react";
 
 function createSlug(text: string) {
@@ -61,10 +64,14 @@ export default function BusinessDashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [isForgotMode, setIsForgotMode] = useState(false);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [registerCompanyName, setRegisterCompanyName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [authSuccess, setAuthSuccess] = useState("");
   const [submittingAuth, setSubmittingAuth] = useState(false);
 
   const [categories, setCategories] = useState<CategoryDoc[]>(DEFAULT_CATEGORIES);
@@ -108,7 +115,6 @@ export default function BusinessDashboardPage() {
   const [couponCode, setCouponCode] = useState("");
   const [couponRules, setCouponRules] = useState("");
 
-  // Loaders de Upload
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
@@ -188,7 +194,6 @@ export default function BusinessDashboardPage() {
     }
   }
 
-  // BUSCA CEP DINÂMICO VIA VIACEP
   const handleCepBlur = async (inputCep: string) => {
     const cleanCep = inputCep.replace(/\D/g, "");
     if (cleanCep.length !== 8) return;
@@ -210,19 +215,65 @@ export default function BusinessDashboardPage() {
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
+    setAuthSuccess("");
     setSubmittingAuth(true);
+
     try {
-      if (isRegisterMode) {
-        await createUserWithEmailAndPassword(auth, email, password);
+      if (isForgotMode) {
+        await sendPasswordResetEmail(auth, email);
+        setAuthSuccess("E-mail de recuperação enviado! Verifique sua caixa de entrada.");
+      } else if (isRegisterMode) {
+        if (!registerCompanyName.trim()) {
+          setAuthError("Por favor, informe o nome da sua empresa.");
+          setSubmittingAuth(false);
+          return;
+        }
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        const slug = `${createSlug(registerCompanyName)}-${cred.user.uid.slice(0, 5)}`;
+        const initialPayload = {
+          ownerId: cred.user.uid,
+          name: registerCompanyName.trim(),
+          slug,
+          category: "alimentacao",
+          subcategory: "",
+          description: "Bem-vindo à nossa empresa no Caldas Online!",
+          cep: "",
+          neighborhood: "Centro",
+          address: "",
+          googleMapsUrl: "",
+          whatsapp: "",
+          instagram: "",
+          website: "",
+          logoUrl: "",
+          coverUrl: "",
+          gallery: [],
+          maxPhotos: 5,
+          maxVideos: 1,
+          youtubeHorizontal: "",
+          youtubeVerticals: [],
+          coupon: { active: false, title: "", code: "", rules: "" },
+          isFeatured: false,
+          isApproved: true,
+          viewsCount: 0,
+          whatsappClicks: 0,
+          createdAt: Date.now(),
+        };
+        await setDoc(doc(db, "businesses", slug), initialPayload);
+        setName(registerCompanyName.trim());
+        setBusinessId(slug);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
-    } catch {
-      setAuthError(
-        isRegisterMode
-          ? "Não foi possível criar a conta. Verifique o e-mail ou use uma senha com 6+ caracteres."
-          : "E-mail ou senha incorretos."
-      );
+    } catch (err: any) {
+      if (isForgotMode) {
+        setAuthError("Não foi possível enviar o e-mail. Verifique se o endereço está correto.");
+      } else {
+        setAuthError(
+          isRegisterMode
+            ? "Erro ao cadastrar. E-mail já em uso ou senha com menos de 6 caracteres."
+            : "E-mail ou senha incorretos."
+        );
+      }
     } finally {
       setSubmittingAuth(false);
     }
@@ -255,9 +306,7 @@ export default function BusinessDashboardPage() {
     if (!file) return;
 
     if (gallery.length >= maxPhotos) {
-      alert(
-        `Você atingiu o limite de ${maxPhotos} fotos do seu plano. Fale com o suporte para liberar mais fotos!`
-      );
+      alert(`Você atingiu o limite de ${maxPhotos} fotos do seu plano.`);
       e.target.value = "";
       return;
     }
@@ -280,7 +329,7 @@ export default function BusinessDashboardPage() {
 
   const handleSaveBusiness = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !businessId) return;
 
     const allVideoInputs = [
       youtubeHorizontal,
@@ -290,16 +339,13 @@ export default function BusinessDashboardPage() {
     ];
     for (const link of allVideoInputs) {
       if (!isValidYoutubeUrl(link)) {
-        alert(
-          "Atenção: Aceitamos apenas links do YouTube (youtube.com ou youtu.be) para manter o site rápido."
-        );
+        alert("Atenção: Aceitamos apenas links do YouTube (youtube.com ou youtu.be).");
         return;
       }
     }
 
     setSaving(true);
     try {
-      const slug = businessId || `${createSlug(name)}-${user.uid.slice(0, 5)}`;
       const allowedVerticalCount = Math.max(0, maxVideos - 1);
       const verticalVideos = [youtubeVertical1, youtubeVertical2, youtubeVertical3]
         .map((v) => v.trim())
@@ -307,9 +353,7 @@ export default function BusinessDashboardPage() {
         .slice(0, allowedVerticalCount);
 
       const payload = {
-        ownerId: user.uid,
         name: name.trim(),
-        slug,
         category,
         subcategory: subcategory.trim(),
         description: description.trim(),
@@ -333,21 +377,10 @@ export default function BusinessDashboardPage() {
           code: couponCode.trim().toUpperCase(),
           rules: couponRules.trim(),
         },
-        isFeatured,
-        isApproved: true,
-        viewsCount,
-        whatsappClicks,
-        createdAt: Date.now(),
       };
 
-      if (businessId) {
-        await updateDoc(doc(db, "businesses", businessId), payload);
-      } else {
-        await setDoc(doc(db, "businesses", slug), payload);
-        setBusinessId(slug);
-      }
-
-      alert("Página da sua empresa salva e publicada com sucesso!");
+      await updateDoc(doc(db, "businesses", businessId), payload);
+      alert("Página da sua empresa salva com sucesso!");
     } catch (err) {
       console.error(err);
       alert("Erro ao salvar dados da empresa.");
@@ -364,7 +397,7 @@ export default function BusinessDashboardPage() {
     );
   }
 
-  // TELA DE LOGIN / CADASTRO COM OLHO MÁGICO
+  // TELA DE LOGIN / CADASTRO / ESQUECI SENHA
   if (!user) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -375,15 +408,37 @@ export default function BusinessDashboardPage() {
               <Store className="w-6 h-6" />
             </div>
             <h1 className="text-2xl font-black text-slate-900">
-              {isRegisterMode ? "Cadastrar Minha Empresa" : "Área da Empresa"}
+              {isForgotMode
+                ? "Recuperar Senha"
+                : isRegisterMode
+                ? "Cadastrar Minha Empresa"
+                : "Área da Empresa"}
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              {isRegisterMode
-                ? "Crie sua conta gratuita e coloque sua empresa no guia de Caldas Novas."
-                : "Acesse seu painel para editar fotos, vídeos, cupom e WhatsApp."}
+              {isForgotMode
+                ? "Digite seu e-mail cadastrado para receber o link de redefinição."
+                : isRegisterMode
+                ? "Informe o nome da sua empresa, e-mail e senha para começar."
+                : "Acesse sua conta para gerenciar seu anúncio no Caldas Online."}
             </p>
 
             <form onSubmit={handleAuthSubmit} className="mt-6 space-y-4">
+              {isRegisterMode && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Nome da Empresa *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={registerCompanyName}
+                    onChange={(e) => setRegisterCompanyName(e.target.value)}
+                    placeholder="Ex: Hotel Caldas Plaza"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Seu E-mail *
@@ -398,34 +453,57 @@ export default function BusinessDashboardPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Senha (mínimo 6 caracteres) *
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    title={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+              {!isForgotMode && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Senha (mínimo 6 caracteres) *
+                    </label>
+                    {!isRegisterMode && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsForgotMode(true);
+                          setAuthError("");
+                          setAuthSuccess("");
+                        }}
+                        className="text-xs font-bold text-[#0A4D9C] hover:underline"
+                      >
+                        Esqueci a senha?
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      minLength={6}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      title={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {authError && (
                 <p className="text-xs font-semibold text-red-600 bg-red-50 p-3 rounded-xl">
                   {authError}
+                </p>
+              )}
+
+              {authSuccess && (
+                <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 p-3 rounded-xl">
+                  {authSuccess}
                 </p>
               )}
 
@@ -435,23 +513,42 @@ export default function BusinessDashboardPage() {
                 className="w-full bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-sm py-3 rounded-xl transition flex items-center justify-center gap-2"
               >
                 {submittingAuth && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isRegisterMode ? "Criar Conta Grátis" : "Entrar no Painel"}
+                {isForgotMode
+                  ? "Enviar E-mail de Recuperação"
+                  : isRegisterMode
+                  ? "Criar Conta e Empresa"
+                  : "Entrar no Painel"}
               </button>
             </form>
 
-            <div className="mt-5 pt-4 border-t border-slate-100 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRegisterMode(!isRegisterMode);
-                  setAuthError("");
-                }}
-                className="text-xs font-bold text-[#0A4D9C] hover:underline"
-              >
-                {isRegisterMode
-                  ? "Já tem cadastro? Fazer login"
-                  : "Ainda não cadastrou sua empresa? Criar conta grátis"}
-              </button>
+            <div className="mt-5 pt-4 border-t border-slate-100 text-center space-y-2">
+              {isForgotMode ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotMode(false);
+                    setAuthError("");
+                    setAuthSuccess("");
+                  }}
+                  className="text-xs font-bold text-[#0A4D9C] hover:underline block w-full"
+                >
+                  Voltar para o Login
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRegisterMode(!isRegisterMode);
+                    setAuthError("");
+                    setAuthSuccess("");
+                  }}
+                  className="text-xs font-bold text-[#0A4D9C] hover:underline block w-full"
+                >
+                  {isRegisterMode
+                    ? "Já tem cadastro? Fazer login"
+                    : "Ainda não tem conta? Cadastre sua empresa"}
+                </button>
+              )}
             </div>
           </div>
         </main>
@@ -474,16 +571,24 @@ export default function BusinessDashboardPage() {
       <Navbar vipGroupUrl={settings.vipGroupUrl} />
 
       <main className="max-w-5xl w-full mx-auto px-4 py-6 space-y-6 flex-1">
-        {/* Topo do Painel */}
+        {/* Topo do Painel com Nome da Empresa Logada em Destaque */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-black text-slate-900">
-              Painel da Minha Empresa
-            </h1>
-            <p className="text-xs text-slate-500">
-              Plano atual: <strong>{maxPhotos} fotos</strong> e{" "}
-              <strong>{maxVideos} vídeo(s)</strong> liberados
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 text-[#0A4D9C] flex items-center justify-center shrink-0">
+              <Building2 className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                Empresa Conectada
+              </p>
+              <h1 className="text-xl font-black text-slate-900">
+                {name || "Minha Empresa"}
+              </h1>
+              <p className="text-xs text-slate-500">
+                Plano atual: <strong>{maxPhotos} fotos</strong> e{" "}
+                <strong>{maxVideos} vídeo(s)</strong> liberados
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -606,7 +711,6 @@ export default function BusinessDashboardPage() {
                 />
               </div>
 
-              {/* CEP COM BUSCA AUTOMÁTICA */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-bold text-slate-700">
@@ -657,7 +761,6 @@ export default function BusinessDashboardPage() {
                 />
               </div>
 
-              {/* LINK DO GOOGLE MAPS EM VEZ DE GPS AUTOMÁTICO */}
               <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Link do Google Maps da Empresa (opcional)
@@ -672,9 +775,6 @@ export default function BusinessDashboardPage() {
                     className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                   />
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Evita marcações erradas por GPS. Abra o Google Maps, clique em Compartilhar e cole o link do seu estabelecimento aqui.
-                </p>
               </div>
 
               <div>
@@ -712,7 +812,7 @@ export default function BusinessDashboardPage() {
                   required
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Conte aos clientes o que sua empresa oferece, horário de funcionamento, diferenciais..."
+                  placeholder="Conte aos clientes o que sua empresa oferece..."
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
@@ -866,9 +966,6 @@ export default function BusinessDashboardPage() {
                   3. Vídeos do YouTube ({maxVideos} vídeo(s) liberados)
                 </h2>
               </div>
-              <span className="text-[11px] font-semibold text-slate-500">
-                Somente links do YouTube
-              </span>
             </div>
 
             {maxVideos >= 1 ? (
@@ -893,16 +990,6 @@ export default function BusinessDashboardPage() {
                 <p className="text-xs font-bold text-slate-700">
                   Vídeos Verticais (YouTube Shorts — {unlockedVerticalVideos} de 3 liberados)
                 </p>
-                {unlockedVerticalVideos < 3 && (
-                  <a
-                    href={upgradeWaUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-bold text-[#0A4D9C] hover:underline"
-                  >
-                    Liberar até 3 vídeos verticais →
-                  </a>
-                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
