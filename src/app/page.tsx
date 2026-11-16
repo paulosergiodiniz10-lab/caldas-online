@@ -10,6 +10,7 @@ import {
   Star,
   ShieldAlert,
   PhoneCall,
+  Store,
   Loader2,
   X,
 } from "lucide-react";
@@ -75,7 +76,7 @@ export default function HomePage() {
           .sort((a, b) => (a.order || 0) - (b.order || 0));
         setBanners(listBan);
 
-        // 3. Carregar Categorias dinâmicas (se existirem no Firestore)
+        // 3. Carregar Categorias dinâmicas
         const snapCats = await getDocs(collection(db, "categories"));
         if (!snapCats.empty) {
           const listCats = snapCats.docs
@@ -85,7 +86,7 @@ export default function HomePage() {
           if (listCats.length > 0) setCategories(listCats);
         }
 
-        // 4. Carregar Utilidades Rápidas dinâmicas (se existirem no Firestore)
+        // 4. Carregar Utilidades Rápidas dinâmicas
         const snapUtils = await getDocs(collection(db, "utilities"));
         if (!snapUtils.empty) {
           const listUtils = snapUtils.docs
@@ -95,7 +96,7 @@ export default function HomePage() {
           if (listUtils.length > 0) setUtilities(listUtils);
         }
 
-        // 5. Carregar configurações e textos globais
+        // 5. Carregar configurações globais
         const snapSettings = await getDoc(doc(db, "settings", "global"));
         if (snapSettings.exists()) {
           setSettings((prev) => ({
@@ -176,9 +177,14 @@ export default function HomePage() {
 
   const isFiltering = Boolean(searchTerm.trim() || onlyCoupons || userCoords);
 
+  // SOMENTE empresas marcadas como Destaque (isFeatured === true) pelo Master
   const featuredBusinesses = useMemo(() => {
-    const featured = businesses.filter((b) => b.isFeatured);
-    return featured.length > 0 ? featured.slice(0, 8) : businesses.slice(0, 8);
+    return businesses.filter((b) => b.isFeatured === true).slice(0, 8);
+  }, [businesses]);
+
+  // Demais empresas aprovadas para listagem geral do guia
+  const regularBusinesses = useMemo(() => {
+    return businesses.filter((b) => !b.isFeatured);
   }, [businesses]);
 
   return (
@@ -255,7 +261,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* GRID DE SEGMENTOS DINÂMICOS (COM UTILIDADES ABRINDO TUDO NO TOPO) */}
+        {/* GRID DE SEGMENTOS DINÂMICOS */}
         <div className="max-w-6xl mx-auto mt-7">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3.5">
             {categories.map((cat) => {
@@ -388,17 +394,42 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* EMPRESAS EM DESTAQUE */}
+        {/* EMPRESAS EM DESTAQUE (EXCLUSIVO QUEM O MASTER MARCOU COMO DESTAQUE) */}
+        {!loading && featuredBusinesses.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Star className="w-5 h-5 text-[#FFB800] fill-[#FFB800]" />
+                <div>
+                  <h2 className="text-lg font-extrabold text-slate-900 leading-none">
+                    {settings.featuredTitle}
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {settings.featuredSubtitle}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {featuredBusinesses.map((biz) => (
+                <BusinessCard key={biz.id} business={biz} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* GUIA COMERCIAL (EMPRESAS CADASTRADAS E APROVADAS) */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Star className="w-5 h-5 text-[#FFB800] fill-[#FFB800]" />
+              <Store className="w-5 h-5 text-[#0A4D9C]" />
               <div>
                 <h2 className="text-lg font-extrabold text-slate-900 leading-none">
-                  {settings.featuredTitle}
+                  Empresas e Serviços no Guia
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {settings.featuredSubtitle}
+                  Explore estabelecimentos verificados e ofertas disponíveis
                 </p>
               </div>
             </div>
@@ -413,10 +444,10 @@ export default function HomePage() {
                 />
               ))}
             </div>
-          ) : featuredBusinesses.length === 0 ? (
+          ) : businesses.length === 0 ? (
             <div className="bg-white rounded-2xl p-8 text-center border border-slate-100">
               <p className="text-slate-600 font-semibold">
-                Ainda não há empresas cadastradas. Seja a primeira a aparecer aqui!
+                Ainda não há empresas publicadas. Seja a primeira a aparecer aqui!
               </p>
               <Link
                 href="/painel-empresa"
@@ -425,17 +456,17 @@ export default function HomePage() {
                 Cadastrar Minha Empresa Grátis
               </Link>
             </div>
-          ) : (
+          ) : regularBusinesses.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {featuredBusinesses.map((biz) => (
+              {regularBusinesses.map((biz) => (
                 <BusinessCard key={biz.id} business={biz} />
               ))}
             </div>
-          )}
+          ) : null}
         </section>
       </main>
 
-      {/* POP-UP COMPLETO DE UTILIDADES RÁPIDAS (ABERTO PELO CARD DO TOPO) */}
+      {/* POP-UP COMPLETO DE UTILIDADES RÁPIDAS */}
       {showUtilitiesModal && (
         <div
           onClick={() => setShowUtilitiesModal(false)}
@@ -445,7 +476,6 @@ export default function HomePage() {
             onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-3xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden"
           >
-            {/* Cabeçalho do Modal */}
             <div className="bg-[#0A4D9C] text-white p-5 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
@@ -472,7 +502,6 @@ export default function HomePage() {
               </button>
             </div>
 
-            {/* Grade de Telefones Úteis */}
             <div className="p-4 sm:p-6 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-3">
               {utilities.map((util) => (
                 <a
