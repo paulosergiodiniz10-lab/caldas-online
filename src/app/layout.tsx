@@ -12,6 +12,11 @@ export const metadata: Metadata = {
   description:
     "Tudo o que você precisa em um só lugar! Encontre empresas, hotéis, restaurantes, cupons de desconto exclusivos e utilidades em Caldas Novas.",
   manifest: "/manifest.json",
+  icons: {
+    icon: "https://ldsite.com.br/wp-content/uploads/2026/11/icone-favicon.fw_.png",
+    shortcut: "https://ldsite.com.br/wp-content/uploads/2026/11/icone-favicon.fw_.png",
+    apple: "https://ldsite.com.br/wp-content/uploads/2026/11/icone-favicon.fw_.png",
+  },
 };
 
 export const viewport: Viewport = {
