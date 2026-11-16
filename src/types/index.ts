@@ -1,8 +1,8 @@
-export interface BusinessCoupon {
+export interface Coupon {
   active: boolean;
-  title: string; // Ex: "15% OFF em qualquer Pizza Grande"
-  code: string; // Ex: "CALDAS15"
-  rules: string; // Ex: "Válido de terça a quinta no salão ou balcão"
+  title: string;
+  code: string;
+  rules: string;
 }
 
 export interface Business {
@@ -11,23 +11,22 @@ export interface Business {
   name: string;
   slug: string;
   category: string;
-  subcategory: string; // Ex: "Pizzaria", "Hotel", "Farmácia"
+  subcategory: string;
   description: string;
-  neighborhood: string; // Ex: "Centro", "Bairro Turista"
+  neighborhood: string;
   address: string;
   lat: number | null;
   lng: number | null;
   whatsapp: string;
-  phone?: string;
   website?: string;
   instagram?: string;
   facebook?: string;
   logoUrl: string;
   coverUrl: string;
   gallery: string[];
-  coupon?: BusinessCoupon;
-  isFeatured: boolean; // Destaque pago
-  isApproved: boolean; // Aprovado pelo Master
+  coupon?: Coupon;
+  isFeatured: boolean;
+  isApproved: boolean;
   viewsCount: number;
   whatsappClicks: number;
   createdAt: number;
@@ -37,15 +36,60 @@ export interface PromoBanner {
   id: string;
   title: string;
   imageUrl: string;
-  linkUrl: string; // Link para página da empresa ou WhatsApp
-  placement: "home" | string; // "home" ou id da categoria (ex: "alimentacao")
+  linkUrl: string;
+  placement: string; // 'home' ou o slug da categoria
   active: boolean;
   order: number;
 }
 
+export interface CategoryDoc {
+  id: string;
+  slug: string;
+  name: string;
+  subtitle: string;
+  iconName: string;
+  customIconUrl?: string;
+  bgColor: string;
+  order: number;
+  active: boolean;
+}
+
+export interface UtilityDoc {
+  id: string;
+  name: string;
+  number: string;
+  color: string;
+  iconName: string;
+  customIconUrl?: string;
+  order: number;
+  active: boolean;
+}
+
+export interface MostSearchedItem {
+  label: string;
+  query: string;
+}
+
 export interface SiteSettings {
+  // Hero e Textos da Home
+  heroBadge: string;
+  heroTitlePrefix: string;
+  heroTitleHighlight: string;
+  searchPlaceholder: string;
+  mostSearchedTitle: string;
+  mostSearchedSubtitle: string;
+  featuredTitle: string;
+  featuredSubtitle: string;
+  utilitiesTitle: string;
+  utilitiesSubtitle: string;
+  mostSearchedItems: MostSearchedItem[];
+
+  // Grupo VIP e Banner Anuncie
   vipGroupUrl: string;
+  vipGroupBadge: string;
   vipGroupTitle: string;
   vipGroupSubtitle: string;
+  advertiseTitle: string;
+  advertiseSubtitle: string;
   masterWhatsApp: string;
 }
