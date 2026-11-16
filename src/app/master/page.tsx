@@ -85,12 +85,10 @@ export default function MasterAdminPage() {
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
 
-  // Abas do Painel Master
   const [activeTab, setActiveTab] = useState<
     "empresas" | "categorias" | "utilidades" | "banners" | "textos"
   >("empresas");
 
-  // Modal de Confirmação de Exclusão
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
     open: false,
     title: "",
@@ -99,14 +97,13 @@ export default function MasterAdminPage() {
   });
   const [deletingItem, setDeletingItem] = useState(false);
 
-  // Dados Principais
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [categories, setCategories] = useState<CategoryDoc[]>([]);
   const [utilities, setUtilities] = useState<UtilityDoc[]>([]);
   const [banners, setBanners] = useState<PromoBanner[]>([]);
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
 
-  // Form Categoria (Criar / Editar)
+  // Form Categoria
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [catName, setCatName] = useState("");
   const [catSubtitle, setCatSubtitle] = useState("");
@@ -116,7 +113,7 @@ export default function MasterAdminPage() {
   const [catOrder, setCatOrder] = useState(1);
   const [uploadingCatIcon, setUploadingCatIcon] = useState(false);
 
-  // Form Utilidade Rápida (Criar / Editar)
+  // Form Utilidade Rápida
   const [editingUtilId, setEditingUtilId] = useState<string | null>(null);
   const [utilName, setUtilName] = useState("");
   const [utilNumber, setUtilNumber] = useState("");
@@ -126,7 +123,7 @@ export default function MasterAdminPage() {
   const [utilOrder, setUtilOrder] = useState(1);
   const [uploadingUtilIcon, setUploadingUtilIcon] = useState(false);
 
-  // Form Banner (Criar / Editar)
+  // Form Banner
   const [editingBannerId, setEditingBannerId] = useState<string | null>(null);
   const [bannerTitle, setBannerTitle] = useState("");
   const [bannerPlacement, setBannerPlacement] = useState("home");
@@ -136,7 +133,7 @@ export default function MasterAdminPage() {
   const [bannerImageUrl, setBannerImageUrl] = useState("");
   const [uploadingBanner, setUploadingBanner] = useState(false);
 
-  // Form Mais Procurados (Tag rápida)
+  // Form Mais Procurados
   const [newTagLabel, setNewTagLabel] = useState("");
   const [newTagQuery, setNewTagQuery] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
@@ -461,7 +458,7 @@ export default function MasterAdminPage() {
     setSavingSettings(true);
     try {
       await setDoc(doc(db, "settings", "global"), settings, { merge: true });
-      alert("Todos os textos e configurações foram atualizados no portal!");
+      alert("Todos os textos, botões e mensagens foram atualizados no portal!");
     } catch {
       alert("Erro ao salvar configurações.");
     } finally {
@@ -536,7 +533,7 @@ export default function MasterAdminPage() {
             </form>
           </div>
         </main>
-        <Footer />
+        <Footer settings={settings} />
       </div>
     );
   }
@@ -625,7 +622,7 @@ export default function MasterAdminPage() {
                 : "bg-white text-slate-700 border border-slate-200"
             }`}
           >
-            <Type className="w-4 h-4" /> Textos & VIP
+            <Type className="w-4 h-4" /> Textos, Banners & VIP
           </button>
         </div>
 
@@ -698,7 +695,7 @@ export default function MasterAdminPage() {
                         onClick={() =>
                           askConfirm(
                             "Excluir Empresa",
-                            `Tem certeza que deseja excluir permanentemente "${biz.name}"? Esta ação não poderá ser desfeita.`,
+                            `Tem certeza que deseja excluir permanentemente "${biz.name}"?`,
                             async () => {
                               await deleteDoc(doc(db, "businesses", biz.id));
                               setBusinesses((prev) => prev.filter((b) => b.id !== biz.id));
@@ -740,7 +737,6 @@ export default function MasterAdminPage() {
               </div>
             )}
 
-            {/* Formulário Criar / Editar Categoria */}
             <form
               onSubmit={handleSaveCategory}
               className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4"
@@ -802,7 +798,6 @@ export default function MasterAdminPage() {
                 </div>
               </div>
 
-              {/* Seletor de Cor */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-2">
                   Cor do Quadrado
@@ -824,7 +819,6 @@ export default function MasterAdminPage() {
                 </div>
               </div>
 
-              {/* Seletor Visual de Ícones ou Upload Próprio */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-xs font-bold text-slate-700">
@@ -893,7 +887,6 @@ export default function MasterAdminPage() {
               </button>
             </form>
 
-            {/* Lista de Categorias */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {categories.map((cat) => (
                 <div
@@ -971,7 +964,6 @@ export default function MasterAdminPage() {
               </div>
             )}
 
-            {/* Formulário Criar / Editar Utilidade */}
             <form
               onSubmit={handleSaveUtility}
               className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4"
@@ -1035,7 +1027,6 @@ export default function MasterAdminPage() {
                 </div>
               </div>
 
-              {/* Cor do botão */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-2">
                   Cor do Ícone
@@ -1057,7 +1048,6 @@ export default function MasterAdminPage() {
                 </div>
               </div>
 
-              {/* Ícone */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-xs font-bold text-slate-700">
@@ -1110,7 +1100,6 @@ export default function MasterAdminPage() {
               </button>
             </form>
 
-            {/* Lista de Utilidades */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {utilities.map((util) => (
                 <div
@@ -1292,7 +1281,6 @@ export default function MasterAdminPage() {
               </div>
             </form>
 
-            {/* Lista de Banners */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {banners.map((ban) => (
                 <div
@@ -1354,10 +1342,10 @@ export default function MasterAdminPage() {
           </div>
         )}
 
-        {/* ==================== ABA 5: TEXTOS DO PORTAL & GRUPO VIP ==================== */}
+        {/* ==================== ABA 5: TEXTOS, BANNERS INFERIORES & VIP ==================== */}
         {activeTab === "textos" && (
           <form onSubmit={handleSaveSettings} className="space-y-6">
-            {/* Bloco Hero e Busca */}
+            {/* 1. Topo e Busca */}
             <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
               <h2 className="font-extrabold text-slate-900">1. Textos do Topo e Busca</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1414,7 +1402,7 @@ export default function MasterAdminPage() {
               </div>
             </div>
 
-            {/* Bloco Títulos das Seções e Mais Procurados */}
+            {/* 2. Títulos das Seções e Mais Procurados */}
             <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
               <h2 className="font-extrabold text-slate-900">
                 2. Títulos das Seções & Botões Mais Procurados
@@ -1475,7 +1463,6 @@ export default function MasterAdminPage() {
                 </div>
               </div>
 
-              {/* Gerenciar Tags de Mais Procurados */}
               <div className="pt-2 border-t border-slate-100">
                 <label className="block text-xs font-bold text-slate-700 mb-2">
                   Atalhos de Busca Rápida (Mais Procurados)
@@ -1524,34 +1511,207 @@ export default function MasterAdminPage() {
               </div>
             </div>
 
-            {/* Bloco Grupo VIP & Contato */}
-            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
-              <h2 className="font-extrabold text-slate-900">
-                3. Grupo VIP de Ofertas & WhatsApp Comercial
-              </h2>
+            {/* 3. BANNER LARANJA: GRUPO VIP & MENSAGEM AUTOMÁTICA */}
+            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border-2 border-orange-200 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-[#FF7A00]" />
+                <h2 className="font-extrabold text-slate-900">
+                  3. Banner Laranja — Clube Exclusivo / Grupo VIP
+                </h2>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Link de Convite do Grupo VIP (WhatsApp)
+                    Etiqueta Preta (Badge)
                   </label>
                   <input
-                    type="url"
-                    required
+                    type="text"
+                    value={settings.vipGroupBadge}
+                    onChange={(e) =>
+                      setSettings({ ...settings, vipGroupBadge: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Texto do Botão Preto
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.vipGroupButtonText}
+                    onChange={(e) =>
+                      setSettings({ ...settings, vipGroupButtonText: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Título Grande do Banner Laranja
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.vipGroupTitle}
+                    onChange={(e) =>
+                      setSettings({ ...settings, vipGroupTitle: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Texto Descritivo do Banner Laranja
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={settings.vipGroupSubtitle}
+                    onChange={(e) =>
+                      setSettings({ ...settings, vipGroupSubtitle: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Link do Grupo VIP (https://chat.whatsapp.com/... ou deixe padrão para abrir WhatsApp)
+                  </label>
+                  <input
+                    type="text"
                     value={settings.vipGroupUrl}
                     onChange={(e) => setSettings({ ...settings, vipGroupUrl: e.target.value })}
                     className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                   />
                 </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Seu WhatsApp Comercial (Anúncios/Destaque)
+                    Mensagem Automática que chega do Cliente (Grupo VIP)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={settings.vipGroupMessage}
+                    onChange={(e) =>
+                      setSettings({ ...settings, vipGroupMessage: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 4. BANNER AZUL: ANUNCIE NO CALDAS ONLINE */}
+            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border-2 border-blue-200 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-[#0A4D9C]" />
+                <h2 className="font-extrabold text-slate-900">
+                  4. Banner Azul — Anuncie no Caldas Online & Botões
+                </h2>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Título Principal do Banner Azul
                   </label>
                   <input
                     type="text"
-                    required
+                    value={settings.advertiseTitle}
+                    onChange={(e) =>
+                      setSettings({ ...settings, advertiseTitle: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Subtítulo / Descrição do Banner Azul
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={settings.advertiseSubtitle}
+                    onChange={(e) =>
+                      setSettings({ ...settings, advertiseSubtitle: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Texto do Botão Branco (Cadastro)
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.advertiseRegisterText}
+                    onChange={(e) =>
+                      setSettings({ ...settings, advertiseRegisterText: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Link do Botão Branco (Padrão: /painel-empresa)
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.advertiseRegisterUrl}
+                    onChange={(e) =>
+                      setSettings({ ...settings, advertiseRegisterUrl: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Texto do Botão Verde (WhatsApp)
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.advertiseWhatsappText}
+                    onChange={(e) =>
+                      setSettings({ ...settings, advertiseWhatsappText: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Seu Telefone WhatsApp (com 55 + DDD)
+                  </label>
+                  <input
+                    type="text"
                     value={settings.masterWhatsApp}
                     onChange={(e) =>
                       setSettings({ ...settings, masterWhatsApp: e.target.value })
+                    }
+                    placeholder="5564981005505"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Mensagem Automática que chega no seu WhatsApp (Botão Verde)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={settings.advertiseWhatsappMessage}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        advertiseWhatsappMessage: e.target.value,
+                      })
                     }
                     className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                   />
@@ -1569,7 +1729,7 @@ export default function MasterAdminPage() {
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              SALVAR TODOS OS TEXTOS E CONFIGURAÇÕES
+              SALVAR TODOS OS TEXTOS, BOTÕES E MENSAGENS
             </button>
           </form>
         )}
@@ -1609,7 +1769,7 @@ export default function MasterAdminPage() {
         </div>
       )}
 
-      <Footer />
+      <Footer settings={settings} />
     </div>
   );
 }
