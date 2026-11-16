@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Flame, Megaphone, MessageCircle, ArrowRight } from "lucide-react";
+import { Flame, Megaphone, MessageCircle, ArrowRight, ShieldCheck } from "lucide-react";
 import { SiteSettings } from "@/types";
 import { DEFAULT_SITE_SETTINGS } from "@/lib/constants";
 
@@ -24,8 +24,6 @@ export function Footer({ settings, vipGroupUrl, masterWhatsApp }: FooterProps) {
     cfg.advertiseWhatsappMessage || ""
   )}`;
 
-  // Se o link do Grupo VIP for um número de telefone, monta o wa.me com a mensagem VIP;
-  // Se for um link de convite (chat.whatsapp.com), abre o convite direto.
   const resolveVipHref = () => {
     const raw = (cfg.vipGroupUrl || "").trim();
     if (!raw || raw === "https://chat.whatsapp.com/") {
@@ -122,17 +120,22 @@ export function Footer({ settings, vipGroupUrl, masterWhatsApp }: FooterProps) {
         </div>
       </div>
 
-      {/* RODAPÉ INSTITUCIONAL */}
+      {/* RODAPÉ INSTITUCIONAL COM ACESSO MASTER DISCRETO */}
       <div className="max-w-6xl mx-auto px-4 pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-        <p className="font-semibold">
+        <p className="font-semibold text-center sm:text-left">
           © {new Date().getFullYear()} Caldas Online • O Guia Comercial de Caldas Novas - GO
         </p>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Link href="/painel-empresa" className="hover:text-[#0A4D9C] font-semibold">
             Área do Lojista
           </Link>
-          <Link href="/master" className="hover:text-[#0A4D9C] font-semibold">
-            Administração
+          <Link
+            href="/master"
+            title="Acesso Administrativo"
+            aria-label="Acesso Administrativo"
+            className="text-slate-400 hover:text-slate-700 p-1 rounded-lg transition"
+          >
+            <ShieldCheck className="w-4 h-4" />
           </Link>
         </div>
       </div>
