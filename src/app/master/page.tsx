@@ -20,9 +20,10 @@ import {
 import { auth, db } from "@/lib/firebase";
 import { compressAndUploadImage } from "@/lib/cloudinary";
 import { DEFAULT_CATEGORIES, DEFAULT_SITE_SETTINGS } from "@/lib/constants";
-import { Business, CategoryDoc, SiteSettings } from "@/types";
+import { Business, CategoryDoc, PromoBanner, SiteSettings } from "@/types";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { CategoryIcon } from "@/components/CategoryIcon";
 import {
   ShieldCheck,
   LogOut,
@@ -42,13 +43,33 @@ import {
   Youtube,
   Settings,
   Tag,
+  Edit3,
+  X,
+  MessageCircle,
+  Megaphone,
 } from "lucide-react";
 
 const MASTER_EMAIL = "caldasonline10@gmail.com";
 
-type ExtendedSiteSettings = SiteSettings & {
-  heroBannerUrl?: string;
+type ExtendedBanner = PromoBanner & {
+  actionType?: "link" | "whatsapp";
+  whatsappNumber?: string;
+  whatsappMessage?: string;
+  buttonText?: string;
 };
+
+const COLOR_PRESETS = [
+  { label: "Laranja", value: "bg-orange-500" },
+  { label: "Vermelho", value: "bg-red-500" },
+  { label: "Azul", value: "bg-blue-600" },
+  { label: "Verde", value: "bg-emerald-500" },
+  { label: "Roxo", value: "bg-purple-600" },
+  { label: "Âmbar", value: "bg-amber-500" },
+  { label: "Ciano", value: "bg-cyan-600" },
+  { label: "Rosa", value: "bg-pink-500" },
+  { label: "Teal", value: "bg-teal-500" },
+  { label: "Índigo", value: "bg-indigo-600" },
+];
 
 export default function MasterAdminPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -59,9 +80,9 @@ export default function MasterAdminPage() {
   const [authError, setAuthError] = useState("");
   const [submittingAuth, setSubmittingAuth] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"businesses" | "categories" | "settings">(
-    "businesses"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "businesses" | "categories" | "banners" | "settings"
+  >("businesses");
 
   // Empresas
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -71,13 +92,30 @@ export default function MasterAdminPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   // Categorias
-  const [categories, setCategories] = useState<CategoryDoc[]>([]);
+  const [categories, setCategories] = useState<CategoryDoc[]>(DEFAULT_CATEGORIES);
   const [newCatName, setNewCatName] = useState("");
+  const [newCatSubtitle, setNewCatSubtitle] = useState("");
+  const [editingCat, setEditingCat] = useState<CategoryDoc | null>(null);
+  const [uploadingCatIcon, setUploadingCatIcon] = useState(false);
+  const [savingCat, setSavingCat] = useState(false);
+
+  // Banners Patrocinados (Home + Segmentos)
+  const [banners, setBanners] = useState<ExtendedBanner[]>([]);
+  const [bannerTitle, setBannerTitle] = useState("");
+  const [bannerImageUrl, setBannerImageUrl] = useState("");
+  const [bannerPlacement, setBannerPlacement] = useState("home");
+  const [bannerActionType, setBannerActionType] = useState<"link" | "whatsapp">("whatsapp");
+  const [bannerLinkUrl, setBannerLinkUrl] = useState("");
+  const [bannerWhatsapp, setBannerWhatsapp] = useState("");
+  const [bannerWhatsappMsg, setBannerWhatsappMsg] = useState("");
+  const [bannerButtonText, setBannerButtonText] = useState("");
+  const [bannerOrder, setBannerOrder] = useState(1);
+  const [uploadingPromoBanner, setUploadingPromoBanner] = useState(false);
+  const [savingPromoBanner, setSavingPromoBanner] = useState(false);
 
   // Configurações Globais
-  const [settings, setSettings] = useState<ExtendedSiteSettings>(DEFAULT_SITE_SETTINGS);
+  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
-  const [uploadingBanner, setUploadingBanner] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (currentUser) => {
@@ -104,7 +142,6 @@ export default function MasterAdminPage() {
         ...(d.data() as Omit<Business, "id">),
         id: d.id,
       }));
-      // Ordena: Pendentes primeiro, depois mais recentes
       bizList.sort((a, b) => {
         const aPending = a.isApproved === false ? 0 : 1;
         const bPending = b.isApproved === false ? 0 : 1;
@@ -124,12 +161,19 @@ export default function MasterAdminPage() {
         setCategories(DEFAULT_CATEGORIES);
       }
 
-      // 3. Configurações Globais
+      // 3. Banners Patrocinados
+      const snapBanners = await getDocs(collection(db, "banners"));
+      const banList = snapBanners.docs
+        .map((d) => ({ ...(d.data() as Omit<ExtendedBanner, "id">), id: d.id }))
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+      setBanners(banList);
+
+      // 4. Configurações Globais
       const snapSet = await getDoc(doc(db, "settings", "global"));
       if (snapSet.exists()) {
         setSettings((prev) => ({
           ...prev,
-          ...(snapSet.data() as Partial<ExtendedSiteSettings>),
+          ...(snapSet.data() as Partial<SiteSettings>),
         }));
       }
     } catch (err) {
@@ -157,7 +201,7 @@ export default function MasterAdminPage() {
     }
   };
 
-  // AÇÕES DE MODERAÇÃO (LIBERAR / BLOQUEAR / EXCLUIR) COM ALERTA
+  // MODERAÇÃO DE EMPRESAS
   const handleApproveBusiness = async (biz: Business) => {
     const confirmed = window.confirm(
       `✅ LIBERAR EMPRESA?\n\nDeseja aprovar e publicar "${biz.name}" imediatamente no guia Caldas Online?`
@@ -228,7 +272,6 @@ export default function MasterAdminPage() {
     }
   };
 
-  // CONTROLE DE PLANO (FOTOS, VÍDEOS, DESTAQUE)
   const handleUpdatePlan = async (
     biz: Business,
     updates: Partial<Business>
@@ -247,7 +290,7 @@ export default function MasterAdminPage() {
     }
   };
 
-  // CATEGORIAS
+  // CATEGORIAS (CRIAR, EDITAR TEXTO/FOTO, ATIVAR/OCULTAR)
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -262,6 +305,9 @@ export default function MasterAdminPage() {
       id: slug,
       name: newCatName.trim(),
       slug,
+      subtitle: newCatSubtitle.trim() || "Empresas e serviços locais",
+      iconName: "Store",
+      bgColor: "bg-blue-600",
       order: categories.length + 1,
       active: true,
     } as CategoryDoc;
@@ -270,18 +316,64 @@ export default function MasterAdminPage() {
       await setDoc(doc(db, "categories", slug), payload);
       setCategories((prev) => [...prev, payload]);
       setNewCatName("");
+      setNewCatSubtitle("");
     } catch (err) {
       console.error(err);
       alert("Erro ao adicionar categoria.");
     }
   };
 
+  const handleUploadCategoryImage = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingCat) return;
+    setUploadingCatIcon(true);
+    try {
+      const url = await compressAndUploadImage(file);
+      setEditingCat({ ...editingCat, customIconUrl: url });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erro ao enviar imagem.");
+    } finally {
+      setUploadingCatIcon(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleSaveEditedCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCat) return;
+    setSavingCat(true);
+    try {
+      const docId = editingCat.slug || editingCat.id;
+      const updated: CategoryDoc = {
+        ...editingCat,
+        id: docId,
+        slug: docId,
+      };
+      await setDoc(doc(db, "categories", docId), updated, { merge: true });
+      setCategories((prev) =>
+        prev
+          .map((c) => (c.id === editingCat.id ? updated : c))
+          .sort((a, b) => (a.order || 0) - (b.order || 0))
+      );
+      setEditingCat(null);
+      alert("✅ Categoria atualizada com sucesso!");
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao salvar categoria.");
+    } finally {
+      setSavingCat(false);
+    }
+  };
+
   const handleToggleCategory = async (cat: CategoryDoc) => {
     const nextActive = cat.active === false;
+    const docId = cat.slug || cat.id;
     try {
       await setDoc(
-        doc(db, "categories", cat.id),
-        { ...cat, active: nextActive },
+        doc(db, "categories", docId),
+        { ...cat, id: docId, slug: docId, active: nextActive },
         { merge: true }
       );
       setCategories((prev) =>
@@ -292,24 +384,111 @@ export default function MasterAdminPage() {
     }
   };
 
-  // CONFIGURAÇÕES GLOBAIS
-  const handleUploadHeroBanner = async (
+  // BANNERS PATROCINADOS (HOME E SEGMENTOS)
+  const handleUploadPromoBannerFile = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploadingBanner(true);
+    setUploadingPromoBanner(true);
     try {
       const url = await compressAndUploadImage(file);
-      setSettings((prev) => ({ ...prev, heroBannerUrl: url }));
+      setBannerImageUrl(url);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Erro ao enviar banner.");
+      alert(err instanceof Error ? err.message : "Erro ao enviar arte do banner.");
     } finally {
-      setUploadingBanner(false);
+      setUploadingPromoBanner(false);
       e.target.value = "";
     }
   };
 
+  const handleCreatePromoBanner = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bannerImageUrl.trim()) {
+      alert("Envie a imagem do banner antes de publicar.");
+      return;
+    }
+
+    if (bannerActionType === "link" && !bannerLinkUrl.trim()) {
+      alert("Informe o link de destino do banner (site, cardápio ou página interna).");
+      return;
+    }
+
+    if (bannerActionType === "whatsapp" && !bannerWhatsapp.trim()) {
+      alert("Informe o número de WhatsApp do anunciante (com DDD).");
+      return;
+    }
+
+    setSavingPromoBanner(true);
+    try {
+      const newId = `banner-${Date.now()}`;
+      const payload: ExtendedBanner = {
+        id: newId,
+        title: bannerTitle.trim() || "Oferta em Destaque",
+        imageUrl: bannerImageUrl.trim(),
+        placement: bannerPlacement,
+        actionType: bannerActionType,
+        linkUrl: bannerActionType === "link" ? bannerLinkUrl.trim() : "",
+        whatsappNumber:
+          bannerActionType === "whatsapp"
+            ? bannerWhatsapp.replace(/\D/g, "")
+            : "",
+        whatsappMessage:
+          bannerActionType === "whatsapp" ? bannerWhatsappMsg.trim() : "",
+        buttonText: bannerButtonText.trim(),
+        order: Number(bannerOrder) || banners.length + 1,
+        active: true,
+      };
+
+      await setDoc(doc(db, "banners", newId), payload);
+      setBanners((prev) =>
+        [...prev, payload].sort((a, b) => (a.order || 0) - (b.order || 0))
+      );
+
+      setBannerTitle("");
+      setBannerImageUrl("");
+      setBannerLinkUrl("");
+      setBannerWhatsapp("");
+      setBannerWhatsappMsg("");
+      setBannerButtonText("");
+      setBannerOrder(banners.length + 2);
+      alert("✅ Banner patrocinado publicado com sucesso!");
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao salvar banner patrocinado.");
+    } finally {
+      setSavingPromoBanner(false);
+    }
+  };
+
+  const handleToggleBannerActive = async (banner: ExtendedBanner) => {
+    const nextActive = !banner.active;
+    try {
+      await updateDoc(doc(db, "banners", banner.id), { active: nextActive });
+      setBanners((prev) =>
+        prev.map((b) => (b.id === banner.id ? { ...b, active: nextActive } : b))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteBanner = async (banner: ExtendedBanner) => {
+    const confirmed = window.confirm(
+      `Excluir o banner "${banner.title}" permanentemente?`
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteDoc(doc(db, "banners", banner.id));
+      setBanners((prev) => prev.filter((b) => b.id !== banner.id));
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao excluir banner.");
+    }
+  };
+
+  // CONFIGURAÇÕES GLOBAIS
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingSettings(true);
@@ -412,6 +591,12 @@ export default function MasterAdminPage() {
     return true;
   });
 
+  const getPlacementLabel = (placement: string) => {
+    if (placement === "home") return "🏠 Página Inicial (Home)";
+    const found = categories.find((c) => (c.slug || c.id) === placement);
+    return found ? `📂 Segmento: ${found.name}` : `📂 Segmento: ${placement}`;
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Navbar
@@ -469,6 +654,19 @@ export default function MasterAdminPage() {
 
           <button
             type="button"
+            onClick={() => setActiveTab("banners")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer ${
+              activeTab === "banners"
+                ? "bg-[#0A4D9C] text-white shadow-sm"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+            }`}
+          >
+            <Megaphone className="w-4 h-4" />
+            Banners Patrocinados ({banners.length})
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab("categories")}
             className={`px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer ${
               activeTab === "categories"
@@ -477,7 +675,7 @@ export default function MasterAdminPage() {
             }`}
           >
             <Tag className="w-4 h-4" />
-            Categorias
+            Categorias ({categories.length})
           </button>
 
           <button
@@ -490,14 +688,13 @@ export default function MasterAdminPage() {
             }`}
           >
             <Settings className="w-4 h-4" />
-            Banners & WhatsApp Master
+            WhatsApp & Grupo VIP
           </button>
         </div>
 
         {/* ABA 1: EMPRESAS & MODERAÇÃO */}
         {activeTab === "businesses" && (
           <div className="space-y-4">
-            {/* Barra de Busca e Filtros de Status */}
             <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col md:flex-row gap-3 justify-between">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -570,7 +767,6 @@ export default function MasterAdminPage() {
                           : "border-slate-100"
                       }`}
                     >
-                      {/* TARJA SUPERIOR DE STATUS */}
                       <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
                         <div className="flex flex-wrap items-center gap-2">
                           {isPending ? (
@@ -592,7 +788,6 @@ export default function MasterAdminPage() {
                           )}
                         </div>
 
-                        {/* BOTÃO VISTORIAR PÁGINA */}
                         <Link
                           href={`/empresa/${biz.id}`}
                           target="_blank"
@@ -603,7 +798,6 @@ export default function MasterAdminPage() {
                         </Link>
                       </div>
 
-                      {/* DADOS DA EMPRESA + CONTROLES DE PLANO */}
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <div className="flex items-start gap-3.5">
                           {biz.logoUrl ? (
@@ -633,7 +827,6 @@ export default function MasterAdminPage() {
                           </div>
                         </div>
 
-                        {/* CONTROLES DE PLANO (FOTOS, VÍDEOS, DESTAQUE) */}
                         <div className="flex flex-wrap items-center gap-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200/70">
                           <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                             <ImageIcon className="w-3.5 h-3.5 text-[#0A4D9C]" />
@@ -696,7 +889,6 @@ export default function MasterAdminPage() {
                         </div>
                       </div>
 
-                      {/* BOTÕES DE MODERAÇÃO: LIBERAR | BLOQUEAR | EXCLUIR */}
                       <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2.5">
                         <button
                           type="button"
@@ -744,16 +936,311 @@ export default function MasterAdminPage() {
           </div>
         )}
 
-        {/* ABA 2: CATEGORIAS */}
+        {/* ABA 2: BANNERS PATROCINADOS (SLIDE HOME E SEGMENTOS) */}
+        {activeTab === "banners" && (
+          <div className="space-y-6">
+            {/* Formulário de Novo Banner */}
+            <form
+              onSubmit={handleCreatePromoBanner}
+              className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4"
+            >
+              <div>
+                <h2 className="text-lg font-black text-slate-900">
+                  Criar Novo Banner Patrocinado (Slide)
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Venda espaços publicitários rotativos na Página Inicial ou no topo de qualquer Segmento (ex: Alimentação, Turismo, Saúde).
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Nome / Identificação do Anunciante *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={bannerTitle}
+                    onChange={(e) => setBannerTitle(e.target.value)}
+                    placeholder="Ex: Piratas Pizzaria • Rodízio"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Onde exibir este banner? *
+                  </label>
+                  <select
+                    value={bannerPlacement}
+                    onChange={(e) => setBannerPlacement(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white font-semibold"
+                  >
+                    <option value="home">🏠 Página Inicial (Home)</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.slug || cat.id}>
+                        📂 Segmento: {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Ordem no Slide
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={bannerOrder}
+                    onChange={(e) => setBannerOrder(Number(e.target.value))}
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                {/* Upload da Arte */}
+                <div className="sm:col-span-2 lg:col-span-3 space-y-2">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Arte do Banner Full (Ideal: 1200x300px Horizontal) *
+                  </label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="inline-flex items-center gap-2 bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl cursor-pointer">
+                      {uploadingPromoBanner ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4" />
+                      )}
+                      {uploadingPromoBanner ? "Enviando Arte..." : "Enviar Arte do Banner"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleUploadPromoBannerFile}
+                        className="hidden"
+                      />
+                    </label>
+                    {bannerImageUrl && (
+                      <span className="text-xs font-bold text-emerald-700">
+                        ✅ Imagem carregada com sucesso
+                      </span>
+                    )}
+                  </div>
+                  {bannerImageUrl && (
+                    <img
+                      src={bannerImageUrl}
+                      alt="Prévia do Banner"
+                      className="w-full max-h-48 object-cover rounded-2xl border border-slate-200 mt-2"
+                    />
+                  )}
+                </div>
+
+                {/* Tipo de Ação: WhatsApp ou Link */}
+                <div className="sm:col-span-2 lg:col-span-3 pt-2 border-t border-slate-100 space-y-3">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Ação ao clicar no Banner *
+                  </label>
+                  <div className="flex flex-wrap gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setBannerActionType("whatsapp")}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 border transition cursor-pointer ${
+                        bannerActionType === "whatsapp"
+                          ? "bg-[#1DB954] text-white border-[#1DB954]"
+                          : "bg-white text-slate-700 border-slate-300"
+                      }`}
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Botão Ação WhatsApp
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setBannerActionType("link")}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 border transition cursor-pointer ${
+                        bannerActionType === "link"
+                          ? "bg-[#0A4D9C] text-white border-[#0A4D9C]"
+                          : "bg-white text-slate-700 border-slate-300"
+                      }`}
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Link para Site / Página
+                    </button>
+                  </div>
+
+                  {bannerActionType === "whatsapp" ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          WhatsApp do Anunciante (com DDD) *
+                        </label>
+                        <input
+                          type="text"
+                          value={bannerWhatsapp}
+                          onChange={(e) => setBannerWhatsapp(e.target.value)}
+                          placeholder="64999999999"
+                          className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Texto do Botão (opcional)
+                        </label>
+                        <input
+                          type="text"
+                          value={bannerButtonText}
+                          onChange={(e) => setBannerButtonText(e.target.value)}
+                          placeholder="Ex: Pedir no WhatsApp"
+                          className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Mensagem Pronta no WhatsApp
+                        </label>
+                        <input
+                          type="text"
+                          value={bannerWhatsappMsg}
+                          onChange={(e) => setBannerWhatsappMsg(e.target.value)}
+                          placeholder="Olá! Vi a promoção no Caldas Online..."
+                          className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Link de Destino (URL externa ou /empresa/slug) *
+                        </label>
+                        <input
+                          type="text"
+                          value={bannerLinkUrl}
+                          onChange={(e) => setBannerLinkUrl(e.target.value)}
+                          placeholder="https://... ou /empresa/nome-da-empresa"
+                          className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Texto do Botão (opcional — deixe vazio para banner limpo)
+                        </label>
+                        <input
+                          type="text"
+                          value={bannerButtonText}
+                          onChange={(e) => setBannerButtonText(e.target.value)}
+                          placeholder="Ex: Ver Cardápio / Saiba Mais"
+                          className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={savingPromoBanner}
+                className="bg-[#FF7A00] hover:bg-orange-500 text-slate-950 font-extrabold text-sm px-6 py-3.5 rounded-xl inline-flex items-center gap-2 shadow-sm cursor-pointer"
+              >
+                {savingPromoBanner ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4" />
+                )}
+                Publicar Banner no Slide
+              </button>
+            </form>
+
+            {/* Lista de Banners Cadastrados */}
+            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
+              <h3 className="text-base font-black text-slate-900">
+                Banners Cadastrados ({banners.length})
+              </h3>
+
+              {banners.length === 0 ? (
+                <p className="text-xs text-slate-500">
+                  Nenhum banner patrocinado cadastrado ainda. Use o formulário acima para criar o primeiro.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {banners.map((ban) => (
+                    <div
+                      key={ban.id}
+                      className="rounded-2xl border border-slate-200 overflow-hidden flex flex-col bg-slate-50"
+                    >
+                      <img
+                        src={ban.imageUrl}
+                        alt={ban.title}
+                        className="w-full h-36 object-cover bg-slate-900"
+                      />
+                      <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-extrabold bg-blue-100 text-[#0A4D9C] px-2.5 py-0.5 rounded-full">
+                              {getPlacementLabel(ban.placement)}
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-400">
+                              Ordem #{ban.order || 1}
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-black text-slate-900">
+                            {ban.title}
+                          </h4>
+                          <p className="text-xs text-slate-500 truncate">
+                            {ban.actionType === "whatsapp"
+                              ? `📱 WhatsApp: ${ban.whatsappNumber}`
+                              : `🔗 Link: ${ban.linkUrl}`}
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleBannerActive(ban)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-extrabold cursor-pointer ${
+                              ban.active
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-slate-200 text-slate-600"
+                            }`}
+                          >
+                            {ban.active ? "Ativo no Slide" : "Pausado"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBanner(ban)}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-red-600 hover:bg-red-50 px-2.5 py-1.5 rounded-lg cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Excluir
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ABA 3: GERENCIAR E EDITAR CATEGORIAS (TEXTO, COR E FOTO/ÍCONE) */}
         {activeTab === "categories" && (
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
-            <h2 className="text-lg font-black text-slate-900">
-              Gerenciar Categorias do Guia
-            </h2>
+            <div>
+              <h2 className="text-lg font-black text-slate-900">
+                Gerenciar Categorias do Guia
+              </h2>
+              <p className="text-xs text-slate-500">
+                Clique em <strong>Editar</strong> em qualquer categoria para alterar o texto, subtítulo, cor ou enviar uma foto/ícone personalizado.
+              </p>
+            </div>
 
             <form
               onSubmit={handleAddCategory}
-              className="flex flex-col sm:flex-row gap-3"
+              className="grid grid-cols-1 sm:grid-cols-3 gap-3"
             >
               <input
                 type="text"
@@ -761,51 +1248,87 @@ export default function MasterAdminPage() {
                 value={newCatName}
                 onChange={(e) => setNewCatName(e.target.value)}
                 placeholder="Nome da nova categoria (ex: Pet Shop)"
-                className="flex-1 rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+              />
+              <input
+                type="text"
+                value={newCatSubtitle}
+                onChange={(e) => setNewCatSubtitle(e.target.value)}
+                placeholder="Subtítulo (ex: Banho, tosa, rações...)"
+                className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
               />
               <button
                 type="submit"
-                className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-xs px-5 py-3 rounded-xl inline-flex items-center justify-center gap-1.5"
+                className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-xs px-5 py-3 rounded-xl inline-flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <Plus className="w-4 h-4" /> Adicionar
+                <Plus className="w-4 h-4" /> Adicionar Categoria
               </button>
             </form>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {categories.map((cat) => (
                 <div
                   key={cat.id}
-                  className="p-3.5 rounded-xl border border-slate-200 flex items-center justify-between"
+                  className="p-4 rounded-2xl border border-slate-200 flex items-center justify-between gap-3 bg-slate-50/50"
                 >
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">{cat.name}</p>
-                    <p className="text-[11px] text-slate-400">Slug: {cat.slug}</p>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`w-11 h-11 rounded-xl ${
+                        cat.bgColor || "bg-blue-600"
+                      } flex items-center justify-center shrink-0 shadow-xs`}
+                    >
+                      <CategoryIcon
+                        name={cat.iconName}
+                        customIconUrl={cat.customIconUrl}
+                        className="w-5 h-5 text-white"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-900 truncate">
+                        {cat.name}
+                      </p>
+                      <p className="text-[11px] text-slate-500 truncate">
+                        {cat.subtitle || `Slug: ${cat.slug}`}
+                      </p>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleCategory(cat)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold ${
-                      cat.active !== false
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-slate-200 text-slate-600"
-                    }`}
-                  >
-                    {cat.active !== false ? "Ativa" : "Oculta"}
-                  </button>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setEditingCat(cat)}
+                      className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#0A4D9C] transition cursor-pointer"
+                      title="Editar texto, cor e foto"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleCategory(cat)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold cursor-pointer ${
+                        cat.active !== false
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-slate-200 text-slate-600"
+                      }`}
+                    >
+                      {cat.active !== false ? "Ativa" : "Oculta"}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* ABA 3: CONFIGURAÇÕES GLOBAIS E BANNERS */}
+        {/* ABA 4: WHATSAPP MASTER & GRUPO VIP */}
         {activeTab === "settings" && (
           <form
             onSubmit={handleSaveSettings}
             className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5"
           >
             <h2 className="text-lg font-black text-slate-900">
-              Banners, Grupo VIP e WhatsApp Master
+              Grupo VIP e WhatsApp Master
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -838,63 +1361,193 @@ export default function MasterAdminPage() {
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
-
-              <div className="sm:col-span-2 space-y-2">
-                <label className="block text-xs font-bold text-slate-700">
-                  Banner Principal da Home (Opcional)
-                </label>
-                <div className="flex flex-wrap items-center gap-3">
-                  <label className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer">
-                    {uploadingBanner ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Upload className="w-4 h-4" />
-                    )}
-                    Enviar Novo Banner
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleUploadHeroBanner}
-                      className="hidden"
-                    />
-                  </label>
-                  {settings.heroBannerUrl && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSettings({ ...settings, heroBannerUrl: "" })
-                      }
-                      className="text-xs font-bold text-red-600 hover:underline"
-                    >
-                      Remover Banner
-                    </button>
-                  )}
-                </div>
-                {settings.heroBannerUrl && (
-                  <img
-                    src={settings.heroBannerUrl}
-                    alt="Banner Principal"
-                    className="w-full max-h-48 object-cover rounded-2xl border border-slate-200 mt-2"
-                  />
-                )}
-              </div>
             </div>
 
             <button
               type="submit"
               disabled={savingSettings}
-              className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-sm px-6 py-3.5 rounded-xl inline-flex items-center gap-2"
+              className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-sm px-6 py-3.5 rounded-xl inline-flex items-center gap-2 cursor-pointer"
             >
               {savingSettings ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              Salvar Configurações Globais
+              Salvar Configurações
             </button>
           </form>
         )}
       </main>
+
+      {/* MODAL DE EDIÇÃO DA CATEGORIA (TEXTO + SUBTÍTULO + COR + FOTO/ÍCONE) */}
+      {editingCat && (
+        <div
+          onClick={() => setEditingCat(null)}
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={handleSaveEditedCategory}
+            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4 relative"
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-lg font-black text-slate-900">
+                Editar Categoria: {editingCat.name}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingCat(null)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nome da Categoria *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingCat.name}
+                  onChange={(e) =>
+                    setEditingCat({ ...editingCat, name: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Ordem de Exibição
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={editingCat.order || 1}
+                  onChange={(e) =>
+                    setEditingCat({
+                      ...editingCat,
+                      order: Number(e.target.value),
+                    })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Subtítulo / Descrição curta
+                </label>
+                <input
+                  type="text"
+                  value={editingCat.subtitle || ""}
+                  onChange={(e) =>
+                    setEditingCat({ ...editingCat, subtitle: e.target.value })
+                  }
+                  placeholder="Ex: Restaurantes, pizzarias, lanchonetes..."
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Cor do Card / Ícone
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {COLOR_PRESETS.map((c) => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onClick={() =>
+                        setEditingCat({ ...editingCat, bgColor: c.value })
+                      }
+                      className={`w-8 h-8 rounded-xl ${c.value} transition cursor-pointer ${
+                        editingCat.bgColor === c.value
+                          ? "ring-4 ring-slate-900 scale-110"
+                          : "opacity-80 hover:opacity-100"
+                      }`}
+                      title={c.label}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="sm:col-span-2 pt-2 border-t border-slate-100 space-y-2">
+                <label className="block text-xs font-bold text-slate-700">
+                  Foto ou Ícone Personalizado da Categoria
+                </label>
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-14 h-14 rounded-2xl ${
+                      editingCat.bgColor || "bg-blue-600"
+                    } flex items-center justify-center shrink-0 shadow-sm`}
+                  >
+                    <CategoryIcon
+                      name={editingCat.iconName}
+                      customIconUrl={editingCat.customIconUrl}
+                      className="w-7 h-7 text-white"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3.5 py-2.5 rounded-xl cursor-pointer">
+                      {uploadingCatIcon ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4" />
+                      )}
+                      Enviar Foto/Ícone
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleUploadCategoryImage}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {editingCat.customIconUrl && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingCat({ ...editingCat, customIconUrl: "" })
+                        }
+                        className="text-xs font-bold text-red-600 hover:underline"
+                      >
+                        Usar ícone padrão
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingCat(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={savingCat}
+                className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-[#0A4D9C] hover:bg-[#062F63] text-white inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                {savingCat ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                Salvar Categoria
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <Footer settings={settings} />
     </div>
