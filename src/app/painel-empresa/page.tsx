@@ -43,6 +43,10 @@ import {
   MessageCircle,
   Lock,
   Building2,
+  ShieldCheck,
+  Clock,
+  CheckCircle2,
+  X,
 } from "lucide-react";
 
 function createSlug(text: string) {
@@ -87,6 +91,11 @@ export default function BusinessDashboardPage() {
   const [saving, setSaving] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
 
+  // Status de aprovação e Pop-up pós-salvamento
+  const [isApproved, setIsApproved] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+
   // Campos da Empresa
   const [name, setName] = useState("");
   const [category, setCategory] = useState("alimentacao");
@@ -103,10 +112,9 @@ export default function BusinessDashboardPage() {
   const [coverUrl, setCoverUrl] = useState("");
   const [gallery, setGallery] = useState<string[]>([]);
 
-  // Limites controlados pelo Master (Plano Grátis: mínimo 6 fotos e 0 vídeos)
+  // Limites controlados pelo Master (Plano Grátis: 6 fotos e 0 vídeos)
   const [maxPhotos, setMaxPhotos] = useState(6);
   const [maxVideos, setMaxVideos] = useState(0);
-  const [isFeatured, setIsFeatured] = useState(false);
   const [viewsCount, setViewsCount] = useState(0);
   const [whatsappClicks, setWhatsappClicks] = useState(0);
 
@@ -163,7 +171,11 @@ export default function BusinessDashboardPage() {
       const snap = await getDocs(q);
       if (!snap.empty) {
         const docSnap = snap.docs[0];
-        const data = docSnap.data() as Business & { cep?: string; googleMapsUrl?: string };
+        const data = docSnap.data() as Business & {
+          cep?: string;
+          googleMapsUrl?: string;
+          acceptedTerms?: boolean;
+        };
         setBusinessId(docSnap.id);
         setName(data.name || "");
         setCategory(data.category || "alimentacao");
@@ -181,7 +193,8 @@ export default function BusinessDashboardPage() {
         setGallery(data.gallery || []);
         setMaxPhotos(Math.max(6, data.maxPhotos ?? 6));
         setMaxVideos(data.maxVideos ?? 0);
-        setIsFeatured(Boolean(data.isFeatured));
+        setIsApproved(Boolean(data.isApproved));
+        setAcceptedTerms(Boolean(data.acceptedTerms ?? data.isApproved));
         setViewsCount(data.viewsCount || 0);
         setWhatsappClicks(data.whatsappClicks || 0);
 
@@ -266,7 +279,8 @@ export default function BusinessDashboardPage() {
           youtubeVerticals: [],
           coupon: { active: false, title: "", code: "", rules: "" },
           isFeatured: false,
-          isApproved: true,
+          isApproved: false,
+          acceptedTerms: false,
           viewsCount: 0,
           whatsappClicks: 0,
           createdAt: Date.now(),
@@ -274,6 +288,7 @@ export default function BusinessDashboardPage() {
         await setDoc(doc(db, "businesses", slug), initialPayload);
         setName(registerCompanyName.trim());
         setBusinessId(slug);
+        setIsApproved(false);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
@@ -345,7 +360,12 @@ export default function BusinessDashboardPage() {
     if (!user) return;
 
     if (!name.trim() || !whatsapp.trim() || !neighborhood.trim() || !address.trim()) {
-      alert("Preencha os campos obrigatórios (Nome, WhatsApp, Bairro e Endereço) lá no topo antes de salvar.");
+      alert("Preencha os campos obrigatórios (Nome, WhatsApp, Bairro e Endereço) antes de salvar.");
+      return;
+    }
+
+    if (!acceptedTerms) {
+      alert("Você precisa marcar a caixa concordando com as Regras e Termos de Responsabilidade do Guia.");
       return;
     }
 
@@ -392,6 +412,8 @@ export default function BusinessDashboardPage() {
         maxVideos,
         youtubeHorizontal: maxVideos >= 1 ? youtubeHorizontal.trim() : "",
         youtubeVerticals: verticalVideos,
+        acceptedTerms: true,
+        acceptedTermsAt: Date.now(),
         coupon: {
           active: couponActive,
           title: couponTitle.trim(),
@@ -408,15 +430,20 @@ export default function BusinessDashboardPage() {
           ...payload,
           slug: newSlug,
           isFeatured: false,
-          isApproved: true,
+          isApproved: false,
           viewsCount: 0,
           whatsappClicks: 0,
           createdAt: Date.now(),
         });
         setBusinessId(newSlug);
+        setIsApproved(false);
       }
 
-      alert("✅ Página da sua empresa salva e publicada com sucesso!");
+      if (!isApproved) {
+        setShowApprovalModal(true);
+      } else {
+        alert("✅ Alterações salvas e atualizadas na sua página!");
+      }
     } catch (err: any) {
       console.error(err);
       alert("Erro ao salvar dados da empresa: " + (err?.message || "verifique sua conexão."));
@@ -603,6 +630,10 @@ export default function BusinessDashboardPage() {
     `Olá! Sou da empresa "${name || "cadastrada"}" no Caldas Online e quero ativar os vídeos na minha página.`
   )}`;
 
+  const fastTrackApprovalWaUrl = `https://wa.me/${cleanMasterPhone}?text=${encodeURIComponent(
+    `Olá! A empresa "${name || "Nova Empresa"}" acabou de se cadastrar no guia Caldas Online e solicita a verificação e liberação da página.`
+  )}`;
+
   const unlockedVerticalVideos = Math.max(0, maxVideos - 1);
 
   return (
@@ -610,16 +641,27 @@ export default function BusinessDashboardPage() {
       <Navbar vipGroupUrl={settings.vipGroupUrl} />
 
       <main className="max-w-5xl w-full mx-auto px-4 py-6 space-y-6 flex-1">
-        {/* Topo do Painel com Nome da Empresa Logada */}
+        {/* Topo do Painel com Nome da Empresa Logada e Status de Publicação */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-start sm:items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-blue-50 text-[#0A4D9C] flex items-center justify-center shrink-0">
               <Building2 className="w-6 h-6" />
             </div>
-            <div>
-              <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
-                Empresa Conectada
-              </p>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                  Empresa Conectada
+                </p>
+                {isApproved ? (
+                  <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full">
+                    <CheckCircle2 className="w-3 h-3" /> Publicada no Guia
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full">
+                    <Clock className="w-3 h-3" /> Em Análise (Aguardando Liberação)
+                  </span>
+                )}
+              </div>
               <h1 className="text-xl font-black text-slate-900">
                 {name || "Minha Empresa"}
               </h1>
@@ -631,7 +673,7 @@ export default function BusinessDashboardPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {businessId && (
+            {businessId && isApproved && (
               <Link
                 href={`/empresa/${businessId}`}
                 target="_blank"
@@ -648,6 +690,32 @@ export default function BusinessDashboardPage() {
             </button>
           </div>
         </div>
+
+        {/* Aviso caso esteja pendente de aprovação */}
+        {!isApproved && (
+          <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs sm:text-sm font-extrabold text-amber-950">
+                  Seu cadastro passa por uma verificação de segurança antes de ir ao ar
+                </p>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  Preencha seus dados abaixo, aceite as regras e salve. O prazo de liberação é de até 48h (ou solicite agilidade no WhatsApp).
+                </p>
+              </div>
+            </div>
+            <a
+              href={fastTrackApprovalWaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl inline-flex items-center justify-center gap-1.5 shrink-0 transition"
+            >
+              <MessageCircle className="w-4 h-4 fill-white" />
+              Acelerar Liberação
+            </a>
+          </div>
+        )}
 
         {/* Métricas */}
         {businessId && (
@@ -872,7 +940,6 @@ export default function BusinessDashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Logomarca */}
               <div className="border border-dashed border-slate-300 rounded-2xl p-4 flex items-center gap-4">
                 {logoUrl ? (
                   <img
@@ -907,7 +974,6 @@ export default function BusinessDashboardPage() {
                 </div>
               </div>
 
-              {/* Capa */}
               <div className="border border-dashed border-slate-300 rounded-2xl p-4 flex items-center gap-4">
                 {coverUrl ? (
                   <img
@@ -943,7 +1009,6 @@ export default function BusinessDashboardPage() {
               </div>
             </div>
 
-            {/* Galeria */}
             <div className="pt-2 border-t border-slate-100 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
@@ -1032,7 +1097,6 @@ export default function BusinessDashboardPage() {
               )}
             </div>
 
-            {/* Vídeo Principal Horizontal */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Vídeo Principal Horizontal (Exibe primeiro em destaque)
@@ -1052,13 +1116,10 @@ export default function BusinessDashboardPage() {
               )}
             </div>
 
-            {/* Vídeos Verticais (YouTube Shorts) */}
             <div className="pt-2 border-t border-slate-100 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-700">
-                  Vídeos Verticais (YouTube Shorts — {unlockedVerticalVideos} de 3 liberados)
-                </p>
-              </div>
+              <p className="text-xs font-bold text-slate-700">
+                Vídeos Verticais (YouTube Shorts — {unlockedVerticalVideos} de 3 liberados)
+              </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
@@ -1156,16 +1217,98 @@ export default function BusinessDashboardPage() {
             )}
           </div>
 
+          {/* 5. REGRAS DO GUIA E TERMO DE RESPONSABILIDADE */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200 space-y-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-[#0A4D9C]" />
+              <h2 className="font-extrabold text-slate-900">
+                5. Regras do Guia e Termo de Responsabilidade
+              </h2>
+            </div>
+
+            <div className="rounded-xl bg-slate-50 border border-slate-200/80 p-3.5 text-xs text-slate-600 leading-relaxed space-y-1.5">
+              <p>
+                <strong>1. Responsabilidade Integral:</strong> A empresa anunciante é 100% responsável pela veracidade das informações, preços, promoções, direitos de imagem e cumprimento dos cupons divulgados em sua página.
+              </p>
+              <p>
+                <strong>2. Conduta e Proibições:</strong> É estritamente proibido publicar conteúdo ofensivo, ilegal, pornográfico, enganoso ou sem relação comercial legítima em Caldas Novas - GO.
+              </p>
+              <p>
+                <strong>3. Moderação e Penalidades:</strong> Todo cadastro passa por vistoria prévia. Em caso de violação destas regras, fraudes ou reclamações fundamentadas de consumidores, o anúncio poderá ser <strong>bloqueado ou excluído automaticamente sem aviso prévio e sem direito a reembolso</strong> de eventuais planos contratados.
+              </p>
+            </div>
+
+            <label className="flex items-start gap-2.5 pt-1 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                className="w-4 h-4 mt-0.5 accent-[#0A4D9C] shrink-0"
+              />
+              <span className="text-xs font-bold text-slate-800">
+                Li, concordo com as regras do guia Caldas Online e assumo total responsabilidade pelas informações e imagens publicadas. *
+              </span>
+            </label>
+          </div>
+
           <button
             type="submit"
             disabled={saving}
             className="w-full sm:w-auto bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-sm px-8 py-4 rounded-2xl shadow-lg inline-flex items-center justify-center gap-2 transition cursor-pointer"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {saving ? "SALVANDO ALTERAÇÕES..." : "SALVAR E PUBLICAR PÁGINA DA EMPRESA"}
+            {saving ? "SALVANDO E ENVIANDO..." : "SALVAR E ENVIAR PARA APROVAÇÃO"}
           </button>
         </form>
       </main>
+
+      {/* POP-UP DE CADASTRO RECEBIDO / AGUARDANDO LIBERAÇÃO */}
+      {showApprovalModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 relative space-y-4 text-center">
+            <button
+              type="button"
+              onClick={() => setShowApprovalModal(false)}
+              aria-label="Fechar"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-full"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+
+            <h3 className="text-xl font-black text-slate-900">
+              Cadastro Salvo com Sucesso!
+            </h3>
+
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              Os dados da empresa <strong>{name}</strong> foram enviados para a nossa equipe de moderação. Num prazo de até <strong>48 horas</strong> sua página estará publicada no guia <strong>Caldas Online</strong>.
+            </p>
+
+            <div className="pt-2 space-y-2.5">
+              <a
+                href={fastTrackApprovalWaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-xs sm:text-sm py-3.5 px-5 rounded-2xl shadow-md inline-flex items-center justify-center gap-2 transition"
+              >
+                <MessageCircle className="w-5 h-5 fill-white" />
+                Clique aqui para acelerar sua publicação
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setShowApprovalModal(false)}
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition cursor-pointer"
+              >
+                Entendi, aguardar análise
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer settings={settings} />
     </div>
