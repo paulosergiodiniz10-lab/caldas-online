@@ -100,25 +100,24 @@ export const MOST_SEARCHED = [
 ];
 
 export const PUBLIC_UTILITIES = [
-  { name: "Polícia Militar", number: "190", color: "bg-blue-900" },
-  { name: "Bombeiros", number: "193", color: "bg-red-600" },
-  { name: "SAMU", number: "192", color: "bg-red-700" },
-  { name: "Hospital (UPA)", number: "(64) 3454-3500", color: "bg-emerald-600" },
-  { name: "Prefeitura", number: "(64) 3454-3500", color: "bg-amber-600" },
-  { name: "Energia (Equatorial)", number: "0800 062 0196", color: "bg-yellow-500" },
-  { name: "Saneamento (DEMAE)", number: "(64) 3454-7400", color: "bg-sky-500" },
-  { name: "Rodoviária", number: "(64) 3453-1144", color: "bg-purple-600" },
-  { name: "Ponto de Táxi", number: "(64) 3453-1234", color: "bg-teal-600" },
+  { name: "Polícia Militar", number: "190", color: "bg-blue-900", iconName: "Shield" },
+  { name: "Bombeiros", number: "193", color: "bg-red-600", iconName: "Flame" },
+  { name: "SAMU", number: "192", color: "bg-red-700", iconName: "Ambulance" },
+  { name: "Hospital (UPA)", number: "(64) 3454-3500", color: "bg-emerald-600", iconName: "Hospital" },
+  { name: "Prefeitura", number: "(64) 3454-3500", color: "bg-amber-600", iconName: "Landmark" },
+  { name: "Energia (Equatorial)", number: "0800 062 0196", color: "bg-yellow-500", iconName: "Zap" },
+  { name: "Saneamento (DEMAE)", number: "(64) 3454-7400", color: "bg-sky-500", iconName: "Droplets" },
+  { name: "Rodoviária", number: "(64) 3453-1144", color: "bg-purple-600", iconName: "Bus" },
+  { name: "Ponto de Táxi", number: "(64) 3453-1234", color: "bg-teal-600", iconName: "CarTaxiFront" },
 ];
 
-// Fórmula de Haversine para calcular distância em KM entre duas coordenadas
 export function calculateDistanceKm(
   lat1: number,
   lon1: number,
   lat2: number,
   lon2: number
 ): number {
-  const R = 6371; // Raio da Terra em km
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
