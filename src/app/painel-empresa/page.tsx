@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -10,34 +11,36 @@ import {
 } from "firebase/auth";
 import {
   collection,
+  getDocs,
   query,
   where,
-  getDocs,
-  addDoc,
-  updateDoc,
   doc,
+  setDoc,
+  updateDoc,
+  getDoc,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { compressAndUploadImage } from "@/lib/cloudinary";
-import { CATEGORIES } from "@/lib/constants";
-import { Business } from "@/types";
+import { DEFAULT_CATEGORIES, DEFAULT_SITE_SETTINGS } from "@/lib/constants";
+import { Business, CategoryDoc, SiteSettings } from "@/types";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import {
   Store,
-  MapPin,
   Upload,
-  Ticket,
-  Eye,
-  MessageCircle,
+  Loader2,
   LogOut,
   Save,
-  Loader2,
-  Navigation,
-  ExternalLink,
   Trash2,
+  MapPin,
+  Ticket,
+  Youtube,
+  Image as ImageIcon,
+  ExternalLink,
+  Eye,
+  MessageCircle,
+  Lock,
 } from "lucide-react";
-import Link from "next/link";
 
 function createSlug(text: string) {
   return text
@@ -48,57 +51,93 @@ function createSlug(text: string) {
     .replace(/(^-|-$)+/g, "");
 }
 
+function isValidYoutubeUrl(url: string): boolean {
+  if (!url.trim()) return true;
+  return /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/i.test(url.trim());
+}
+
 export default function BusinessDashboardPage() {
   const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [loadingAuth, setLoadingAuth] = useState(true);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
-
-  // Campos de Login/Cadastro
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [submittingAuth, setSubmittingAuth] = useState(false);
 
-  // Dados da Empresa
+  const [categories, setCategories] = useState<CategoryDoc[]>(DEFAULT_CATEGORIES);
+  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [gettingGps, setGettingGps] = useState(false);
-  const [successMsg, setSuccessMsg] = useState("");
 
-  const [form, setForm] = useState({
-    name: "",
-    category: "alimentacao",
-    subcategory: "",
-    description: "",
-    neighborhood: "",
-    address: "",
-    lat: "" as string | number,
-    lng: "" as string | number,
-    whatsapp: "",
-    website: "",
-    instagram: "",
-    facebook: "",
-    logoUrl: "",
-    coverUrl: "",
-    gallery: [] as string[],
-    couponActive: false,
-    couponTitle: "",
-    couponCode: "",
-    couponRules: "",
-    isFeatured: false,
-    isApproved: true,
-    viewsCount: 0,
-    whatsappClicks: 0,
-  });
+  // Campos da Empresa
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("alimentacao");
+  const [subcategory, setSubcategory] = useState("");
+  const [description, setDescription] = useState("");
+  const [neighborhood, setNeighborhood] = useState("");
+  const [address, setAddress] = useState("");
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+  const [whatsapp, setWhatsapp] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [website, setWebsite] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [coverUrl, setCoverUrl] = useState("");
+  const [gallery, setGallery] = useState<string[]>([]);
+
+  // Limites controlados pelo Master (Padrão: 5 fotos e 1 vídeo)
+  const [maxPhotos, setMaxPhotos] = useState(5);
+  const [maxVideos, setMaxVideos] = useState(1);
+  const [isFeatured, setIsFeatured] = useState(false);
+  const [viewsCount, setViewsCount] = useState(0);
+  const [whatsappClicks, setWhatsappClicks] = useState(0);
+
+  // Vídeos YouTube
+  const [youtubeHorizontal, setYoutubeHorizontal] = useState("");
+  const [youtubeVertical1, setYoutubeVertical1] = useState("");
+  const [youtubeVertical2, setYoutubeVertical2] = useState("");
+  const [youtubeVertical3, setYoutubeVertical3] = useState("");
+
+  // Cupom
+  const [couponActive, setCouponActive] = useState(false);
+  const [couponTitle, setCouponTitle] = useState("");
+  const [couponCode, setCouponCode] = useState("");
+  const [couponRules, setCouponRules] = useState("");
+
+  // Loaders de Upload
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
 
   useEffect(() => {
+    async function loadShared() {
+      try {
+        const snapCats = await getDocs(collection(db, "categories"));
+        if (!snapCats.empty) {
+          const list = snapCats.docs
+            .map((d) => ({ id: d.id, ...(d.data() as Omit<CategoryDoc, "id">) }))
+            .filter((c) => c.active !== false)
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
+          if (list.length > 0) setCategories(list);
+        }
+        const snapSet = await getDoc(doc(db, "settings", "global"));
+        if (snapSet.exists()) {
+          setSettings((prev) => ({ ...prev, ...(snapSet.data() as Partial<SiteSettings>) }));
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    loadShared();
+
     const unsub = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
         await loadUserBusiness(currentUser.uid);
       }
-      setAuthLoading(false);
+      setLoadingAuth(false);
     });
     return () => unsub();
   }, []);
@@ -108,37 +147,42 @@ export default function BusinessDashboardPage() {
       const q = query(collection(db, "businesses"), where("ownerId", "==", uid));
       const snap = await getDocs(q);
       if (!snap.empty) {
-        const d = snap.docs[0];
-        const data = d.data() as Business;
-        setBusinessId(d.id);
-        setForm({
-          name: data.name || "",
-          category: data.category || "alimentacao",
-          subcategory: data.subcategory || "",
-          description: data.description || "",
-          neighborhood: data.neighborhood || "",
-          address: data.address || "",
-          lat: data.lat ?? "",
-          lng: data.lng ?? "",
-          whatsapp: data.whatsapp || "",
-          website: data.website || "",
-          instagram: data.instagram || "",
-          facebook: data.facebook || "",
-          logoUrl: data.logoUrl || "",
-          coverUrl: data.coverUrl || "",
-          gallery: data.gallery || [],
-          couponActive: data.coupon?.active || false,
-          couponTitle: data.coupon?.title || "",
-          couponCode: data.coupon?.code || "",
-          couponRules: data.coupon?.rules || "",
-          isFeatured: data.isFeatured || false,
-          isApproved: data.isApproved ?? true,
-          viewsCount: data.viewsCount || 0,
-          whatsappClicks: data.whatsappClicks || 0,
-        });
+        const docSnap = snap.docs[0];
+        const data = docSnap.data() as Business;
+        setBusinessId(docSnap.id);
+        setName(data.name || "");
+        setCategory(data.category || "alimentacao");
+        setSubcategory(data.subcategory || "");
+        setDescription(data.description || "");
+        setNeighborhood(data.neighborhood || "");
+        setAddress(data.address || "");
+        setLat(data.lat ?? null);
+        setLng(data.lng ?? null);
+        setWhatsapp(data.whatsapp || "");
+        setInstagram(data.instagram || "");
+        setWebsite(data.website || "");
+        setLogoUrl(data.logoUrl || "");
+        setCoverUrl(data.coverUrl || "");
+        setGallery(data.gallery || []);
+        setMaxPhotos(data.maxPhotos ?? 5);
+        setMaxVideos(data.maxVideos ?? 1);
+        setIsFeatured(Boolean(data.isFeatured));
+        setViewsCount(data.viewsCount || 0);
+        setWhatsappClicks(data.whatsappClicks || 0);
+
+        setYoutubeHorizontal(data.youtubeHorizontal || "");
+        const verts = data.youtubeVerticals || [];
+        setYoutubeVertical1(verts[0] || "");
+        setYoutubeVertical2(verts[1] || "");
+        setYoutubeVertical3(verts[2] || "");
+
+        setCouponActive(Boolean(data.coupon?.active));
+        setCouponTitle(data.coupon?.title || "");
+        setCouponCode(data.coupon?.code || "");
+        setCouponRules(data.coupon?.rules || "");
       }
     } catch (err) {
-      console.error("Erro ao carregar dados da empresa:", err);
+      console.error("Erro ao carregar empresa:", err);
     }
   }
 
@@ -152,17 +196,12 @@ export default function BusinessDashboardPage() {
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Erro ao autenticar.";
-      if (message.includes("invalid-credential") || message.includes("wrong-password")) {
-        setAuthError("E-mail ou senha incorretos.");
-      } else if (message.includes("email-already-in-use")) {
-        setAuthError("Este e-mail já está cadastrado. Faça login.");
-      } else if (message.includes("weak-password")) {
-        setAuthError("A senha deve ter pelo menos 6 caracteres.");
-      } else {
-        setAuthError("Não foi possível acessar. Verifique os dados.");
-      }
+    } catch {
+      setAuthError(
+        isRegisterMode
+          ? "Não foi possível criar a conta. Verifique o e-mail ou use uma senha com 6+ caracteres."
+          : "E-mail ou senha incorretos."
+      );
     } finally {
       setSubmittingAuth(false);
     }
@@ -170,120 +209,157 @@ export default function BusinessDashboardPage() {
 
   const handleCaptureGps = () => {
     if (!navigator.geolocation) {
-      alert("Seu navegador não suporta captura de GPS.");
+      alert("Seu navegador não suporta GPS.");
       return;
     }
     setGettingGps(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setForm((prev) => ({
-          ...prev,
-          lat: Number(pos.coords.latitude.toFixed(6)),
-          lng: Number(pos.coords.longitude.toFixed(6)),
-        }));
+        setLat(pos.coords.latitude);
+        setLng(pos.coords.longitude);
         setGettingGps(false);
+        alert("Localização GPS capturada com sucesso!");
       },
       () => {
-        alert("Não foi possível obter sua localização atual.");
         setGettingGps(false);
+        alert("Permita o acesso à localização no navegador para marcar no mapa.");
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
   };
 
-  const handleImageUpload = async (
+  const handleUploadSingle = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    target: "logo" | "cover" | "gallery"
+    target: "logo" | "cover"
   ) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    setUploading(true);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (target === "logo") setUploadingLogo(true);
+    else setUploadingCover(true);
+
     try {
-      if (target === "gallery") {
-        const uploadedUrls: string[] = [];
-        for (let i = 0; i < Math.min(files.length, 6); i++) {
-          const url = await compressAndUploadImage(files[i]);
-          uploadedUrls.push(url);
-        }
-        setForm((prev) => ({
-          ...prev,
-          gallery: [...prev.gallery, ...uploadedUrls].slice(0, 8),
-        }));
-      } else {
-        const url = await compressAndUploadImage(files[0]);
-        if (target === "logo") {
-          setForm((prev) => ({ ...prev, logoUrl: url }));
-        } else {
-          setForm((prev) => ({ ...prev, coverUrl: url }));
-        }
-      }
+      const url = await compressAndUploadImage(file);
+      if (target === "logo") setLogoUrl(url);
+      else setCoverUrl(url);
     } catch (err) {
-      console.error(err);
-      alert("Erro ao enviar imagem. Tente novamente.");
+      alert(err instanceof Error ? err.message : "Erro ao enviar imagem.");
     } finally {
-      setUploading(false);
+      if (target === "logo") setUploadingLogo(false);
+      else setUploadingCover(false);
+      e.target.value = "";
     }
+  };
+
+  const handleUploadGalleryPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (gallery.length >= maxPhotos) {
+      alert(
+        `Você atingiu o limite de ${maxPhotos} fotos do seu plano. Fale com o Caldas Online para liberar mais fotos!`
+      );
+      e.target.value = "";
+      return;
+    }
+
+    setUploadingGallery(true);
+    try {
+      const url = await compressAndUploadImage(file);
+      setGallery((prev) => [...prev, url]);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erro ao enviar foto.");
+    } finally {
+      setUploadingGallery(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleRemoveGalleryPhoto = (idx: number) => {
+    setGallery((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const handleSaveBusiness = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    setSaving(true);
-    setSuccessMsg("");
 
+    // Validar links do YouTube
+    const allVideoInputs = [
+      youtubeHorizontal,
+      youtubeVertical1,
+      youtubeVertical2,
+      youtubeVertical3,
+    ];
+    for (const link of allVideoInputs) {
+      if (!isValidYoutubeUrl(link)) {
+        alert(
+          "Atenção: Aceitamos apenas links do YouTube (youtube.com ou youtu.be) para manter o site rápido."
+        );
+        return;
+      }
+    }
+
+    setSaving(true);
     try {
-      const slug = `${createSlug(form.name)}-${user.uid.slice(0, 4)}`;
-      const payload = {
+      const slug = businessId || `${createSlug(name)}-${user.uid.slice(0, 5)}`;
+
+      // Monta lista de vídeos verticais respeitando o limite maxVideos (1 = só horizontal; 2..4 = libera verticais)
+      const allowedVerticalCount = Math.max(0, maxVideos - 1);
+      const verticalVideos = [youtubeVertical1, youtubeVertical2, youtubeVertical3]
+        .map((v) => v.trim())
+        .filter(Boolean)
+        .slice(0, allowedVerticalCount);
+
+      const payload: Omit<Business, "id"> = {
         ownerId: user.uid,
-        name: form.name.trim(),
+        name: name.trim(),
         slug,
-        category: form.category,
-        subcategory: form.subcategory.trim(),
-        description: form.description.trim(),
-        neighborhood: form.neighborhood.trim(),
-        address: form.address.trim(),
-        lat: form.lat !== "" ? Number(form.lat) : null,
-        lng: form.lng !== "" ? Number(form.lng) : null,
-        whatsapp: form.whatsapp.trim(),
-        website: form.website.trim(),
-        instagram: form.instagram.trim(),
-        facebook: form.facebook.trim(),
-        logoUrl: form.logoUrl,
-        coverUrl: form.coverUrl,
-        gallery: form.gallery,
+        category,
+        subcategory: subcategory.trim(),
+        description: description.trim(),
+        neighborhood: neighborhood.trim(),
+        address: address.trim(),
+        lat,
+        lng,
+        whatsapp: whatsapp.replace(/\D/g, ""),
+        instagram: instagram.trim(),
+        website: website.trim(),
+        logoUrl,
+        coverUrl,
+        gallery: gallery.slice(0, maxPhotos),
+        maxPhotos,
+        maxVideos,
+        youtubeHorizontal: maxVideos >= 1 ? youtubeHorizontal.trim() : "",
+        youtubeVerticals: verticalVideos,
         coupon: {
-          active: form.couponActive,
-          title: form.couponTitle.trim(),
-          code: form.couponCode.trim().toUpperCase(),
-          rules: form.couponRules.trim(),
+          active: couponActive,
+          title: couponTitle.trim(),
+          code: couponCode.trim().toUpperCase(),
+          rules: couponRules.trim(),
         },
-        isFeatured: form.isFeatured,
-        isApproved: form.isApproved,
+        isFeatured,
+        isApproved: true,
+        viewsCount,
+        whatsappClicks,
+        createdAt: Date.now(),
       };
 
       if (businessId) {
         await updateDoc(doc(db, "businesses", businessId), payload);
       } else {
-        const docRef = await addDoc(collection(db, "businesses"), {
-          ...payload,
-          viewsCount: 0,
-          whatsappClicks: 0,
-          createdAt: Date.now(),
-        });
-        setBusinessId(docRef.id);
+        await setDoc(doc(db, "businesses", slug), payload);
+        setBusinessId(slug);
       }
 
-      setSuccessMsg("Dados da empresa salvos e publicados com sucesso!");
-      setTimeout(() => setSuccessMsg(""), 4000);
+      alert("Página da sua empresa salva e publicada com sucesso!");
     } catch (err) {
       console.error(err);
-      alert("Erro ao salvar cadastro.");
+      alert("Erro ao salvar dados da empresa.");
     } finally {
       setSaving(false);
     }
   };
 
-  if (authLoading) {
+  if (loadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-[#0A4D9C]" />
@@ -291,47 +367,51 @@ export default function BusinessDashboardPage() {
     );
   }
 
-  // TELA DE LOGIN / CADASTRO DE EMPRESAS
   if (!user) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Navbar />
+        <Navbar vipGroupUrl={settings.vipGroupUrl} />
         <main className="flex-1 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-md border border-slate-100 max-w-md w-full p-6 sm:p-8">
             <div className="w-12 h-12 rounded-2xl bg-[#0A4D9C] text-white flex items-center justify-center mb-4">
               <Store className="w-6 h-6" />
             </div>
             <h1 className="text-2xl font-black text-slate-900">
-              {isRegisterMode ? "Cadastrar Minha Empresa" : "Área do Lojista"}
+              {isRegisterMode ? "Cadastrar Minha Empresa" : "Área da Empresa"}
             </h1>
             <p className="text-sm text-slate-500 mt-1">
               {isRegisterMode
-                ? "Crie sua conta gratuita para divulgar sua empresa e cupons em Caldas Novas."
-                : "Acesse seu painel para editar fotos, endereço e cupons de desconto."}
+                ? "Crie sua conta gratuita e coloque sua empresa no guia de Caldas Novas."
+                : "Acesse seu painel para editar fotos, vídeos, cupom e WhatsApp."}
             </p>
 
             <form onSubmit={handleAuthSubmit} className="mt-6 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">E-mail</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Seu E-mail *
+                </label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="contato@suaempresa.com.br"
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#0A4D9C]"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Senha</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Senha (mínimo 6 caracteres) *
+                </label>
                 <input
                   type="password"
                   required
+                  minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#0A4D9C]"
+                  placeholder="••••••••"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
 
@@ -361,81 +441,103 @@ export default function BusinessDashboardPage() {
                 className="text-xs font-bold text-[#0A4D9C] hover:underline"
               >
                 {isRegisterMode
-                  ? "Já tem conta? Faça login aqui"
-                  : "Ainda não anunciou? Cadastre sua empresa grátis"}
+                  ? "Já tem cadastro? Fazer login"
+                  : "Ainda não cadastrou sua empresa? Criar conta grátis"}
               </button>
             </div>
           </div>
         </main>
-        <Footer />
+        <Footer settings={settings} />
       </div>
     );
   }
 
-  // PAINEL DO LOJISTA LOGADO
-  const currentSlug = form.name ? `${createSlug(form.name)}-${user.uid.slice(0, 4)}` : "";
+  const upgradeWaUrl = `https://wa.me/${(settings.masterWhatsApp || "5564981005505").replace(
+    /\D/g,
+    ""
+  )}?text=${encodeURIComponent(
+    `Olá! Sou da empresa "${name || "cadastrada"}" no Caldas Online e gostaria de liberar mais fotos, vídeos verticais e destaque no portal.`
+  )}`;
+
+  const unlockedVerticalVideos = Math.max(0, maxVideos - 1);
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navbar />
+      <Navbar vipGroupUrl={settings.vipGroupUrl} />
 
-      <main className="max-w-4xl w-full mx-auto px-4 py-6 space-y-6 flex-1">
-        {/* Topo com Métricas de Valor */}
+      <main className="max-w-5xl w-full mx-auto px-4 py-6 space-y-6 flex-1">
+        {/* Topo do Painel do Lojista */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <span className="text-xs font-bold text-[#0A4D9C] uppercase">Painel da Empresa</span>
             <h1 className="text-xl font-black text-slate-900">
-              {form.name || "Configure sua Vitrine"}
+              Painel da Minha Empresa
             </h1>
-            <p className="text-xs text-slate-500">{user.email}</p>
+            <p className="text-xs text-slate-500">
+              Plano atual: <strong>{maxPhotos} fotos</strong> e{" "}
+              <strong>{maxVideos} vídeo(s)</strong> liberados
+            </p>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {businessId && currentSlug && (
+            {businessId && (
               <Link
-                href={`/empresa/${currentSlug}`}
-                className="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-50 text-[#0A4D9C] px-3.5 py-2.5 rounded-xl hover:bg-blue-100 transition"
+                href={`/empresa/${businessId}`}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-50 text-[#0A4D9C] px-3.5 py-2.5 rounded-xl hover:bg-blue-100"
               >
                 <ExternalLink className="w-3.5 h-3.5" /> Ver Minha Página
               </Link>
             )}
             <button
               onClick={() => signOut(auth)}
-              className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-100 text-slate-700 px-3.5 py-2.5 rounded-xl hover:bg-slate-200 transition"
+              className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl"
             >
               <LogOut className="w-3.5 h-3.5" /> Sair
             </button>
           </div>
         </div>
 
-        {/* Termômetro de Resultados */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-blue-50 text-[#0A4D9C] flex items-center justify-center">
-              <Eye className="w-5 h-5" />
+        {/* Métricas Rápidas */}
+        {businessId && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0A4D9C] flex items-center justify-center">
+                <Eye className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 font-semibold">Visitas na Página</p>
+                <p className="text-xl font-black text-slate-900">{viewsCount}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-2xl font-black text-slate-900">{form.viewsCount}</p>
-              <p className="text-xs text-slate-500 font-medium">Visualizações na página</p>
-            </div>
-          </div>
 
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <MessageCircle className="w-5 h-5" />
+            <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <MessageCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 font-semibold">Cliques no WhatsApp</p>
+                <p className="text-xl font-black text-slate-900">{whatsappClicks}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-2xl font-black text-slate-900">{form.whatsappClicks}</p>
-              <p className="text-xs text-slate-500 font-medium">Cliques no seu WhatsApp</p>
-            </div>
-          </div>
-        </div>
 
-        {/* FORMULÁRIO COMPLETO DA EMPRESA */}
+            <a
+              href={upgradeWaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="col-span-2 sm:col-span-1 bg-gradient-to-r from-[#FF7A00] to-[#FFB800] rounded-2xl p-4 text-slate-950 shadow-sm flex flex-col justify-center hover:opacity-95 transition"
+            >
+              <p className="text-xs font-black uppercase">Quer mais fotos e vídeos?</p>
+              <p className="text-xs font-semibold mt-0.5">
+                Clique aqui para liberar pacote patrocinado →
+              </p>
+            </a>
+          </div>
+        )}
+
         <form onSubmit={handleSaveBusiness} className="space-y-6">
-          {/* Bloco 1: Informações Básicas */}
+          {/* 1. DADOS PRINCIPAIS */}
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
-            <h2 className="font-extrabold text-slate-900 text-base">1. Dados Principais</h2>
+            <h2 className="font-extrabold text-slate-900">1. Informações da Empresa</h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -445,24 +547,24 @@ export default function BusinessDashboardPage() {
                 <input
                   type="text"
                   required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Ex: Pizzaria Itália"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ex: Pizzaria Sabor das Águas"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Segmento Principal *
+                  Segmento / Categoria *
                 </label>
                 <select
-                  value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white"
                 >
-                  {CATEGORIES.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.slug || cat.id}>
                       {cat.name}
                     </option>
                   ))}
@@ -475,71 +577,37 @@ export default function BusinessDashboardPage() {
                 </label>
                 <input
                   type="text"
-                  value={form.subcategory}
-                  onChange={(e) => setForm({ ...form, subcategory: e.target.value })}
-                  placeholder="Ex: Pizzaria, Hotel, Farmácia..."
+                  value={subcategory}
+                  onChange={(e) => setSubcategory(e.target.value)}
+                  placeholder="Ex: Pizzaria e Esfiharia"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  WhatsApp com DDD *
+                  WhatsApp para Clientes (com DDD) *
                 </label>
                 <input
                   type="text"
                   required
-                  value={form.whatsapp}
-                  onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
-                  placeholder="(64) 99999-9999"
+                  value={whatsapp}
+                  onChange={(e) => setWhatsapp(e.target.value)}
+                  placeholder="64999999999"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Descrição dos Serviços / Produtos
-              </label>
-              <textarea
-                rows={3}
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Conte o que sua empresa oferece, horários de atendimento, diferenciais..."
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-              />
-            </div>
-          </div>
-
-          {/* Bloco 2: Endereço e Geolocalização */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <h2 className="font-extrabold text-slate-900 text-base flex items-center gap-1.5">
-                <MapPin className="w-4 h-4 text-orange-500" /> 2. Endereço e Localização GPS
-              </h2>
-              <button
-                type="button"
-                onClick={handleCaptureGps}
-                className="inline-flex items-center gap-1.5 text-xs font-bold bg-orange-50 text-orange-700 hover:bg-orange-100 px-3.5 py-2 rounded-xl transition"
-              >
-                {gettingGps ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Navigation className="w-3.5 h-3.5" />
-                )}
-                Capturar GPS de onde estou agora
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Bairro *</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Bairro *
+                </label>
                 <input
                   type="text"
                   required
-                  value={form.neighborhood}
-                  onChange={(e) => setForm({ ...form, neighborhood: e.target.value })}
-                  placeholder="Ex: Centro, Bairro Turista..."
+                  value={neighborhood}
+                  onChange={(e) => setNeighborhood(e.target.value)}
+                  placeholder="Ex: Centro / Turista I"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
@@ -551,242 +619,214 @@ export default function BusinessDashboardPage() {
                 <input
                   type="text"
                   required
-                  value={form.address}
-                  onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  placeholder="Rua, Número, Quadra/Lote"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Rua, Quadra, Lote..."
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Latitude (opcional - para distância)
+                  Instagram (opcional)
                 </label>
                 <input
                   type="text"
-                  value={form.lat}
-                  onChange={(e) => setForm({ ...form, lat: e.target.value })}
-                  placeholder="-17.7441"
+                  value={instagram}
+                  onChange={(e) => setInstagram(e.target.value)}
+                  placeholder="https://instagram.com/suaempresa"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Longitude (opcional - para distância)
+                  Site / Cardápio Digital (opcional)
                 </label>
                 <input
                   type="text"
-                  value={form.lng}
-                  onChange={(e) => setForm({ ...form, lng: e.target.value })}
-                  placeholder="-48.6248"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Descrição dos Serviços / Produtos *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Conte aos clientes o que sua empresa oferece, horário de funcionamento, diferenciais..."
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
             </div>
+
+            {/* GPS */}
+            <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
+              <div className="text-xs text-slate-600">
+                {lat && lng ? (
+                  <span className="text-emerald-700 font-bold">
+                    ✓ Localização GPS salva ({lat.toFixed(4)}, {lng.toFixed(4)})
+                  </span>
+                ) : (
+                  <span>Marque sua localização para aparecer no filtro &quot;Perto de mim&quot;.</span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleCaptureGps}
+                disabled={gettingGps}
+                className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3.5 py-2 rounded-xl"
+              >
+                {gettingGps ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <MapPin className="w-3.5 h-3.5 text-orange-500" />
+                )}
+                Capturar Minha Localização Atual
+              </button>
+            </div>
           </div>
 
-          {/* Bloco 3: Cupom de Desconto Exclusivo */}
-          <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-5 sm:p-6 shadow-sm border border-orange-200 space-y-4">
-            <div className="flex items-center justify-between">
+          {/* 2. LOGOMARCA, CAPA E GALERIA DE FOTOS (TRAVA 1MB + LIMITE DINÂMICO) */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Ticket className="w-5 h-5 text-orange-600" />
-                <div>
-                  <h2 className="font-extrabold text-slate-900 text-base">
-                    3. Cupom de Desconto no App
-                  </h2>
-                  <p className="text-xs text-slate-600">
-                    Empresas com cupom ganham selo de destaque e atraem muito mais clientes!
-                  </p>
-                </div>
+                <ImageIcon className="w-5 h-5 text-[#0A4D9C]" />
+                <h2 className="font-extrabold text-slate-900">
+                  2. Logomarca, Capa e Galeria ({gallery.length}/{maxPhotos} fotos)
+                </h2>
               </div>
-
-              <label className="inline-flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.couponActive}
-                  onChange={(e) => setForm({ ...form, couponActive: e.target.checked })}
-                  className="w-5 h-5 accent-orange-600 rounded"
-                />
-                <span className="text-xs font-extrabold text-slate-800">Ativar Cupom</span>
-              </label>
-            </div>
-
-            {form.couponActive && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Qual é o benefício/desconto? *
-                  </label>
-                  <input
-                    type="text"
-                    required={form.couponActive}
-                    value={form.couponTitle}
-                    onChange={(e) => setForm({ ...form, couponTitle: e.target.value })}
-                    placeholder="Ex: 15% de desconto na Pizza Grande ou Refrigerante Grátis"
-                    className="w-full rounded-xl border border-orange-300 bg-white px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Código do Cupom (ex: CALDAS15)
-                  </label>
-                  <input
-                    type="text"
-                    value={form.couponCode}
-                    onChange={(e) => setForm({ ...form, couponCode: e.target.value })}
-                    placeholder="CALDAS15"
-                    className="w-full rounded-xl border border-orange-300 bg-white px-3.5 py-2.5 text-sm uppercase"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Regras / Validade
-                  </label>
-                  <input
-                    type="text"
-                    value={form.couponRules}
-                    onChange={(e) => setForm({ ...form, couponRules: e.target.value })}
-                    placeholder="Ex: Válido de terça a quinta-feira"
-                    className="w-full rounded-xl border border-orange-300 bg-white px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Bloco 4: Redes Sociais */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
-            <h2 className="font-extrabold text-slate-900 text-base">4. Redes Sociais e Site</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Instagram</label>
-                <input
-                  type="text"
-                  value={form.instagram}
-                  onChange={(e) => setForm({ ...form, instagram: e.target.value })}
-                  placeholder="@suaempresa"
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Facebook</label>
-                <input
-                  type="text"
-                  value={form.facebook}
-                  onChange={(e) => setForm({ ...form, facebook: e.target.value })}
-                  placeholder="facebook.com/suaempresa"
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Site Oficial</label>
-                <input
-                  type="text"
-                  value={form.website}
-                  onChange={(e) => setForm({ ...form, website: e.target.value })}
-                  placeholder="www.suaempresa.com.br"
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Bloco 5: Fotos (Compressor Automático + Cloudinary) */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-extrabold text-slate-900 text-base">
-                5. Logomarca e Fotos (Otimizadas para 4G)
-              </h2>
-              {uploading && (
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0A4D9C]">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Comprimindo e enviando...
-                </span>
-              )}
+              <span className="text-[11px] font-bold bg-amber-50 text-amber-800 px-2.5 py-1 rounded-lg">
+                Tamanho máximo por foto: 1 MB (Horizontal ou Vertical)
+              </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Upload Logo */}
-              <div className="border border-dashed border-slate-300 rounded-2xl p-4 text-center">
-                <p className="text-xs font-bold text-slate-700 mb-2">Logomarca</p>
-                {form.logoUrl && (
+              {/* Logo */}
+              <div className="border border-dashed border-slate-300 rounded-2xl p-4 flex items-center gap-4">
+                {logoUrl ? (
                   <img
-                    src={form.logoUrl}
+                    src={logoUrl}
                     alt="Logo"
-                    className="w-20 h-20 object-cover rounded-xl mx-auto mb-2"
+                    className="w-16 h-16 rounded-xl object-cover border shrink-0"
                   />
+                ) : (
+                  <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center text-xs text-slate-400 font-bold shrink-0">
+                    Logo
+                  </div>
                 )}
-                <label className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3.5 py-2 rounded-xl cursor-pointer">
-                  <Upload className="w-3.5 h-3.5" /> Escolher Logo
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleImageUpload(e, "logo")}
-                    className="hidden"
-                  />
-                </label>
+                <div>
+                  <p className="text-xs font-bold text-slate-800 mb-1">Logomarca Quadrada</p>
+                  <label className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl cursor-pointer">
+                    {uploadingLogo ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                    Enviar Logo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleUploadSingle(e, "logo")}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
 
-              {/* Upload Capa */}
-              <div className="border border-dashed border-slate-300 rounded-2xl p-4 text-center">
-                <p className="text-xs font-bold text-slate-700 mb-2">Foto Principal (Capa)</p>
-                {form.coverUrl && (
+              {/* Capa */}
+              <div className="border border-dashed border-slate-300 rounded-2xl p-4 flex items-center gap-4">
+                {coverUrl ? (
                   <img
-                    src={form.coverUrl}
+                    src={coverUrl}
                     alt="Capa"
-                    className="w-full h-20 object-cover rounded-xl mx-auto mb-2"
+                    className="w-24 h-16 rounded-xl object-cover border shrink-0"
                   />
+                ) : (
+                  <div className="w-24 h-16 rounded-xl bg-slate-100 flex items-center justify-center text-xs text-slate-400 font-bold shrink-0">
+                    Capa
+                  </div>
                 )}
-                <label className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3.5 py-2 rounded-xl cursor-pointer">
-                  <Upload className="w-3.5 h-3.5" /> Escolher Capa
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleImageUpload(e, "cover")}
-                    className="hidden"
-                  />
-                </label>
+                <div>
+                  <p className="text-xs font-bold text-slate-800 mb-1">Foto de Capa</p>
+                  <label className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl cursor-pointer">
+                    {uploadingCover ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                    Enviar Capa
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleUploadSingle(e, "cover")}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
             </div>
 
-            {/* Galeria de Fotos */}
-            <div className="pt-2">
-              <div className="flex items-center justify-between mb-2">
+            {/* Galeria Adaptável */}
+            <div className="pt-2 border-t border-slate-100 space-y-3">
+              <div className="flex items-center justify-between">
                 <p className="text-xs font-bold text-slate-700">
-                  Galeria de Fotos ({form.gallery.length}/8)
+                  Fotos da Galeria ({gallery.length} de {maxPhotos} utilizadas)
                 </p>
-                <label className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-[#0A4D9C] font-bold text-xs px-3.5 py-2 rounded-xl cursor-pointer">
-                  <Upload className="w-3.5 h-3.5" /> Adicionar Fotos
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => handleImageUpload(e, "gallery")}
-                    className="hidden"
-                  />
-                </label>
+
+                {gallery.length < maxPhotos ? (
+                  <label className="inline-flex items-center gap-1.5 text-xs font-extrabold bg-[#0A4D9C] hover:bg-[#062F63] text-white px-3.5 py-2 rounded-xl cursor-pointer">
+                    {uploadingGallery ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                    Adicionar Foto
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleUploadGalleryPhoto}
+                      className="hidden"
+                    />
+                  </label>
+                ) : (
+                  <a
+                    href={upgradeWaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-bold text-[#FF7A00] hover:underline"
+                  >
+                    Limite atingido • Liberar mais fotos
+                  </a>
+                )}
               </div>
 
-              {form.gallery.length > 0 && (
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 mt-3">
-                  {form.gallery.map((url, idx) => (
-                    <div key={idx} className="relative aspect-square rounded-xl overflow-hidden group">
-                      <img src={url} alt="" className="w-full h-full object-cover" />
+              {gallery.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  {gallery.map((photo, idx) => (
+                    <div
+                      key={idx}
+                      className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50"
+                    >
+                      <img
+                        src={photo}
+                        alt={`Foto ${idx + 1}`}
+                        className="w-full h-36 object-cover"
+                      />
                       <button
                         type="button"
-                        onClick={() =>
-                          setForm((prev) => ({
-                            ...prev,
-                            gallery: prev.gallery.filter((_, i) => i !== idx),
-                          }))
-                        }
-                        className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-lg opacity-90 hover:opacity-100"
+                        onClick={() => handleRemoveGalleryPhoto(idx)}
+                        className="absolute top-1.5 right-1.5 bg-red-600 text-white p-1.5 rounded-lg shadow opacity-90 hover:opacity-100"
+                        title="Remover foto"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ))}
@@ -795,24 +835,164 @@ export default function BusinessDashboardPage() {
             </div>
           </div>
 
-          {successMsg && (
-            <div className="bg-emerald-600 text-white font-bold text-sm p-4 rounded-2xl text-center shadow">
-              {successMsg}
+          {/* 3. VÍDEOS DO YOUTUBE (1 HORIZONTAL + ATÉ 3 VERTICAIS) */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Youtube className="w-5 h-5 text-red-600" />
+                <h2 className="font-extrabold text-slate-900">
+                  3. Vídeos do YouTube ({maxVideos} vídeo(s) liberados)
+                </h2>
+              </div>
+              <span className="text-[11px] font-semibold text-slate-500">
+                Somente links do YouTube (se deixar em branco, não aparece nada)
+              </span>
             </div>
-          )}
+
+            {/* Vídeo 1: Horizontal (sempre primeiro) */}
+            {maxVideos >= 1 ? (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Vídeo Principal Horizontal (Exibe primeiro em destaque)
+                </label>
+                <input
+                  type="url"
+                  value={youtubeHorizontal}
+                  onChange={(e) => setYoutubeHorizontal(e.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">Nenhum vídeo habilitado para este cadastro.</p>
+            )}
+
+            {/* Vídeos Verticais (Shorts) */}
+            <div className="pt-2 border-t border-slate-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-700">
+                  Vídeos Verticais (YouTube Shorts — {unlockedVerticalVideos} de 3 liberados)
+                </p>
+                {unlockedVerticalVideos < 3 && (
+                  <a
+                    href={upgradeWaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-bold text-[#0A4D9C] hover:underline"
+                  >
+                    Liberar até 3 vídeos verticais →
+                  </a>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { num: 1, val: youtubeVertical1, set: setYoutubeVertical1 },
+                  { num: 2, val: youtubeVertical2, set: setYoutubeVertical2 },
+                  { num: 3, val: youtubeVertical3, set: setYoutubeVertical3 },
+                ].map((slot) => {
+                  const isUnlocked = unlockedVerticalVideos >= slot.num;
+                  return (
+                    <div key={slot.num}>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Vídeo Vertical #{slot.num}
+                      </label>
+                      {isUnlocked ? (
+                        <input
+                          type="url"
+                          value={slot.val}
+                          onChange={(e) => slot.set(e.target.value)}
+                          placeholder="https://youtube.com/shorts/..."
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs"
+                        />
+                      ) : (
+                        <div className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-400 flex items-center gap-1.5">
+                          <Lock className="w-3.5 h-3.5" /> Bloqueado no plano grátis
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* 4. CUPOM DE DESCONTO */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Ticket className="w-5 h-5 text-[#FF7A00]" />
+                <h2 className="font-extrabold text-slate-900">
+                  4. Cupom de Desconto Exclusivo
+                </h2>
+              </div>
+              <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={couponActive}
+                  onChange={(e) => setCouponActive(e.target.checked)}
+                  className="w-4 h-4 accent-[#FF7A00]"
+                />
+                Ativar Cupom na Minha Página
+              </label>
+            </div>
+
+            {couponActive && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Oferta do Cupom *
+                  </label>
+                  <input
+                    type="text"
+                    required={couponActive}
+                    value={couponTitle}
+                    onChange={(e) => setCouponTitle(e.target.value)}
+                    placeholder="Ex: 15% OFF na Pizza Grande"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Código do Cupom *
+                  </label>
+                  <input
+                    type="text"
+                    required={couponActive}
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value)}
+                    placeholder="Ex: CALDAS15"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Regras (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={couponRules}
+                    onChange={(e) => setCouponRules(e.target.value)}
+                    placeholder="Válido de seg a qui"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
           <button
             type="submit"
-            disabled={saving || uploading}
-            className="w-full bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-base py-4 rounded-2xl shadow-lg transition flex items-center justify-center gap-2"
+            disabled={saving}
+            className="w-full sm:w-auto bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-sm px-8 py-4 rounded-2xl shadow-lg inline-flex items-center justify-center gap-2 transition"
           >
-            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-            SALVAR E PUBLICAR EMPRESA
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            SALVAR E PUBLICAR PÁGINA DA EMPRESA
           </button>
         </form>
       </main>
 
-      <Footer />
+      <Footer settings={settings} />
     </div>
   );
 }
