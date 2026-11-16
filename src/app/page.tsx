@@ -9,7 +9,6 @@ import {
   TrendingUp,
   Star,
   ShieldAlert,
-  Phone,
   Loader2,
   X,
 } from "lucide-react";
@@ -401,7 +400,7 @@ export default function HomePage() {
                 <div
                   className={`w-10 h-10 rounded-xl ${util.color} text-white flex items-center justify-center mb-2 shadow-sm`}
                 >
-                  <Phone className="w-4 h-4" />
+                  <CategoryIcon name={util.iconName} className="w-5 h-5 text-white" />
                 </div>
                 <span className="text-xs font-bold text-slate-800 leading-tight">
                   {util.name}
