@@ -95,8 +95,8 @@ export default function BusinessDashboardPage() {
   const [coverUrl, setCoverUrl] = useState("");
   const [gallery, setGallery] = useState<string[]>([]);
 
-  // Limites controlados pelo Master (Plano Grátis: 5 fotos e 0 vídeos)
-  const [maxPhotos, setMaxPhotos] = useState(5);
+  // Limites controlados pelo Master (Plano Grátis: 6 fotos e 0 vídeos)
+  const [maxPhotos, setMaxPhotos] = useState(6);
   const [maxVideos, setMaxVideos] = useState(0);
   const [isFeatured, setIsFeatured] = useState(false);
   const [viewsCount, setViewsCount] = useState(0);
@@ -171,7 +171,7 @@ export default function BusinessDashboardPage() {
         setLogoUrl(data.logoUrl || "");
         setCoverUrl(data.coverUrl || "");
         setGallery(data.gallery || []);
-        setMaxPhotos(data.maxPhotos ?? 5);
+        setMaxPhotos(data.maxPhotos ?? 6);
         setMaxVideos(data.maxVideos ?? 0);
         setIsFeatured(Boolean(data.isFeatured));
         setViewsCount(data.viewsCount || 0);
@@ -246,7 +246,7 @@ export default function BusinessDashboardPage() {
           logoUrl: "",
           coverUrl: "",
           gallery: [],
-          maxPhotos: 5,
+          maxPhotos: 6,
           maxVideos: 0,
           youtubeHorizontal: "",
           youtubeVerticals: [],
@@ -968,7 +968,7 @@ export default function BusinessDashboardPage() {
               </div>
 
               {gallery.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
                   {gallery.map((photo, idx) => (
                     <div
                       key={idx}
@@ -1101,14 +1101,14 @@ export default function BusinessDashboardPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Oferta do Cupom *
+                    Oferta do Cupom (inclua % ou R$) *
                   </label>
                   <input
                     type="text"
                     required={couponActive}
                     value={couponTitle}
                     onChange={(e) => setCouponTitle(e.target.value)}
-                    placeholder="Ex: 15% OFF na Pizza Grande"
+                    placeholder="Ex: 5% OFF na Hospedagem à vista"
                     className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                   />
                 </div>
@@ -1121,7 +1121,7 @@ export default function BusinessDashboardPage() {
                     required={couponActive}
                     value={couponCode}
                     onChange={(e) => setCouponCode(e.target.value)}
-                    placeholder="Ex: CALDAS15"
+                    placeholder="Ex: CALDAS05"
                     className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm uppercase"
                   />
                 </div>
@@ -1133,7 +1133,7 @@ export default function BusinessDashboardPage() {
                     type="text"
                     value={couponRules}
                     onChange={(e) => setCouponRules(e.target.value)}
-                    placeholder="Válido de seg a qui"
+                    placeholder="Válido de domingo a quinta"
                     className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                   />
                 </div>
