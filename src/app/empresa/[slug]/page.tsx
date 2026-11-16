@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { onAuthStateChanged } from "firebase/auth";
 import {
   doc,
   getDoc,
@@ -13,7 +14,7 @@ import {
   updateDoc,
   increment,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { DEFAULT_SITE_SETTINGS } from "@/lib/constants";
 import { Business, SiteSettings } from "@/types";
 import { Navbar } from "@/components/Navbar";
@@ -32,8 +33,11 @@ import {
   Building2,
   Navigation,
   Clock,
+  ShieldAlert,
   X,
 } from "lucide-react";
+
+const MASTER_EMAIL = "caldasonline10@gmail.com";
 
 type BusinessWithExtra = Business & {
   cep?: string;
@@ -91,12 +95,20 @@ export default function BusinessPublicPage() {
   const [business, setBusiness] = useState<BusinessWithExtra | null>(null);
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [loading, setLoading] = useState(true);
+  const [currentUserUid, setCurrentUserUid] = useState<string | null>(null);
+  const [isMasterUser, setIsMasterUser] = useState(false);
+
   const [copied, setCopied] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [issuedAt, setIssuedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     setIssuedAt(new Date());
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setCurrentUserUid(u?.uid || null);
+      setIsMasterUser((u?.email || "").toLowerCase() === MASTER_EMAIL);
+    });
+    return () => unsub();
   }, []);
 
   useEffect(() => {
@@ -116,11 +128,14 @@ export default function BusinessPublicPage() {
 
         if (directSnap.exists()) {
           const raw = directSnap.data() as Omit<BusinessWithExtra, "id">;
-          setBusiness({
+          const loaded = {
             ...raw,
             id: directSnap.id,
-          });
-          updateDoc(directRef, { viewsCount: increment(1) }).catch(() => {});
+          };
+          setBusiness(loaded);
+          if (loaded.isApproved !== false) {
+            updateDoc(directRef, { viewsCount: increment(1) }).catch(() => {});
+          }
         } else {
           const q = query(
             collection(db, "businesses"),
@@ -130,13 +145,16 @@ export default function BusinessPublicPage() {
           if (!qSnap.empty) {
             const first = qSnap.docs[0];
             const raw = first.data() as Omit<BusinessWithExtra, "id">;
-            setBusiness({
+            const loaded = {
               ...raw,
               id: first.id,
-            });
-            updateDoc(doc(db, "businesses", first.id), {
-              viewsCount: increment(1),
-            }).catch(() => {});
+            };
+            setBusiness(loaded);
+            if (loaded.isApproved !== false) {
+              updateDoc(doc(db, "businesses", first.id), {
+                viewsCount: increment(1),
+              }).catch(() => {});
+            }
           }
         }
       } catch (err) {
@@ -150,7 +168,7 @@ export default function BusinessPublicPage() {
   }, [slug]);
 
   const handleTrackWhatsappClick = () => {
-    if (!business?.id) return;
+    if (!business?.id || business.isApproved === false) return;
     updateDoc(doc(db, "businesses", business.id), {
       whatsappClicks: increment(1),
     }).catch(() => {});
@@ -183,6 +201,40 @@ export default function BusinessPublicPage() {
             className="bg-[#0A4D9C] text-white font-bold text-xs px-5 py-3 rounded-xl inline-flex items-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" /> Voltar para o Guia
+          </Link>
+        </main>
+        <Footer settings={settings} />
+      </div>
+    );
+  }
+
+  const isPendingOrBlocked = business.isApproved === false;
+  const isOwner = Boolean(currentUserUid && business.ownerId === currentUserUid);
+  const canPreview = isMasterUser || isOwner;
+
+  // Bloqueia acesso público enquanto não estiver aprovada pelo Master
+  if (isPendingOrBlocked && !canPreview) {
+    return (
+      <div className="min-h-screen flex flex-col bg-slate-50">
+        <Navbar
+          vipGroupUrl={settings.vipGroupUrl}
+          masterWhatsApp={settings.masterWhatsApp}
+        />
+        <main className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center">
+            <Clock className="w-8 h-8" />
+          </div>
+          <h1 className="text-2xl font-black text-slate-900">
+            Página em Análise pela Moderação
+          </h1>
+          <p className="text-sm text-slate-500 max-w-md">
+            Este cadastro está passando por nossa verificação de segurança e estará disponível em breve no guia Caldas Online.
+          </p>
+          <Link
+            href="/"
+            className="bg-[#0A4D9C] text-white font-bold text-xs px-5 py-3 rounded-xl inline-flex items-center gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" /> Explorar Empresas Publicadas
           </Link>
         </main>
         <Footer settings={settings} />
@@ -310,7 +362,6 @@ export default function BusinessPublicPage() {
       nextY
     );
 
-    // Selo de Validade de 24h com Data e Hora
     const badgeY = Math.min(865, nextY + 32);
     ctx.fillStyle = "#FEF2F2";
     ctx.beginPath();
@@ -374,6 +425,24 @@ export default function BusinessPublicPage() {
         vipGroupUrl={settings.vipGroupUrl}
         masterWhatsApp={settings.masterWhatsApp}
       />
+
+      {/* TARJA DE VISTORIA PRÉVIA (VISÍVEL APENAS PARA O MASTER OU DONO ENQUANTO NÃO ESTÁ PUBLICADA) */}
+      {isPendingOrBlocked && canPreview && (
+        <div className="bg-amber-500 text-slate-950 px-4 py-2.5 text-xs font-extrabold flex flex-wrap items-center justify-center gap-2 text-center">
+          <ShieldAlert className="w-4 h-4 shrink-0" />
+          <span>
+            MODO DE VISTORIA PRÉVIA: Esta página ainda NÃO está visível ao público.
+          </span>
+          {isMasterUser && (
+            <Link
+              href="/master"
+              className="underline bg-slate-950 text-white px-2.5 py-1 rounded-lg ml-1"
+            >
+              Voltar ao Master para Liberar
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* CAPA SUPERIOR */}
       <div className="w-full h-44 sm:h-64 bg-gradient-to-r from-[#0A4D9C] to-[#062F63] relative overflow-hidden">
@@ -467,7 +536,6 @@ export default function BusinessPublicPage() {
                 </div>
               </div>
 
-              {/* AÇÕES DO CUPOM */}
               <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5 shrink-0">
                 <button
                   type="button"
