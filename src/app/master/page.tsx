@@ -254,13 +254,13 @@ export default function MasterAdminPage() {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)+/g, "");
 
-    const payload: CategoryDoc = {
+    const payload = {
       id: slug,
       name: newCatName.trim(),
       slug,
       order: categories.length + 1,
       active: true,
-    };
+    } as CategoryDoc;
 
     try {
       await setDoc(doc(db, "categories", slug), payload);
