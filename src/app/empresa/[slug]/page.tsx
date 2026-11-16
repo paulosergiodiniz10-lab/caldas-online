@@ -3,63 +3,81 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  MapPin,
-  MessageCircle,
-  Globe,
-  Instagram,
-  Facebook,
-  Ticket,
-  Navigation,
-  Share2,
-  CheckCircle2,
-  X,
-  Star,
-} from "lucide-react";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  doc,
-  updateDoc,
-  increment,
-} from "firebase/firestore";
+import { collection, getDocs, query, where, doc, updateDoc, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Business } from "@/types";
-import { CATEGORIES } from "@/lib/constants";
+import { Business, SiteSettings } from "@/types";
+import { DEFAULT_SITE_SETTINGS } from "@/lib/constants";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import {
+  MapPin,
+  Phone,
+  Instagram,
+  Globe,
+  Ticket,
+  Youtube,
+  Share2,
+  CheckCircle2,
+  Loader2,
+  Store,
+} from "lucide-react";
+
+function getYoutubeEmbedUrl(url: string): string {
+  if (!url) return "";
+  const trimmed = url.trim();
+  // Se já for embed
+  if (trimmed.includes("embed/")) return trimmed;
+  // youtu.be/ID
+  const shortMatch = trimmed.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+  if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
+  // youtube.com/watch?v=ID ou youtube.com/shorts/ID
+  const watchMatch = trimmed.match(/(?:watch\?v=|shorts\/)([a-zA-Z0-9_-]+)/);
+  if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
+  return "";
+}
 
 export default function BusinessProfilePage() {
   const params = useParams();
-  const slug = String(params?.slug || "");
+  const slug = params?.slug as string;
 
   const [business, setBusiness] = useState<Business | null>(null);
+  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [loading, setLoading] = useState(true);
-  const [showCouponModal, setShowCouponModal] = useState(false);
-  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedCoupon, setCopiedCoupon] = useState(false);
 
   useEffect(() => {
-    async function loadBusiness() {
+    async function loadBusinessData() {
       if (!slug) return;
       try {
-        const q = query(collection(db, "businesses"), where("slug", "==", slug));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          const docSnap = snap.docs[0];
-          const data = {
-            id: docSnap.id,
-            ...(docSnap.data() as Omit<Business, "id">),
-          };
-          setBusiness(data);
+        // Tenta buscar pelo ID exato ou slug
+        const bizRef = doc(db, "businesses", slug);
+        const bizSnap = await getDoc(bizRef);
 
-          // Incrementa contador de visualizações da página
-          await updateDoc(doc(db, "businesses", docSnap.id), {
+        let bizData: Business | null = null;
+        if (bizSnap.exists()) {
+          bizData = { id: bizSnap.id, ...(bizSnap.data() as Omit<Business, "id">) };
+        } else {
+          // Busca por query slug
+          const q = query(collection(db, "businesses"), where("slug", "==", slug));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const d = snap.docs[0];
+            bizData = { id: d.id, ...(d.data() as Omit<Business, "id">) };
+          }
+        }
+
+        if (bizData) {
+          setBusiness(bizData);
+          // Incrementa visualizações
+          await updateDoc(doc(db, "businesses", bizData.id), {
             viewsCount: increment(1),
           });
+        }
+
+        // Configurações globais
+        const setSnap = await getDoc(doc(db, "settings", "global"));
+        if (setSnap.exists()) {
+          setSettings((prev) => ({ ...prev, ...(setSnap.data() as Partial<SiteSettings>) }));
         }
       } catch (err) {
         console.error("Erro ao carregar empresa:", err);
@@ -68,17 +86,30 @@ export default function BusinessProfilePage() {
       }
     }
 
-    loadBusiness();
+    loadBusinessData();
   }, [slug]);
+
+  const handleWhatsAppClick = async () => {
+    if (!business) return;
+    try {
+      await updateDoc(doc(db, "businesses", business.id), {
+        whatsappClicks: increment(1),
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleCopyCoupon = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCoupon(true);
+    setTimeout(() => setCopiedCoupon(false), 3000);
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
-        <div className="max-w-4xl w-full mx-auto px-4 py-10 space-y-4">
-          <div className="h-64 bg-slate-200 rounded-3xl animate-pulse" />
-          <div className="h-32 bg-slate-200 rounded-2xl animate-pulse" />
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#0A4D9C]" />
       </div>
     );
   }
@@ -86,363 +117,237 @@ export default function BusinessProfilePage() {
   if (!business) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Navbar />
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-          <h1 className="text-2xl font-black text-slate-900">Empresa não encontrada</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            O link pode ter sido alterado ou o cadastro ainda está em análise.
+        <Navbar vipGroupUrl={settings.vipGroupUrl} />
+        <main className="flex-1 flex flex-col items-center justify-center p-4 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
+            <Store className="w-7 h-7" />
+          </div>
+          <h1 className="text-xl font-black text-slate-900">Empresa não encontrada</h1>
+          <p className="text-sm text-slate-500 mt-1 max-w-sm">
+            Esta página pode ter sido removida ou o endereço está incorreto.
           </p>
           <Link
             href="/"
-            className="mt-4 bg-[#0A4D9C] text-white font-bold text-sm px-5 py-2.5 rounded-xl"
+            className="mt-5 bg-[#0A4D9C] text-white font-extrabold text-xs px-5 py-3 rounded-xl"
           >
-            Voltar para o Guia
+            Voltar ao Início
           </Link>
-        </div>
-        <Footer />
+        </main>
+        <Footer settings={settings} />
       </div>
     );
   }
 
-  const categoryObj = CATEGORIES.find((c) => c.id === business.category);
-  const cleanPhone = business.whatsapp.replace(/\D/g, "");
-  const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(
-    `Olá ${business.name}! Encontrei vocês no Caldas Online e gostaria de falar com vocês.`
+  const cleanWaNumber = (business.whatsapp || "").replace(/\D/g, "");
+  const waUrl = `https://wa.me/55${cleanWaNumber}?text=${encodeURIComponent(
+    `Olá! Vi o anúncio da empresa "${business.name}" no Caldas Online e gostaria de mais informações.`
   )}`;
 
-  const mapsUrl =
-    business.lat && business.lng
-      ? `https://www.google.com/maps/dir/?api=1&destination=${business.lat},${business.lng}`
-      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          `${business.name} ${business.address} Caldas Novas GO`
-        )}`;
-
-  const handleWhatsAppTrack = async () => {
-    try {
-      await updateDoc(doc(db, "businesses", business.id), {
-        whatsappClicks: increment(1),
-      });
-    } catch {
-      // ignora
-    }
-  };
-
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: `${business.name} - Caldas Online`,
-        text: `Confira ${business.name} no Guia Caldas Online!`,
-        url: window.location.href,
-      });
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    }
-  };
+  const hasYoutubeHorizontal = Boolean(business.youtubeHorizontal?.trim());
+  const verticalShorts = (business.youtubeVerticals || []).filter(Boolean);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
+    <div className="min-h-screen flex flex-col bg-[#f4f6f9]">
+      <Navbar vipGroupUrl={settings.vipGroupUrl} />
 
-      <main className="max-w-4xl w-full mx-auto px-4 py-5 space-y-6 flex-1">
-        {/* Voltar e Compartilhar */}
-        <div className="flex items-center justify-between">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0A4D9C] hover:underline"
-          >
-            <ArrowLeft className="w-4 h-4" /> Voltar ao guia
-          </Link>
+      {/* CAPA DA EMPRESA */}
+      <div className="w-full h-48 sm:h-72 bg-slate-800 relative">
+        {business.coverUrl ? (
+          <img
+            src={business.coverUrl}
+            alt={business.name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-r from-[#0A4D9C] to-blue-700" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
+      </div>
 
-          <button
-            onClick={handleShare}
-            className="inline-flex items-center gap-1.5 text-xs font-bold bg-white border border-slate-200 px-3 py-1.5 rounded-full text-slate-700 hover:bg-slate-50 shadow-sm"
-          >
-            <Share2 className="w-3.5 h-3.5" />
-            {copied ? "Link copiado!" : "Compartilhar"}
-          </button>
-        </div>
-
-        {/* CAPA + LOGO + DADOS PRINCIPAIS */}
-        <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
-          <div className="relative h-52 sm:h-72 bg-slate-200">
-            <img
-              src={
-                business.coverUrl ||
-                "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1200&q=80"
-              }
-              alt={business.name}
-              className="w-full h-full object-cover"
-            />
-            {business.isFeatured && (
-              <span className="absolute top-4 right-4 inline-flex items-center gap-1 bg-[#FFB800] text-slate-950 text-xs font-extrabold px-3 py-1.5 rounded-full shadow">
-                <Star className="w-3.5 h-3.5 fill-slate-950" /> Empresa Destaque
-              </span>
+      <main className="max-w-4xl w-full mx-auto px-4 -mt-16 sm:-mt-20 relative z-10 space-y-6 pb-12">
+        {/* CABEÇALHO COM LOGO E DADOS */}
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div className="flex items-start sm:items-center gap-4 flex-wrap sm:flex-nowrap">
+            {business.logoUrl ? (
+              <img
+                src={business.logoUrl}
+                alt={business.name}
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover shadow-md border-4 border-white bg-white shrink-0 -mt-12 sm:-mt-0"
+              />
+            ) : (
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#0A4D9C] text-white flex items-center justify-center font-black text-2xl shadow-md border-4 border-white shrink-0 -mt-12 sm:-mt-0">
+                {business.name.charAt(0)}
+              </div>
             )}
-          </div>
-
-          <div className="p-5 sm:p-7 relative">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-14 sm:-mt-16 mb-4">
-              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white p-1.5 shadow-lg border border-slate-100 overflow-hidden shrink-0">
-                <img
-                  src={
-                    business.logoUrl ||
-                    business.coverUrl ||
-                    "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=400&q=80"
-                  }
-                  alt={`Logo ${business.name}`}
-                  className="w-full h-full object-cover rounded-xl"
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <a
-                  href={whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={handleWhatsAppTrack}
-                  className="bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-sm px-5 py-3 rounded-xl flex items-center gap-2 shadow-sm transition"
-                >
-                  <MessageCircle className="w-4 h-4 fill-white" />
-                  Chamar no WhatsApp
-                </a>
-
-                <a
-                  href={mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-bold text-sm px-4 py-3 rounded-xl flex items-center gap-2 shadow-sm transition"
-                >
-                  <Navigation className="w-4 h-4" />
-                  Como Chegar
-                </a>
-              </div>
-            </div>
 
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                {categoryObj && (
-                  <span className="text-xs font-bold bg-blue-50 text-[#0A4D9C] px-2.5 py-1 rounded-lg">
-                    {categoryObj.name}
-                  </span>
-                )}
-                {business.subcategory && (
-                  <span className="text-xs font-semibold text-slate-500">
-                    • {business.subcategory}
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900">
+                  {business.name}
+                </h1>
+                {business.isFeatured && (
+                  <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full">
+                    DESTAQUE
                   </span>
                 )}
               </div>
-
-              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1.5">
-                {business.name}
-              </h1>
-
-              <p className="text-sm text-slate-600 flex items-start gap-1.5 mt-2">
-                <MapPin className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
-                <span>
-                  {business.address}
-                  {business.neighborhood ? ` - ${business.neighborhood}` : ""}, Caldas Novas - GO
-                </span>
+              <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">
+                {business.subcategory || business.category} • {business.neighborhood}
+              </p>
+              <p className="text-xs text-slate-400 flex items-center gap-1 mt-1">
+                <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                {business.address}
               </p>
             </div>
           </div>
+
+          {/* BOTÃO WHATSAPP PRINCIPAL */}
+          {cleanWaNumber && (
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handleWhatsAppClick}
+              className="bg-[#25D366] hover:bg-[#20ba5a] text-white font-extrabold text-xs sm:text-sm px-6 py-4 rounded-2xl shadow-lg inline-flex items-center justify-center gap-2.5 transition shrink-0"
+            >
+              <Phone className="w-5 h-5 fill-white" />
+              Chamar no WhatsApp
+            </a>
+          )}
         </div>
 
-        {/* DESTAQUE ESPECIAL: CUPOM DE DESCONTO */}
+        {/* CUPOM DE DESCONTO (SE ATIVO) */}
         {business.coupon?.active && (
-          <div className="rounded-3xl bg-gradient-to-r from-[#FF7A00] via-orange-500 to-[#FFB800] p-1 shadow-md">
-            <div className="bg-white rounded-[22px] p-5 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-2 border-dashed border-orange-300">
-              <div className="flex items-start gap-3.5 text-center sm:text-left flex-col sm:flex-row items-center sm:items-start">
-                <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
-                  <Ticket className="w-6 h-6" />
-                </div>
-                <div>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full">
-                    Benefício Exclusivo Caldas Online
-                  </span>
-                  <h2 className="text-xl font-black text-slate-900 mt-1">
-                    {business.coupon.title}
-                  </h2>
-                  {business.coupon.rules && (
-                    <p className="text-xs text-slate-500 mt-0.5">{business.coupon.rules}</p>
-                  )}
-                </div>
+          <div className="rounded-3xl bg-gradient-to-r from-orange-500 to-[#FFB800] p-6 text-slate-950 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-slate-950 text-[#FFB800] flex items-center justify-center shrink-0">
+                <Ticket className="w-6 h-6" />
               </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider bg-slate-950/10 px-2 py-0.5 rounded-full">
+                  Cupom Exclusivo Caldas Online
+                </span>
+                <h2 className="text-lg font-black mt-0.5">{business.coupon.title}</h2>
+                <p className="text-xs font-medium text-slate-900">
+                  {business.coupon.rules || "Apresente o código no estabelecimento."}
+                </p>
+              </div>
+            </div>
 
-              <button
-                onClick={() => setShowCouponModal(true)}
-                className="bg-slate-950 hover:bg-slate-800 text-white font-extrabold text-sm px-5 py-3.5 rounded-xl shadow transition whitespace-nowrap w-full sm:w-auto"
+            <button
+              onClick={() => handleCopyCoupon(business.coupon?.code || "")}
+              className="bg-slate-950 hover:bg-slate-900 text-white font-extrabold text-xs px-5 py-3 rounded-xl shadow transition inline-flex items-center gap-2 shrink-0 w-full sm:w-auto justify-center"
+            >
+              {copiedCoupon ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Código Copiado!
+                </>
+              ) : (
+                <>Copiar Código: {business.coupon.code}</>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* SOBRE A EMPRESA */}
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-4">
+          <h2 className="font-extrabold text-slate-900">Sobre a Empresa</h2>
+          <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">
+            {business.description}
+          </p>
+
+          <div className="flex items-center gap-3 pt-4 border-t border-slate-100 flex-wrap">
+            {business.instagram && (
+              <a
+                href={business.instagram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition"
               >
-                APRESENTAR CUPOM
-              </button>
+                <Instagram className="w-4 h-4 text-pink-600" /> Instagram
+              </a>
+            )}
+            {business.website && (
+              <a
+                href={business.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition"
+              >
+                <Globe className="w-4 h-4 text-blue-600" /> Site / Cardápio
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* 1. VÍDEO PRINCIPAL HORIZONTAL (SE HABILITADO) */}
+        {hasYoutubeHorizontal && (
+          <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-3">
+            <div className="flex items-center gap-2">
+              <Youtube className="w-5 h-5 text-red-600" />
+              <h2 className="font-extrabold text-slate-900">Vídeo em Destaque</h2>
+            </div>
+            <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-950 shadow">
+              <iframe
+                src={getYoutubeEmbedUrl(business.youtubeHorizontal || "")}
+                title="Vídeo principal"
+                className="absolute inset-0 w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
             </div>
           </div>
         )}
 
-        {/* SOBRE A EMPRESA & REDES SOCIAIS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-3">
-            <h3 className="font-extrabold text-slate-900 text-base">Sobre a Empresa</h3>
-            <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
-              {business.description ||
-                `${business.name} oferece atendimento de qualidade em Caldas Novas. Entre em contato pelo WhatsApp ou faça uma visita!`}
-            </p>
-          </div>
-
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-3">
-            <h3 className="font-extrabold text-slate-900 text-base">Canais e Redes</h3>
-            <div className="space-y-2.5">
-              <a
-                href={whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={handleWhatsAppTrack}
-                className="flex items-center gap-2.5 text-sm font-semibold text-slate-700 hover:text-emerald-600 p-2 rounded-xl hover:bg-slate-50 transition"
-              >
-                <MessageCircle className="w-4 h-4 text-emerald-500" />
-                <span>{business.whatsapp}</span>
-              </a>
-
-              {business.instagram && (
-                <a
-                  href={
-                    business.instagram.startsWith("http")
-                      ? business.instagram
-                      : `https://instagram.com/${business.instagram.replace("@", "")}`
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2.5 text-sm font-semibold text-slate-700 hover:text-pink-600 p-2 rounded-xl hover:bg-slate-50 transition"
+        {/* 2. VÍDEOS VERTICAIS (SHORTS) */}
+        {verticalShorts.length > 0 && (
+          <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-3">
+            <div className="flex items-center gap-2">
+              <Youtube className="w-5 h-5 text-red-600" />
+              <h2 className="font-extrabold text-slate-900">Vídeos Curtos (Shorts)</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {verticalShorts.map((link, idx) => (
+                <div
+                  key={idx}
+                  className="relative w-full aspect-[9/16] rounded-2xl overflow-hidden bg-slate-950 shadow"
                 >
-                  <Instagram className="w-4 h-4 text-pink-500" />
-                  <span>Instagram</span>
-                </a>
-              )}
-
-              {business.facebook && (
-                <a
-                  href={
-                    business.facebook.startsWith("http")
-                      ? business.facebook
-                      : `https://facebook.com/${business.facebook}`
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2.5 text-sm font-semibold text-slate-700 hover:text-blue-600 p-2 rounded-xl hover:bg-slate-50 transition"
-                >
-                  <Facebook className="w-4 h-4 text-blue-600" />
-                  <span>Facebook</span>
-                </a>
-              )}
-
-              {business.website && (
-                <a
-                  href={
-                    business.website.startsWith("http")
-                      ? business.website
-                      : `https://${business.website}`
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2.5 text-sm font-semibold text-slate-700 hover:text-[#0A4D9C] p-2 rounded-xl hover:bg-slate-50 transition"
-                >
-                  <Globe className="w-4 h-4 text-[#0A4D9C]" />
-                  <span>Visitar Site</span>
-                </a>
-              )}
+                  <iframe
+                    src={getYoutubeEmbedUrl(link)}
+                    title={`Shorts ${idx + 1}`}
+                    className="absolute inset-0 w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              ))}
             </div>
           </div>
-        </div>
+        )}
 
         {/* GALERIA DE FOTOS */}
         {business.gallery && business.gallery.length > 0 && (
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100">
-            <h3 className="font-extrabold text-slate-900 text-base mb-4">Galeria de Fotos</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {business.gallery.map((photoUrl, idx) => (
-                <button
+          <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-3">
+            <h2 className="font-extrabold text-slate-900">Galeria de Fotos</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {business.gallery.map((photo, idx) => (
+                <div
                   key={idx}
-                  onClick={() => setSelectedPhoto(photoUrl)}
-                  className="aspect-square rounded-xl overflow-hidden bg-slate-100 group"
+                  className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 shadow-sm"
                 >
                   <img
-                    src={photoUrl}
-                    alt={`${business.name} foto ${idx + 1}`}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    src={photo}
+                    alt={`Foto ${idx + 1}`}
+                    className="w-full h-52 object-cover hover:scale-105 transition duration-300"
                   />
-                </button>
+                </div>
               ))}
             </div>
           </div>
         )}
       </main>
 
-      {/* MODAL DE APRESENTAÇÃO DO CUPOM NO BALCÃO */}
-      {showCouponModal && business.coupon && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl animate-in zoom-in-95">
-            <div className="bg-gradient-to-r from-[#0A4D9C] to-[#FF7A00] p-5 text-white text-center relative">
-              <button
-                onClick={() => setShowCouponModal(false)}
-                className="absolute top-4 right-4 bg-white/20 hover:bg-white/30 p-1.5 rounded-full"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              <span className="text-xs font-extrabold uppercase tracking-widest bg-white/20 px-3 py-1 rounded-full">
-                Cupom Validado • Caldas Online
-              </span>
-              <h3 className="text-xl font-black mt-3">{business.name}</h3>
-            </div>
-
-            <div className="p-6 text-center space-y-4">
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 animate-bounce">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-
-              <div>
-                <p className="text-xs font-bold text-slate-400 uppercase">Benefício</p>
-                <p className="text-xl font-black text-slate-900 mt-0.5">
-                  {business.coupon.title}
-                </p>
-              </div>
-
-              {business.coupon.code && (
-                <div className="bg-slate-100 border-2 border-dashed border-slate-300 rounded-2xl py-3 px-4">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase">Código Promocional</p>
-                  <p className="text-2xl font-black tracking-widest text-[#0A4D9C]">
-                    {business.coupon.code}
-                  </p>
-                </div>
-              )}
-
-              {business.coupon.rules && (
-                <p className="text-xs text-slate-500">{business.coupon.rules}</p>
-              )}
-
-              <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-100">
-                Mostre esta tela ao atendente para validar seu desconto.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* LIGHTBOX DE FOTO */}
-      {selectedPhoto && (
-        <div
-          onClick={() => setSelectedPhoto(null)}
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-        >
-          <img
-            src={selectedPhoto}
-            alt="Ampliação"
-            className="max-w-full max-h-[85vh] rounded-2xl object-contain"
-          />
-        </div>
-      )}
-
-      <Footer />
+      <Footer settings={settings} />
     </div>
   );
 }
