@@ -3,7 +3,16 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { collection, getDocs, query, where, doc, updateDoc, increment } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  doc,
+  getDoc,
+  updateDoc,
+  increment,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Business, SiteSettings } from "@/types";
 import { DEFAULT_SITE_SETTINGS } from "@/lib/constants";
@@ -16,7 +25,6 @@ import {
   Globe,
   Ticket,
   Youtube,
-  Share2,
   CheckCircle2,
   Loader2,
   Store,
@@ -25,12 +33,9 @@ import {
 function getYoutubeEmbedUrl(url: string): string {
   if (!url) return "";
   const trimmed = url.trim();
-  // Se já for embed
   if (trimmed.includes("embed/")) return trimmed;
-  // youtu.be/ID
   const shortMatch = trimmed.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
   if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
-  // youtube.com/watch?v=ID ou youtube.com/shorts/ID
   const watchMatch = trimmed.match(/(?:watch\?v=|shorts\/)([a-zA-Z0-9_-]+)/);
   if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
   return "";
@@ -49,7 +54,6 @@ export default function BusinessProfilePage() {
     async function loadBusinessData() {
       if (!slug) return;
       try {
-        // Tenta buscar pelo ID exato ou slug
         const bizRef = doc(db, "businesses", slug);
         const bizSnap = await getDoc(bizRef);
 
@@ -57,7 +61,6 @@ export default function BusinessProfilePage() {
         if (bizSnap.exists()) {
           bizData = { id: bizSnap.id, ...(bizSnap.data() as Omit<Business, "id">) };
         } else {
-          // Busca por query slug
           const q = query(collection(db, "businesses"), where("slug", "==", slug));
           const snap = await getDocs(q);
           if (!snap.empty) {
@@ -68,13 +71,11 @@ export default function BusinessProfilePage() {
 
         if (bizData) {
           setBusiness(bizData);
-          // Incrementa visualizações
           await updateDoc(doc(db, "businesses", bizData.id), {
             viewsCount: increment(1),
           });
         }
 
-        // Configurações globais
         const setSnap = await getDoc(doc(db, "settings", "global"));
         if (setSnap.exists()) {
           setSettings((prev) => ({ ...prev, ...(setSnap.data() as Partial<SiteSettings>) }));
@@ -216,7 +217,7 @@ export default function BusinessProfilePage() {
           )}
         </div>
 
-        {/* CUPOM DE DESCONTO (SE ATIVO) */}
+        {/* CUPOM DE DESCONTO */}
         {business.coupon?.active && (
           <div className="rounded-3xl bg-gradient-to-r from-orange-500 to-[#FFB800] p-6 text-slate-950 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -280,7 +281,7 @@ export default function BusinessProfilePage() {
           </div>
         </div>
 
-        {/* 1. VÍDEO PRINCIPAL HORIZONTAL (SE HABILITADO) */}
+        {/* VÍDEO PRINCIPAL HORIZONTAL */}
         {hasYoutubeHorizontal && (
           <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-3">
             <div className="flex items-center gap-2">
@@ -299,7 +300,7 @@ export default function BusinessProfilePage() {
           </div>
         )}
 
-        {/* 2. VÍDEOS VERTICAIS (SHORTS) */}
+        {/* VÍDEOS VERTICAIS (SHORTS) */}
         {verticalShorts.length > 0 && (
           <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-3">
             <div className="flex items-center gap-2">
