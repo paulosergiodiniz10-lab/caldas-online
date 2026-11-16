@@ -69,7 +69,6 @@ export default function MasterAdminPage() {
   // Categorias
   const [categories, setCategories] = useState<CategoryDoc[]>([]);
   const [newCatName, setNewCatName] = useState("");
-  const [newCatIcon, setNewCatIcon] = useState("Store");
 
   // Configurações Globais
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
@@ -225,7 +224,7 @@ export default function MasterAdminPage() {
     }
   };
 
-  // CONTROLE DE PLANO (FOTOS / VÍDEOS / DESTAQUE)
+  // CONTROLE DE PLANO (FOTOS, VÍDEOS, DESTAQUE)
   const handleUpdatePlan = async (
     biz: Business,
     updates: Partial<Business>
@@ -259,7 +258,6 @@ export default function MasterAdminPage() {
       id: slug,
       name: newCatName.trim(),
       slug,
-      icon: newCatIcon || "Store",
       order: categories.length + 1,
       active: true,
     };
@@ -760,13 +758,6 @@ export default function MasterAdminPage() {
                 onChange={(e) => setNewCatName(e.target.value)}
                 placeholder="Nome da nova categoria (ex: Pet Shop)"
                 className="flex-1 rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-              />
-              <input
-                type="text"
-                value={newCatIcon}
-                onChange={(e) => setNewCatIcon(e.target.value)}
-                placeholder="Ícone (ex: Store, Utensils, Hotel)"
-                className="sm:w-56 rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
               />
               <button
                 type="submit"
