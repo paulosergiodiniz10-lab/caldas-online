@@ -19,8 +19,18 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { compressAndUploadImage } from "@/lib/cloudinary";
-import { DEFAULT_CATEGORIES, DEFAULT_SITE_SETTINGS } from "@/lib/constants";
-import { Business, CategoryDoc, PromoBanner, SiteSettings } from "@/types";
+import {
+  DEFAULT_CATEGORIES,
+  DEFAULT_UTILITIES,
+  DEFAULT_SITE_SETTINGS,
+} from "@/lib/constants";
+import {
+  Business,
+  CategoryDoc,
+  UtilityDoc,
+  PromoBanner,
+  SiteSettings,
+} from "@/types";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { CategoryIcon } from "@/components/CategoryIcon";
@@ -47,6 +57,7 @@ import {
   X,
   MessageCircle,
   Megaphone,
+  PhoneCall,
 } from "lucide-react";
 
 const MASTER_EMAIL = "caldasonline10@gmail.com";
@@ -61,13 +72,15 @@ type ExtendedBanner = PromoBanner & {
 const COLOR_PRESETS = [
   { label: "Laranja", value: "bg-orange-500" },
   { label: "Vermelho", value: "bg-red-500" },
+  { label: "Vermelho Escuro", value: "bg-red-700" },
   { label: "Azul", value: "bg-blue-600" },
-  { label: "Verde", value: "bg-emerald-500" },
+  { label: "Azul Escuro", value: "bg-blue-900" },
+  { label: "Verde", value: "bg-emerald-600" },
   { label: "Roxo", value: "bg-purple-600" },
-  { label: "Âmbar", value: "bg-amber-500" },
-  { label: "Ciano", value: "bg-cyan-600" },
+  { label: "Âmbar", value: "bg-amber-600" },
+  { label: "Ciano", value: "bg-sky-500" },
   { label: "Rosa", value: "bg-pink-500" },
-  { label: "Teal", value: "bg-teal-500" },
+  { label: "Teal", value: "bg-teal-600" },
   { label: "Índigo", value: "bg-indigo-600" },
 ];
 
@@ -81,7 +94,7 @@ export default function MasterAdminPage() {
   const [submittingAuth, setSubmittingAuth] = useState(false);
 
   const [activeTab, setActiveTab] = useState<
-    "businesses" | "categories" | "banners" | "settings"
+    "businesses" | "banners" | "categories" | "utilities" | "settings"
   >("businesses");
 
   // Empresas
@@ -98,6 +111,14 @@ export default function MasterAdminPage() {
   const [editingCat, setEditingCat] = useState<CategoryDoc | null>(null);
   const [uploadingCatIcon, setUploadingCatIcon] = useState(false);
   const [savingCat, setSavingCat] = useState(false);
+
+  // Utilidades Rápidas
+  const [utilities, setUtilities] = useState<UtilityDoc[]>(DEFAULT_UTILITIES);
+  const [newUtilName, setNewUtilName] = useState("");
+  const [newUtilNumber, setNewUtilNumber] = useState("");
+  const [editingUtil, setEditingUtil] = useState<UtilityDoc | null>(null);
+  const [uploadingUtilIcon, setUploadingUtilIcon] = useState(false);
+  const [savingUtil, setSavingUtil] = useState(false);
 
   // Banners Patrocinados (Home + Segmentos)
   const [banners, setBanners] = useState<ExtendedBanner[]>([]);
@@ -161,14 +182,25 @@ export default function MasterAdminPage() {
         setCategories(DEFAULT_CATEGORIES);
       }
 
-      // 3. Banners Patrocinados
+      // 3. Utilidades Rápidas
+      const snapUtils = await getDocs(collection(db, "utilities"));
+      if (!snapUtils.empty) {
+        const utilList = snapUtils.docs
+          .map((d) => ({ ...(d.data() as Omit<UtilityDoc, "id">), id: d.id }))
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
+        setUtilities(utilList);
+      } else {
+        setUtilities(DEFAULT_UTILITIES);
+      }
+
+      // 4. Banners Patrocinados
       const snapBanners = await getDocs(collection(db, "banners"));
       const banList = snapBanners.docs
         .map((d) => ({ ...(d.data() as Omit<ExtendedBanner, "id">), id: d.id }))
         .sort((a, b) => (a.order || 0) - (b.order || 0));
       setBanners(banList);
 
-      // 4. Configurações Globais
+      // 5. Configurações Globais
       const snapSet = await getDoc(doc(db, "settings", "global"));
       if (snapSet.exists()) {
         setSettings((prev) => ({
@@ -290,7 +322,7 @@ export default function MasterAdminPage() {
     }
   };
 
-  // CATEGORIAS (CRIAR, EDITAR TEXTO/FOTO, ATIVAR/OCULTAR)
+  // CATEGORIAS
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -381,6 +413,104 @@ export default function MasterAdminPage() {
       );
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // UTILIDADES RÁPIDAS (CRIAR, EDITAR, ATIVAR/OCULTAR, EXCLUIR)
+  const handleAddUtility = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUtilName.trim() || !newUtilNumber.trim()) return;
+
+    const id = `util-${Date.now()}`;
+    const payload: UtilityDoc = {
+      id,
+      name: newUtilName.trim(),
+      number: newUtilNumber.trim(),
+      iconName: "PhoneCall",
+      color: "bg-blue-600",
+      order: utilities.length + 1,
+      active: true,
+    };
+
+    try {
+      await setDoc(doc(db, "utilities", id), payload);
+      setUtilities((prev) => [...prev, payload]);
+      setNewUtilName("");
+      setNewUtilNumber("");
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao adicionar utilidade.");
+    }
+  };
+
+  const handleUploadUtilityImage = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingUtil) return;
+    setUploadingUtilIcon(true);
+    try {
+      const url = await compressAndUploadImage(file);
+      setEditingUtil({ ...editingUtil, customIconUrl: url });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erro ao enviar imagem.");
+    } finally {
+      setUploadingUtilIcon(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleSaveEditedUtility = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUtil) return;
+    setSavingUtil(true);
+    try {
+      await setDoc(doc(db, "utilities", editingUtil.id), editingUtil, {
+        merge: true,
+      });
+      setUtilities((prev) =>
+        prev
+          .map((u) => (u.id === editingUtil.id ? editingUtil : u))
+          .sort((a, b) => (a.order || 0) - (b.order || 0))
+      );
+      setEditingUtil(null);
+      alert("✅ Utilidade atualizada com sucesso!");
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao salvar utilidade.");
+    } finally {
+      setSavingUtil(false);
+    }
+  };
+
+  const handleToggleUtility = async (util: UtilityDoc) => {
+    const nextActive = util.active === false;
+    try {
+      await setDoc(
+        doc(db, "utilities", util.id),
+        { ...util, active: nextActive },
+        { merge: true }
+      );
+      setUtilities((prev) =>
+        prev.map((u) => (u.id === util.id ? { ...u, active: nextActive } : u))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteUtility = async (util: UtilityDoc) => {
+    const confirmed = window.confirm(
+      `Excluir "${util.name}" (${util.number}) da lista de Utilidades Rápidas?`
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteDoc(doc(db, "utilities", util.id));
+      setUtilities((prev) => prev.filter((u) => u.id !== util.id));
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao excluir utilidade.");
     }
   };
 
@@ -680,6 +810,19 @@ export default function MasterAdminPage() {
 
           <button
             type="button"
+            onClick={() => setActiveTab("utilities")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer ${
+              activeTab === "utilities"
+                ? "bg-[#0A4D9C] text-white shadow-sm"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+            }`}
+          >
+            <PhoneCall className="w-4 h-4" />
+            Utilidades Rápidas ({utilities.length})
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab("settings")}
             className={`px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer ${
               activeTab === "settings"
@@ -939,7 +1082,6 @@ export default function MasterAdminPage() {
         {/* ABA 2: BANNERS PATROCINADOS (SLIDE HOME E SEGMENTOS) */}
         {activeTab === "banners" && (
           <div className="space-y-6">
-            {/* Formulário de Novo Banner */}
             <form
               onSubmit={handleCreatePromoBanner}
               className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4"
@@ -999,7 +1141,6 @@ export default function MasterAdminPage() {
                   />
                 </div>
 
-                {/* Upload da Arte */}
                 <div className="sm:col-span-2 lg:col-span-3 space-y-2">
                   <label className="block text-xs font-bold text-slate-700">
                     Arte do Banner Full (Ideal: 1200x300px Horizontal) *
@@ -1034,7 +1175,6 @@ export default function MasterAdminPage() {
                   )}
                 </div>
 
-                {/* Tipo de Ação: WhatsApp ou Link */}
                 <div className="sm:col-span-2 lg:col-span-3 pt-2 border-t border-slate-100 space-y-3">
                   <label className="block text-xs font-bold text-slate-700">
                     Ação ao clicar no Banner *
@@ -1154,7 +1294,6 @@ export default function MasterAdminPage() {
               </button>
             </form>
 
-            {/* Lista de Banners Cadastrados */}
             <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
               <h3 className="text-base font-black text-slate-900">
                 Banners Cadastrados ({banners.length})
@@ -1226,7 +1365,7 @@ export default function MasterAdminPage() {
           </div>
         )}
 
-        {/* ABA 3: GERENCIAR E EDITAR CATEGORIAS (TEXTO, COR E FOTO/ÍCONE) */}
+        {/* ABA 3: GERENCIAR E EDITAR CATEGORIAS */}
         {activeTab === "categories" && (
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
             <div>
@@ -1321,7 +1460,112 @@ export default function MasterAdminPage() {
           </div>
         )}
 
-        {/* ABA 4: WHATSAPP MASTER & GRUPO VIP */}
+        {/* ABA 4: UTILIDADES RÁPIDAS (TELEFONES ÚTEIS DO MODAL DO TOPO) */}
+        {activeTab === "utilities" && (
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
+            <div>
+              <h2 className="text-lg font-black text-slate-900">
+                Gerenciar Utilidades Rápidas (Telefones Úteis)
+              </h2>
+              <p className="text-xs text-slate-500">
+                Estes contatos aparecem quando o usuário clica no card <strong>Utilidades</strong> no topo do guia. Clique em <strong>Editar</strong> para alterar nome, número, cor ou foto.
+              </p>
+            </div>
+
+            <form
+              onSubmit={handleAddUtility}
+              className="grid grid-cols-1 sm:grid-cols-3 gap-3"
+            >
+              <input
+                type="text"
+                required
+                value={newUtilName}
+                onChange={(e) => setNewUtilName(e.target.value)}
+                placeholder="Nome do órgão / serviço (ex: Guarda Municipal)"
+                className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+              />
+              <input
+                type="text"
+                required
+                value={newUtilNumber}
+                onChange={(e) => setNewUtilNumber(e.target.value)}
+                placeholder="Telefone (ex: 153 ou (64) 3454-0000)"
+                className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+              />
+              <button
+                type="submit"
+                className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-xs px-5 py-3 rounded-xl inline-flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Adicionar Utilidade
+              </button>
+            </form>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {utilities.map((util) => (
+                <div
+                  key={util.id}
+                  className="p-4 rounded-2xl border border-slate-200 flex items-center justify-between gap-3 bg-slate-50/50"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`w-11 h-11 rounded-xl ${
+                        util.color || "bg-blue-600"
+                      } flex items-center justify-center shrink-0 shadow-xs`}
+                    >
+                      <CategoryIcon
+                        name={util.iconName}
+                        customIconUrl={util.customIconUrl}
+                        className="w-5 h-5 text-white"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-900 truncate">
+                        {util.name}
+                      </p>
+                      <p className="text-xs font-extrabold text-red-600 truncate">
+                        {util.number}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setEditingUtil(util)}
+                      className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#0A4D9C] transition cursor-pointer"
+                      title="Editar nome, número, cor e foto"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleUtility(util)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold cursor-pointer ${
+                        util.active !== false
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-slate-200 text-slate-600"
+                      }`}
+                    >
+                      {util.active !== false ? "Ativo" : "Oculto"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteUtility(util)}
+                      className="p-2 rounded-lg text-red-600 hover:bg-red-50 transition cursor-pointer"
+                      title="Excluir"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ABA 5: WHATSAPP MASTER & GRUPO VIP */}
         {activeTab === "settings" && (
           <form
             onSubmit={handleSaveSettings}
@@ -1379,7 +1623,7 @@ export default function MasterAdminPage() {
         )}
       </main>
 
-      {/* MODAL DE EDIÇÃO DA CATEGORIA (TEXTO + SUBTÍTULO + COR + FOTO/ÍCONE) */}
+      {/* MODAL DE EDIÇÃO DA CATEGORIA */}
       {editingCat && (
         <div
           onClick={() => setEditingCat(null)}
@@ -1543,6 +1787,176 @@ export default function MasterAdminPage() {
                   <Save className="w-4 h-4" />
                 )}
                 Salvar Categoria
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL DE EDIÇÃO DE UTILIDADE RÁPIDA */}
+      {editingUtil && (
+        <div
+          onClick={() => setEditingUtil(null)}
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={handleSaveEditedUtility}
+            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4 relative"
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-lg font-black text-slate-900">
+                Editar Utilidade: {editingUtil.name}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingUtil(null)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nome do Serviço / Órgão *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingUtil.name}
+                  onChange={(e) =>
+                    setEditingUtil({ ...editingUtil, name: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Telefone para Discagem *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingUtil.number}
+                  onChange={(e) =>
+                    setEditingUtil({ ...editingUtil, number: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Ordem de Exibição
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={editingUtil.order || 1}
+                  onChange={(e) =>
+                    setEditingUtil({
+                      ...editingUtil,
+                      order: Number(e.target.value),
+                    })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Cor do Ícone
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {COLOR_PRESETS.map((c) => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onClick={() =>
+                        setEditingUtil({ ...editingUtil, color: c.value })
+                      }
+                      className={`w-8 h-8 rounded-xl ${c.value} transition cursor-pointer ${
+                        editingUtil.color === c.value
+                          ? "ring-4 ring-slate-900 scale-110"
+                          : "opacity-80 hover:opacity-100"
+                      }`}
+                      title={c.label}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="sm:col-span-2 pt-2 border-t border-slate-100 space-y-2">
+                <label className="block text-xs font-bold text-slate-700">
+                  Foto ou Ícone Personalizado
+                </label>
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-14 h-14 rounded-2xl ${
+                      editingUtil.color || "bg-blue-600"
+                    } flex items-center justify-center shrink-0 shadow-sm`}
+                  >
+                    <CategoryIcon
+                      name={editingUtil.iconName}
+                      customIconUrl={editingUtil.customIconUrl}
+                      className="w-7 h-7 text-white"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3.5 py-2.5 rounded-xl cursor-pointer">
+                      {uploadingUtilIcon ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4" />
+                      )}
+                      Enviar Foto/Ícone
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleUploadUtilityImage}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {editingUtil.customIconUrl && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingUtil({ ...editingUtil, customIconUrl: "" })
+                        }
+                        className="text-xs font-bold text-red-600 hover:underline"
+                      >
+                        Usar ícone padrão
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingUtil(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={savingUtil}
+                className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-[#0A4D9C] hover:bg-[#062F63] text-white inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                {savingUtil ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                Salvar Utilidade
               </button>
             </div>
           </form>
