@@ -82,19 +82,11 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
       {/* CORPO DO CARD */}
       <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5">
         <div className="space-y-1.5">
-          {/* TÍTULO + INDICADOR "VER MAIS ›" */}
-          <Link
-            href={detailsHref}
-            className="flex items-start justify-between gap-2 group/title"
-          >
-            <h3 className="text-base sm:text-lg font-black text-slate-900 group-hover/title:text-[#0A4D9C] leading-snug line-clamp-1">
+          {/* TÍTULO COM LARGURA TOTAL (SEM CORTAR) */}
+          <Link href={detailsHref} className="block group/title">
+            <h3 className="text-base sm:text-lg font-black text-slate-900 group-hover/title:text-[#0A4D9C] leading-snug line-clamp-2">
               {business.name}
             </h3>
-
-            <span className="inline-flex items-center gap-0.5 bg-blue-50 group-hover:bg-[#0A4D9C] text-[#0A4D9C] group-hover:text-white text-[11px] font-extrabold px-2.5 py-1 rounded-full shrink-0 transition">
-              Ver mais
-              <ChevronRight className="w-3.5 h-3.5" />
-            </span>
           </Link>
 
           <Link href={detailsHref} className="block">
@@ -108,26 +100,36 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
           {hasCoupon && (
             <Link
               href={detailsHref}
-              className="mt-2 block rounded-xl border border-dashed border-[#FF7A00] bg-orange-50/70 px-3 py-2 text-xs font-extrabold text-orange-800 hover:bg-orange-100/70 transition line-clamp-1"
+              className="mt-2 block rounded-xl border border-dashed border-[#FF7A00] bg-orange-50/70 px-3 py-2 text-xs font-extrabold text-orange-800 hover:bg-orange-100/70 transition line-clamp-2"
             >
               🎟️ {business.coupon?.title || `Cupom: ${business.coupon?.code}`}
             </Link>
           )}
         </div>
 
-        {/* BOTÃO DIRETO WHATSAPP */}
-        {cleanPhone && (
-          <a
-            href={waUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={handleWhatsappClick}
-            className="w-full bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-xs sm:text-sm py-3 rounded-xl shadow-xs inline-flex items-center justify-center gap-2 transition"
+        {/* DOIS BOTÕES LADO A LADO NA BASE: WHATSAPP | VER MAIS */}
+        <div className={`grid gap-2 ${cleanPhone ? "grid-cols-2" : "grid-cols-1"}`}>
+          {cleanPhone && (
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handleWhatsappClick}
+              className="w-full bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-xs py-3 px-2 rounded-xl shadow-xs inline-flex items-center justify-center gap-1.5 transition"
+            >
+              <MessageCircle className="w-4 h-4 fill-white shrink-0" />
+              <span>WhatsApp</span>
+            </a>
+          )}
+
+          <Link
+            href={detailsHref}
+            className="w-full bg-blue-50 hover:bg-[#0A4D9C] text-[#0A4D9C] hover:text-white font-extrabold text-xs py-3 px-2 rounded-xl inline-flex items-center justify-center gap-1 transition"
           >
-            <MessageCircle className="w-4 h-4 fill-white" />
-            WhatsApp
-          </a>
-        )}
+            <span>Ver mais</span>
+            <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+          </Link>
+        </div>
       </div>
     </div>
   );
