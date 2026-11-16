@@ -22,7 +22,7 @@ export function Navbar({
 
   return (
     <header className="sticky top-0 z-40 w-full bg-[#0A4D9C] text-white shadow-md border-b border-white/10">
-      <div className="max-w-6xl mx-auto px-3 sm:px-4 h-16 sm:h-[72px] flex items-center justify-between gap-3">
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 h-16 sm:h-[76px] flex items-center justify-between gap-2.5">
         {/* LOGO OFICIAL */}
         <Link
           href="/"
@@ -32,7 +32,7 @@ export function Navbar({
           <img
             src="https://ldsite.com.br/wp-content/uploads/2026/11/Logo-3D-Caldas-Online_azul-scaled.jpg"
             alt="Caldas Online • Guia Comercial de Caldas Novas"
-            className="h-9 sm:h-12 w-auto max-w-[165px] sm:max-w-none object-contain rounded-lg sm:rounded-xl"
+            className="h-11 sm:h-[54px] w-auto max-w-[205px] sm:max-w-none object-contain rounded-lg sm:rounded-xl"
           />
         </Link>
 
