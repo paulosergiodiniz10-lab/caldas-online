@@ -236,6 +236,20 @@ export default function MasterAdminPage() {
     );
   };
 
+  const updateBusinessLimits = async (
+    bizId: string,
+    field: "maxPhotos" | "maxVideos",
+    value: number
+  ) => {
+    const safeValue = Math.max(0, Number(value) || 0);
+    await updateDoc(doc(db, "businesses", bizId), { [field]: safeValue });
+    setBusinesses((prev) =>
+      prev.map((item) =>
+        item.id === bizId ? { ...item, [field]: safeValue } : item
+      )
+    );
+  };
+
   // ================= CATEGORIAS =================
   const handleImportDefaultCategories = async () => {
     const batch = writeBatch(db);
@@ -254,8 +268,8 @@ export default function MasterAdminPage() {
     try {
       const url = await compressAndUploadImage(file);
       setCatCustomIconUrl(url);
-    } catch {
-      alert("Erro ao enviar ícone personalizado.");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erro ao enviar ícone personalizado.");
     } finally {
       setUploadingCatIcon(false);
     }
@@ -323,8 +337,8 @@ export default function MasterAdminPage() {
     try {
       const url = await compressAndUploadImage(file);
       setUtilCustomIconUrl(url);
-    } catch {
-      alert("Erro ao enviar ícone personalizado.");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erro ao enviar ícone personalizado.");
     } finally {
       setUploadingUtilIcon(false);
     }
@@ -380,8 +394,8 @@ export default function MasterAdminPage() {
     try {
       const url = await compressAndUploadImage(file);
       setBannerImageUrl(url);
-    } catch {
-      alert("Erro ao enviar imagem do banner.");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erro ao enviar imagem do banner.");
     } finally {
       setUploadingBanner(false);
     }
@@ -555,7 +569,7 @@ export default function MasterAdminPage() {
             <div>
               <h1 className="text-xl font-black">Painel Master • Caldas Online</h1>
               <p className="text-xs text-slate-300">
-                Controle total de categorias, ícones, telefones úteis, banners e textos
+                Controle total de empresas, limites de mídia, categorias, ícones, banners e textos
               </p>
             </div>
           </div>
@@ -629,7 +643,13 @@ export default function MasterAdminPage() {
         {/* ==================== ABA 1: EMPRESAS ==================== */}
         {activeTab === "empresas" && (
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-4">
-            <h2 className="font-extrabold text-slate-900">Empresas Cadastradas</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h2 className="font-extrabold text-slate-900">Empresas Cadastradas</h2>
+              <p className="text-xs text-slate-500">
+                Padrão grátis: <strong>5 fotos</strong> e <strong>1 vídeo</strong> (até 4 vídeos para planos pagos)
+              </p>
+            </div>
+
             {businesses.length === 0 ? (
               <p className="text-sm text-slate-500">Nenhuma empresa cadastrada ainda.</p>
             ) : (
@@ -637,7 +657,7 @@ export default function MasterAdminPage() {
                 {businesses.map((biz) => (
                   <div
                     key={biz.id}
-                    className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className="py-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3"
                   >
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -660,6 +680,42 @@ export default function MasterAdminPage() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
+                      {/* Controle de Limite de Fotos */}
+                      <div className="inline-flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200">
+                        <span className="text-[11px] font-bold text-slate-600">Fotos:</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={50}
+                          defaultValue={biz.maxPhotos ?? 5}
+                          onBlur={(e) =>
+                            updateBusinessLimits(biz.id, "maxPhotos", Number(e.target.value))
+                          }
+                          className="w-12 text-center text-xs font-extrabold bg-white border border-slate-300 rounded-lg py-1"
+                          title="Limite de fotos liberadas para este cliente"
+                        />
+                      </div>
+
+                      {/* Controle de Limite de Vídeos */}
+                      <div className="inline-flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200">
+                        <span className="text-[11px] font-bold text-slate-600">Vídeos:</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={4}
+                          defaultValue={biz.maxVideos ?? 1}
+                          onBlur={(e) =>
+                            updateBusinessLimits(
+                              biz.id,
+                              "maxVideos",
+                              Math.min(4, Number(e.target.value))
+                            )
+                          }
+                          className="w-11 text-center text-xs font-extrabold bg-white border border-slate-300 rounded-lg py-1"
+                          title="Limite de vídeos do YouTube (1 = 1 horizontal; até 4 = 1 horizontal + 3 verticais)"
+                        />
+                      </div>
+
                       <button
                         onClick={() => toggleFeatured(biz)}
                         className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl transition ${
@@ -1242,7 +1298,7 @@ export default function MasterAdminPage() {
                     ) : (
                       <Upload className="w-4 h-4" />
                     )}
-                    {bannerImageUrl ? "Trocar Arte" : "Enviar Arte (1200x400px)"}
+                    {bannerImageUrl ? "Trocar Arte" : "Enviar Arte (1200x400px, máx 1MB)"}
                     <input
                       type="file"
                       accept="image/*"
