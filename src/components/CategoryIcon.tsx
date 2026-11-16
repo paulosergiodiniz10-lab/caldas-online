@@ -10,6 +10,15 @@ import {
   PartyPopper,
   PhoneCall,
   Store,
+  Shield,
+  Flame,
+  Ambulance,
+  Hospital,
+  Landmark,
+  Zap,
+  Droplets,
+  Bus,
+  CarTaxiFront,
 } from "lucide-react";
 
 interface Props {
@@ -39,6 +48,24 @@ export function CategoryIcon({ name, className = "w-6 h-6 text-white" }: Props) 
       return <PartyPopper className={className} />;
     case "PhoneCall":
       return <PhoneCall className={className} />;
+    case "Shield":
+      return <Shield className={className} />;
+    case "Flame":
+      return <Flame className={className} />;
+    case "Ambulance":
+      return <Ambulance className={className} />;
+    case "Hospital":
+      return <Hospital className={className} />;
+    case "Landmark":
+      return <Landmark className={className} />;
+    case "Zap":
+      return <Zap className={className} />;
+    case "Droplets":
+      return <Droplets className={className} />;
+    case "Bus":
+      return <Bus className={className} />;
+    case "CarTaxiFront":
+      return <CarTaxiFront className={className} />;
     default:
       return <Store className={className} />;
   }
