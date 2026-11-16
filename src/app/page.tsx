@@ -35,6 +35,16 @@ import { BannerSlider } from "@/components/BannerSlider";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { BusinessCard } from "@/components/BusinessCard";
 
+// Embaralhamento justo (Fisher-Yates) para rotacionar empresas a cada acesso
+function shuffleArray<T>(items: T[]): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 export default function HomePage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [banners, setBanners] = useState<PromoBanner[]>([]);
@@ -55,14 +65,14 @@ export default function HomePage() {
   useEffect(() => {
     async function loadInitialData() {
       try {
-        // 1. Carregar empresas aprovadas
+        // 1. Carregar empresas aprovadas e embaralhar a ordem a cada acesso
         const qBiz = query(collection(db, "businesses"), where("isApproved", "==", true));
         const snapBiz = await getDocs(qBiz);
         const listBiz: Business[] = snapBiz.docs.map((d) => ({
           id: d.id,
           ...(d.data() as Omit<Business, "id">),
         }));
-        setBusinesses(listBiz);
+        setBusinesses(shuffleArray(listBiz));
 
         // 2. Carregar banners ativos da Home
         const qBan = query(
@@ -177,14 +187,14 @@ export default function HomePage() {
 
   const isFiltering = Boolean(searchTerm.trim() || onlyCoupons || userCoords);
 
-  // SOMENTE empresas marcadas como Destaque (isFeatured === true) pelo Master
+  // TODAS as empresas marcadas como Destaque (isFeatured === true), embaralhadas a cada acesso
   const featuredBusinesses = useMemo(() => {
-    return businesses.filter((b) => b.isFeatured === true).slice(0, 8);
+    return businesses.filter((b) => b.isFeatured === true);
   }, [businesses]);
 
-  // Demais empresas aprovadas para listagem geral do guia
+  // Amostra rotativa de até 8 empresas gratuitas (2 linhas de 4 cards) a cada acesso
   const regularBusinesses = useMemo(() => {
-    return businesses.filter((b) => !b.isFeatured);
+    return businesses.filter((b) => !b.isFeatured).slice(0, 8);
   }, [businesses]);
 
   return (
@@ -394,7 +404,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* EMPRESAS EM DESTAQUE (EXCLUSIVO QUEM O MASTER MARCOU COMO DESTAQUE) */}
+        {/* EMPRESAS EM DESTAQUE (SEM LIMITE DE QUANTIDADE E EMBARALHADAS A CADA ACESSO) */}
         {!loading && featuredBusinesses.length > 0 && (
           <section>
             <div className="flex items-center justify-between mb-4">
@@ -419,7 +429,7 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* GUIA COMERCIAL (EMPRESAS CADASTRADAS E APROVADAS) */}
+        {/* EMPRESAS E SERVIÇOS NO GUIA (ATÉ 8 ROTATIVAS A CADA ACESSO) */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -429,7 +439,7 @@ export default function HomePage() {
                   Empresas e Serviços no Guia
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Explore estabelecimentos verificados e ofertas disponíveis
+                  Sugestões selecionadas • Use a busca ou as categorias acima para ver tudo
                 </p>
               </div>
             </div>
