@@ -34,6 +34,11 @@ import {
   X,
 } from "lucide-react";
 
+type BusinessWithExtra = Business & {
+  cep?: string;
+  googleMapsUrl?: string;
+};
+
 function getYoutubeEmbedUrl(url: string): string | null {
   if (!url) return null;
   const match = url.match(
@@ -73,9 +78,7 @@ export default function BusinessPublicPage() {
   const params = useParams();
   const slug = typeof params?.slug === "string" ? params.slug : "";
 
-  const [business, setBusiness] = useState<
-    (Business & { cep?: string; googleMapsUrl?: string }) | null
-  >(null);
+  const [business, setBusiness] = useState<BusinessWithExtra | null>(null);
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -97,14 +100,11 @@ export default function BusinessPublicPage() {
         const directSnap = await getDoc(directRef);
 
         if (directSnap.exists()) {
-          const data = {
+          const raw = directSnap.data() as Omit<BusinessWithExtra, "id">;
+          setBusiness({
+            ...raw,
             id: directSnap.id,
-            ...(directSnap.data() as Business & {
-              cep?: string;
-              googleMapsUrl?: string;
-            }),
-          };
-          setBusiness(data);
+          });
           updateDoc(directRef, { viewsCount: increment(1) }).catch(() => {});
         } else {
           const q = query(
@@ -114,14 +114,11 @@ export default function BusinessPublicPage() {
           const qSnap = await getDocs(q);
           if (!qSnap.empty) {
             const first = qSnap.docs[0];
-            const data = {
+            const raw = first.data() as Omit<BusinessWithExtra, "id">;
+            setBusiness({
+              ...raw,
               id: first.id,
-              ...(first.data() as Business & {
-                cep?: string;
-                googleMapsUrl?: string;
-              }),
-            };
-            setBusiness(data);
+            });
             updateDoc(doc(db, "businesses", first.id), {
               viewsCount: increment(1),
             }).catch(() => {});
@@ -218,20 +215,17 @@ export default function BusinessPublicPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Fundo gradiente azul institucional
     const bgGrad = ctx.createLinearGradient(0, 0, 1080, 1080);
     bgGrad.addColorStop(0, "#0A4D9C");
     bgGrad.addColorStop(1, "#062F63");
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, 1080, 1080);
 
-    // Cartão branco central
     ctx.fillStyle = "#FFFFFF";
     ctx.beginPath();
     ctx.roundRect(70, 70, 940, 940, 44);
     ctx.fill();
 
-    // Faixa superior laranja
     const topGrad = ctx.createLinearGradient(70, 70, 1010, 210);
     topGrad.addColorStop(0, "#FF7A00");
     topGrad.addColorStop(1, "#FFB800");
@@ -245,12 +239,10 @@ export default function BusinessPublicPage() {
     ctx.textAlign = "center";
     ctx.fillText("CUPOM EXCLUSIVO • CALDAS ONLINE", 540, 148);
 
-    // Nome da Empresa
     ctx.fillStyle = "#0A4D9C";
     ctx.font = "900 48px sans-serif";
     const afterNameY = wrapCanvasText(ctx, business.name, 540, 290, 820, 56);
 
-    // Benefício / Oferta
     ctx.fillStyle = "#0F172A";
     ctx.font = "800 40px sans-serif";
     const afterTitleY = wrapCanvasText(
@@ -262,7 +254,6 @@ export default function BusinessPublicPage() {
       48
     );
 
-    // Caixa do Código Tracejada
     const boxY = Math.max(510, afterTitleY + 55);
     ctx.fillStyle = "#FFF7ED";
     ctx.strokeStyle = "#FF7A00";
@@ -282,7 +273,6 @@ export default function BusinessPublicPage() {
     ctx.font = "900 64px monospace";
     ctx.fillText(couponCode, 540, boxY + 125);
 
-    // Regras e Instrução
     ctx.fillStyle = "#475569";
     ctx.font = "600 26px sans-serif";
     let nextY = boxY + 225;
@@ -308,7 +298,6 @@ export default function BusinessPublicPage() {
     link.click();
   };
 
-  // Monta endereço completo e link do Google Maps
   const fullAddressParts = [
     business.address,
     business.neighborhood ? `Bairro ${business.neighborhood}` : "",
@@ -324,7 +313,6 @@ export default function BusinessPublicPage() {
           `${business.name} ${fullAddressParts.join(", ")}`
         )}`;
 
-  // Vídeos permitidos pelo plano
   const allowedVideos = business.maxVideos ?? 0;
   const horizontalEmbed =
     allowedVideos >= 1 && business.youtubeHorizontal
@@ -496,7 +484,6 @@ export default function BusinessPublicPage() {
             {business.description}
           </p>
 
-          {/* Bloco de Endereço Completo */}
           {fullAddressText && (
             <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-start gap-3">
@@ -525,7 +512,6 @@ export default function BusinessPublicPage() {
             </div>
           )}
 
-          {/* Links Sociais e Localização */}
           <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2.5">
             {business.instagram && (
               <a
