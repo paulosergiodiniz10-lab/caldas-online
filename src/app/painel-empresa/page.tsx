@@ -1231,7 +1231,7 @@ export default function BusinessDashboardPage() {
                 <strong>1. Responsabilidade Integral:</strong> A empresa anunciante é 100% responsável pela veracidade das informações, preços, promoções, direitos de imagem e cumprimento dos cupons divulgados em sua página.
               </p>
               <p>
-                <strong>2. Conduta e Proibições:</strong> É estritamente proibido publicar conteúdo ofensivo, ilegal, pornográfico, enganoso ou sem relação comercial legítima em Caldas Novas - GO.
+                <strong>2. Conduta e Proibições:</strong> É estritamente proibido publicar conteúdo ofensivo, ilegal, pornográfico, enganoso ou sem atividade comercial ou prestação de serviços legítima.
               </p>
               <p>
                 <strong>3. Moderação e Penalidades:</strong> Todo cadastro passa por vistoria prévia. Em caso de violação destas regras, fraudes ou reclamações fundamentadas de consumidores, o anúncio poderá ser <strong>bloqueado ou excluído automaticamente sem aviso prévio e sem direito a reembolso</strong> de eventuais planos contratados.
