@@ -19,7 +19,7 @@ export function Footer({ settings, vipGroupUrl, masterWhatsApp }: FooterProps) {
     ...(masterWhatsApp ? { masterWhatsApp } : {}),
   };
 
-  const cleanMasterPhone = (cfg.masterWhatsApp || "5564981005505").replace(/\D/g, "");
+  const cleanMasterPhone = (cfg.masterWhatsApp || "5564993049090").replace(/\D/g, "");
   const advertiseWaUrl = `https://wa.me/${cleanMasterPhone}?text=${encodeURIComponent(
     cfg.advertiseWhatsappMessage || ""
   )}`;
@@ -70,7 +70,7 @@ export function Footer({ settings, vipGroupUrl, masterWhatsApp }: FooterProps) {
           </a>
         </div>
 
-        {/* BANNER 2: ANUNCIE NO CALDAS ONLINE */}
+        {/* BANNER 2: ANUNCIE NO CALDAS NOVAS ONLINE */}
         <div className="rounded-3xl bg-[#0A4D9C] p-6 sm:p-8 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-6 text-white">
           <div className="flex items-start gap-4 max-w-2xl">
             <div className="w-12 h-12 rounded-2xl bg-white/10 text-[#FFB800] flex items-center justify-center shrink-0 mt-0.5">
@@ -123,9 +123,12 @@ export function Footer({ settings, vipGroupUrl, masterWhatsApp }: FooterProps) {
       {/* RODAPÉ INSTITUCIONAL COM ACESSO MASTER DISCRETO */}
       <div className="max-w-6xl mx-auto px-4 pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
         <p className="font-semibold text-center sm:text-left">
-          © {new Date().getFullYear()} Caldas Online • O Guia Comercial de Caldas Novas - GO
+          © {new Date().getFullYear()} Caldas Novas Online • O Guia Comercial de Caldas Novas - GO
         </p>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          <Link href="/planos" className="hover:text-[#0A4D9C] font-semibold">
+            Planos e Anúncios
+          </Link>
           <Link href="/painel-empresa" className="hover:text-[#0A4D9C] font-semibold">
             Área do Lojista
           </Link>
