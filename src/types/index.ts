@@ -24,16 +24,36 @@ export interface Business {
   logoUrl: string;
   coverUrl: string;
   gallery: string[];
-  maxPhotos?: number; // Nasce com 5 (Master pode aumentar por cliente)
-  maxVideos?: number; // Nasce com 1 (Master pode aumentar até 4 por cliente)
+  maxPhotos?: number; // Master pode aumentar por cliente
+  maxVideos?: number; // Master pode aumentar até 4 por cliente
   youtubeHorizontal?: string; // 1 vídeo horizontal (exibe primeiro)
   youtubeVerticals?: string[]; // Até 3 vídeos verticais (Shorts/YouTube)
   coupon?: Coupon;
+  planId?: string; // Identificador do plano contratado (opcional)
   isFeatured: boolean;
   isApproved: boolean;
   viewsCount: number;
   whatsappClicks: number;
   createdAt: number;
+}
+
+export interface PlanDoc {
+  id: string;
+  name: string; // Ex: "Grátis", "Vitrine", "Destaque", "Master"
+  subtitle: string; // Ex: "Presença Básica", "+ Fotos e Vídeos"
+  price: number; // 0 para Grátis, ou valor mensal (ex: 49.9, 89.9, 199.9)
+  billingPeriod: string; // Ex: "/mês" ou "Grátis para sempre"
+  maxPhotos: number; // Editável no Master (ex: 6, 20, 30)
+  maxVideos: number; // Editável no Master (ex: 0, 2, 4)
+  hasFeaturedHome: boolean; // Se inclui Empresas em Destaque na Home
+  hasBannerHome: boolean; // Se inclui Full Banner na Home
+  hasBannerSegment: boolean; // Se inclui Full Banner no Segmento
+  badgeText?: string; // Ex: "Mais Escolhido" ou "Vagas Limitadas"
+  highlight: boolean; // Destaque visual no card do plano
+  features: string[]; // Lista extra de benefícios editáveis
+  buttonText: string; // Ex: "Começar Grátis" ou "Contratar no WhatsApp"
+  order: number;
+  active: boolean;
 }
 
 export interface PromoBanner {
@@ -42,6 +62,10 @@ export interface PromoBanner {
   imageUrl: string;
   linkUrl: string;
   placement: string;
+  actionType?: "link" | "whatsapp";
+  whatsappNumber?: string;
+  whatsappMessage?: string;
+  buttonText?: string;
   active: boolean;
   order: number;
 }
