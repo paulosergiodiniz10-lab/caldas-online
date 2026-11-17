@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { doc, updateDoc, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { optimizeCloudinaryUrl } from "@/lib/cloudinary";
 import { Business } from "@/types";
 import {
   Ticket,
@@ -23,7 +24,7 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
 
   const cleanPhone = (business.whatsapp || "").replace(/\D/g, "");
   const waPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
-  const waMessage = `Olá! Vi a *${business.name}* no guia *Caldas Online* e gostaria de mais informações.`;
+  const waMessage = `Olá! Vi a *${business.name}* no guia *Caldas Novas Online* e gostaria de mais informações.`;
   const waUrl = cleanPhone
     ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waMessage)}`
     : "#";
@@ -32,6 +33,10 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
     business.coupon?.active &&
       (business.coupon?.title || business.coupon?.code)
   );
+
+  const rawCardImage =
+    business.coverUrl || business.gallery?.[0] || business.logoUrl;
+  const optimizedCardImage = optimizeCloudinaryUrl(rawCardImage);
 
   const handleWhatsappClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.stopPropagation();
@@ -49,10 +54,12 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
         href={detailsHref}
         className="relative w-full h-44 bg-slate-100 overflow-hidden block"
       >
-        {business.coverUrl || business.logoUrl || business.gallery?.[0] ? (
+        {optimizedCardImage ? (
           <img
-            src={business.coverUrl || business.gallery?.[0] || business.logoUrl}
+            src={optimizedCardImage}
             alt={business.name}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
           />
         ) : (
