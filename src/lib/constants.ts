@@ -1,4 +1,4 @@
-import { CategoryDoc, UtilityDoc, SiteSettings } from "@/types";
+import { CategoryDoc, UtilityDoc, SiteSettings, PlanDoc } from "@/types";
 
 export const ICON_OPTIONS = [
   { name: "Utensils", label: "Alimentação / Prato" },
@@ -57,6 +57,101 @@ export const COLOR_OPTIONS = [
   { label: "Turquesa", value: "bg-teal-500" },
   { label: "Índigo", value: "bg-indigo-600" },
   { label: "Amarelo", value: "bg-yellow-500" },
+];
+
+export const DEFAULT_PLANS: PlanDoc[] = [
+  {
+    id: "gratis",
+    name: "Grátis",
+    subtitle: "Presença Básica",
+    price: 0,
+    billingPeriod: "Grátis para sempre",
+    maxPhotos: 6,
+    maxVideos: 0,
+    hasFeaturedHome: false,
+    hasBannerHome: false,
+    hasBannerSegment: false,
+    badgeText: "",
+    highlight: false,
+    features: [
+      "Página exclusiva no guia comercial",
+      "Botão direto para o seu WhatsApp",
+      "1 cupom de desconto ativo",
+      "Localização no mapa e rotas GPS",
+    ],
+    buttonText: "Cadastrar Grátis",
+    order: 1,
+    active: true,
+  },
+  {
+    id: "vitrine",
+    name: "Vitrine",
+    subtitle: "+ Fotos e Vídeos",
+    price: 49.9,
+    billingPeriod: "/mês",
+    maxPhotos: 20,
+    maxVideos: 2,
+    hasFeaturedHome: false,
+    hasBannerHome: false,
+    hasBannerSegment: false,
+    badgeText: "",
+    highlight: false,
+    features: [
+      "Tudo do plano Grátis",
+      "Links para Instagram, Site e Cardápio",
+      "Galeria ampliada para encantar clientes",
+      "Vídeos do YouTube e Reels integrados",
+    ],
+    buttonText: "Contratar Vitrine",
+    order: 2,
+    active: true,
+  },
+  {
+    id: "destaque",
+    name: "Destaque",
+    subtitle: "+ Primeira Página e Selo VIP",
+    price: 89.9,
+    billingPeriod: "/mês",
+    maxPhotos: 30,
+    maxVideos: 4,
+    hasFeaturedHome: true,
+    hasBannerHome: false,
+    hasBannerSegment: false,
+    badgeText: "Mais Escolhido",
+    highlight: true,
+    features: [
+      "Tudo do plano Vitrine",
+      "Presença rotativa na Primeira Página (Home)",
+      "Selo Dourado ★ Destaque no card",
+      "Prioridade no topo da sua categoria",
+    ],
+    buttonText: "Quero ser Destaque",
+    order: 3,
+    active: true,
+  },
+  {
+    id: "master",
+    name: "Master",
+    subtitle: "+ Full Banner Home e Segmento",
+    price: 199.9,
+    billingPeriod: "/mês",
+    maxPhotos: 30,
+    maxVideos: 4,
+    hasFeaturedHome: true,
+    hasBannerHome: true,
+    hasBannerSegment: true,
+    badgeText: "Vagas Limitadas",
+    highlight: false,
+    features: [
+      "Tudo do plano Destaque",
+      "Full Banner no topo da Página Inicial",
+      "Full Banner exclusivo no seu Segmento",
+      "Botão direto para WhatsApp ou Link no banner",
+    ],
+    buttonText: "Ser Patrocinador Master",
+    order: 4,
+    active: true,
+  },
 ];
 
 export const DEFAULT_CATEGORIES: CategoryDoc[] = [
@@ -198,22 +293,22 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   vipGroupBadge: "CLUBE EXCLUSIVO",
   vipGroupTitle: "Receba Cupons Secretos em Primeira Mão!",
   vipGroupSubtitle:
-    "Entre no Grupo VIP do Caldas Online no WhatsApp e receba ofertas relâmpago de pizzarias, hotéis, parques e lojas da cidade antes de todo mundo.",
+    "Entre no Grupo VIP do Caldas Novas Online no WhatsApp e receba ofertas relâmpago de pizzarias, hotéis, parques e lojas da cidade antes de todo mundo.",
   vipGroupButtonText: "ENTRAR NO GRUPO VIP GRÁTIS",
   vipGroupUrl: "https://chat.whatsapp.com/",
   vipGroupMessage:
-    "Olá! Quero entrar no Grupo VIP de Ofertas do Caldas Online para receber os cupons exclusivos de Caldas Novas!",
+    "Olá! Quero entrar no Grupo VIP de Ofertas do Caldas Novas Online para receber os cupons exclusivos de Caldas Novas!",
 
-  // Banner 2: Anuncie no Caldas Online
-  advertiseTitle: "ANUNCIE NO CALDAS ONLINE",
+  // Banner 2: Anuncie no Caldas Novas Online
+  advertiseTitle: "ANUNCIE NO CALDAS NOVAS ONLINE",
   advertiseSubtitle:
     "Cadastre sua empresa grátis ou destaque sua marca nos banners principais para milhares de clientes!",
   advertiseRegisterText: "Cadastrar Grátis",
   advertiseRegisterUrl: "/painel-empresa",
   advertiseWhatsappText: "Falar no WhatsApp",
-  masterWhatsApp: "5564981005505",
+  masterWhatsApp: "5564993049090",
   advertiseWhatsappMessage:
-    "Olá! Vi o portal Caldas Online e tenho interesse em anunciar e destacar minha empresa em Caldas Novas.",
+    "Olá! Vi o portal Caldas Novas Online e tenho interesse em anunciar e destacar minha empresa em Caldas Novas.",
 };
 
 export const CATEGORIES = DEFAULT_CATEGORIES;
