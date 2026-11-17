@@ -22,12 +22,14 @@ import { compressAndUploadImage } from "@/lib/cloudinary";
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_UTILITIES,
+  DEFAULT_PLANS,
   DEFAULT_SITE_SETTINGS,
 } from "@/lib/constants";
 import {
   Business,
   CategoryDoc,
   UtilityDoc,
+  PlanDoc,
   PromoBanner,
   SiteSettings,
 } from "@/types";
@@ -58,6 +60,9 @@ import {
   MessageCircle,
   Megaphone,
   PhoneCall,
+  Sparkles,
+  Copy,
+  Check,
 } from "lucide-react";
 
 const MASTER_EMAIL = "caldasonline10@gmail.com";
@@ -94,7 +99,7 @@ export default function MasterAdminPage() {
   const [submittingAuth, setSubmittingAuth] = useState(false);
 
   const [activeTab, setActiveTab] = useState<
-    "businesses" | "banners" | "categories" | "utilities" | "settings"
+    "businesses" | "plans" | "banners" | "categories" | "utilities" | "settings"
   >("businesses");
 
   // Empresas
@@ -103,6 +108,13 @@ export default function MasterAdminPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved">("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // Planos
+  const [plans, setPlans] = useState<PlanDoc[]>(DEFAULT_PLANS);
+  const [editingPlan, setEditingPlan] = useState<PlanDoc | null>(null);
+  const [editingPlanFeaturesText, setEditingPlanFeaturesText] = useState("");
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [copiedPlansLink, setCopiedPlansLink] = useState(false);
 
   // Categorias
   const [categories, setCategories] = useState<CategoryDoc[]>(DEFAULT_CATEGORIES);
@@ -171,7 +183,18 @@ export default function MasterAdminPage() {
       });
       setBusinesses(bizList);
 
-      // 2. Categorias
+      // 2. Planos
+      const snapPlans = await getDocs(collection(db, "plans"));
+      if (!snapPlans.empty) {
+        const planList = snapPlans.docs
+          .map((d) => ({ ...(d.data() as Omit<PlanDoc, "id">), id: d.id }))
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
+        setPlans(planList);
+      } else {
+        setPlans(DEFAULT_PLANS);
+      }
+
+      // 3. Categorias
       const snapCats = await getDocs(collection(db, "categories"));
       if (!snapCats.empty) {
         const catList = snapCats.docs
@@ -182,7 +205,7 @@ export default function MasterAdminPage() {
         setCategories(DEFAULT_CATEGORIES);
       }
 
-      // 3. Utilidades Rápidas
+      // 4. Utilidades Rápidas
       const snapUtils = await getDocs(collection(db, "utilities"));
       if (!snapUtils.empty) {
         const utilList = snapUtils.docs
@@ -193,14 +216,14 @@ export default function MasterAdminPage() {
         setUtilities(DEFAULT_UTILITIES);
       }
 
-      // 4. Banners Patrocinados
+      // 5. Banners Patrocinados
       const snapBanners = await getDocs(collection(db, "banners"));
       const banList = snapBanners.docs
         .map((d) => ({ ...(d.data() as Omit<ExtendedBanner, "id">), id: d.id }))
         .sort((a, b) => (a.order || 0) - (b.order || 0));
       setBanners(banList);
 
-      // 5. Configurações Globais
+      // 6. Configurações Globais
       const snapSet = await getDoc(doc(db, "settings", "global"));
       if (snapSet.exists()) {
         setSettings((prev) => ({
@@ -236,7 +259,7 @@ export default function MasterAdminPage() {
   // MODERAÇÃO DE EMPRESAS
   const handleApproveBusiness = async (biz: Business) => {
     const confirmed = window.confirm(
-      `✅ LIBERAR EMPRESA?\n\nDeseja aprovar e publicar "${biz.name}" imediatamente no guia Caldas Online?`
+      `✅ LIBERAR EMPRESA?\n\nDeseja aprovar e publicar "${biz.name}" imediatamente no guia Caldas Novas Online?`
     );
     if (!confirmed) return;
 
@@ -287,7 +310,7 @@ export default function MasterAdminPage() {
 
   const handleDeleteBusiness = async (biz: Business) => {
     const confirmed = window.confirm(
-      `🚨 EXCLUIR DEFINITIVAMENTE?\n\nAtenção: Esta ação apaga "${biz.name}" permanentemente do guia Caldas Online e NÃO pode ser desfeita.\n\nDeseja realmente excluir?`
+      `🚨 EXCLUIR DEFINITIVAMENTE?\n\nAtenção: Esta ação apaga "${biz.name}" permanentemente do guia e NÃO pode ser desfeita.\n\nDeseja realmente excluir?`
     );
     if (!confirmed) return;
 
@@ -320,6 +343,102 @@ export default function MasterAdminPage() {
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  // GERENCIAMENTO DE PLANOS (GRÁTIS, VITRINE, DESTAQUE, MASTER)
+  const openEditPlanModal = (plan: PlanDoc) => {
+    setEditingPlan({ ...plan });
+    setEditingPlanFeaturesText((plan.features || []).join("\n"));
+  };
+
+  const handleOpenNewPlanModal = () => {
+    const newId = `plano-${Date.now()}`;
+    setEditingPlan({
+      id: newId,
+      name: "",
+      subtitle: "",
+      price: 99.9,
+      billingPeriod: "/mês",
+      maxPhotos: 20,
+      maxVideos: 2,
+      hasFeaturedHome: false,
+      hasBannerHome: false,
+      hasBannerSegment: false,
+      badgeText: "",
+      highlight: false,
+      features: [],
+      buttonText: "Contratar no WhatsApp",
+      order: plans.length + 1,
+      active: true,
+    });
+    setEditingPlanFeaturesText("Página completa no guia\nBotão direto para WhatsApp");
+  };
+
+  const handleSavePlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPlan || !editingPlan.name.trim()) return;
+    setSavingPlan(true);
+
+    try {
+      const featuresList = editingPlanFeaturesText
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      const updated: PlanDoc = {
+        ...editingPlan,
+        name: editingPlan.name.trim(),
+        subtitle: editingPlan.subtitle.trim(),
+        price: Number(editingPlan.price) || 0,
+        maxPhotos: Math.max(1, Number(editingPlan.maxPhotos) || 6),
+        maxVideos: Math.max(0, Math.min(4, Number(editingPlan.maxVideos) || 0)),
+        features: featuresList,
+      };
+
+      await setDoc(doc(db, "plans", updated.id), updated, { merge: true });
+
+      setPlans((prev) => {
+        const exists = prev.some((p) => p.id === updated.id);
+        const next = exists
+          ? prev.map((p) => (p.id === updated.id ? updated : p))
+          : [...prev, updated];
+        return next.sort((a, b) => (a.order || 0) - (b.order || 0));
+      });
+
+      setEditingPlan(null);
+      alert("✅ Plano salvo e atualizado na página pública /planos!");
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao salvar plano.");
+    } finally {
+      setSavingPlan(false);
+    }
+  };
+
+  const handleTogglePlanActive = async (plan: PlanDoc) => {
+    const nextActive = plan.active === false;
+    try {
+      await setDoc(
+        doc(db, "plans", plan.id),
+        { ...plan, active: nextActive },
+        { merge: true }
+      );
+      setPlans((prev) =>
+        prev.map((p) => (p.id === plan.id ? { ...p, active: nextActive } : p))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleCopyPlansUrl = () => {
+    const fullUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/planos`
+        : "https://caldasnovasonline.com.br/planos";
+    navigator.clipboard.writeText(fullUrl);
+    setCopiedPlansLink(true);
+    setTimeout(() => setCopiedPlansLink(false), 3000);
   };
 
   // CATEGORIAS
@@ -416,7 +535,7 @@ export default function MasterAdminPage() {
     }
   };
 
-  // UTILIDADES RÁPIDAS (CRIAR, EDITAR, ATIVAR/OCULTAR, EXCLUIR)
+  // UTILIDADES RÁPIDAS
   const handleAddUtility = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUtilName.trim() || !newUtilNumber.trim()) return;
@@ -514,7 +633,7 @@ export default function MasterAdminPage() {
     }
   };
 
-  // BANNERS PATROCINADOS (HOME E SEGMENTOS)
+  // BANNERS PATROCINADOS
   const handleUploadPromoBannerFile = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -653,7 +772,7 @@ export default function MasterAdminPage() {
             </div>
             <h1 className="text-2xl font-black text-slate-900">Painel Master</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Acesso exclusivo para moderação, planos e gestão do Caldas Online.
+              Acesso exclusivo para moderação, planos e gestão do Caldas Novas Online.
             </p>
 
             <form onSubmit={handleLogin} className="mt-6 space-y-4">
@@ -743,7 +862,7 @@ export default function MasterAdminPage() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-black">
-                Administração Master • Caldas Online
+                Administração Master • Caldas Novas Online
               </h1>
               <p className="text-xs text-slate-300">
                 {businesses.length} empresa(s) cadastradas •{" "}
@@ -780,6 +899,19 @@ export default function MasterAdminPage() {
                 {pendingCount}
               </span>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("plans")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer ${
+              activeTab === "plans"
+                ? "bg-[#0A4D9C] text-white shadow-sm"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-[#FF7A00]" />
+            Planos & Preços ({plans.length})
           </button>
 
           <button
@@ -1079,7 +1211,156 @@ export default function MasterAdminPage() {
           </div>
         )}
 
-        {/* ABA 2: BANNERS PATROCINADOS (SLIDE HOME E SEGMENTOS) */}
+        {/* ABA 2: PLANOS & PREÇOS (EDITÁVEIS + LINK DE VENDA PARA ENVIAR NO WHATSAPP) */}
+        {activeTab === "plans" && (
+          <div className="space-y-5">
+            {/* Barra de Compartilhamento Rápido do Link /planos */}
+            <div className="bg-gradient-to-r from-[#0A4D9C] to-[#062F63] text-white rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+              <div>
+                <h2 className="text-lg font-black">
+                  Catálogo de Planos (Grátis, Vitrine, Destaque e Master)
+                </h2>
+                <p className="text-xs text-blue-100 mt-0.5">
+                  Edite valores, quantidade de fotos, vídeos e benefícios abaixo. Tudo reflete na página pública <strong>/planos</strong> e no Painel da Empresa.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleCopyPlansUrl}
+                  className="bg-[#FF7A00] hover:bg-orange-500 text-slate-950 font-extrabold text-xs px-4 py-2.5 rounded-xl inline-flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                >
+                  {copiedPlansLink ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Link Copiado!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      Copiar Link para Cliente
+                    </>
+                  )}
+                </button>
+
+                <Link
+                  href="/planos"
+                  target="_blank"
+                  className="bg-white/15 hover:bg-white/25 text-white font-bold text-xs px-4 py-2.5 rounded-xl inline-flex items-center gap-1.5 transition"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Abrir Página /planos
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={handleOpenNewPlanModal}
+                  className="bg-white text-slate-950 hover:bg-slate-100 font-extrabold text-xs px-4 py-2.5 rounded-xl inline-flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  Novo Plano
+                </button>
+              </div>
+            </div>
+
+            {/* Cards dos Planos Configurados */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {plans.map((plan) => (
+                <div
+                  key={plan.id}
+                  className={`bg-white rounded-2xl p-5 border-2 flex flex-col justify-between space-y-4 ${
+                    plan.highlight
+                      ? "border-[#FF7A00] shadow-md"
+                      : "border-slate-200/80 shadow-sm"
+                  }`}
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] font-black uppercase text-slate-400">
+                          Ordem #{plan.order || 1}
+                        </span>
+                        <h3 className="text-lg font-black text-slate-900">
+                          {plan.name}
+                        </h3>
+                        <p className="text-xs text-slate-500">{plan.subtitle}</p>
+                      </div>
+
+                      {plan.badgeText && (
+                        <span className="text-[10px] font-black uppercase bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full shrink-0">
+                          {plan.badgeText}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100">
+                      <p className="text-2xl font-black text-[#0A4D9C]">
+                        {!plan.price || plan.price <= 0
+                          ? "Grátis"
+                          : plan.price.toLocaleString("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            })}
+                        {plan.price > 0 && (
+                          <span className="text-xs font-bold text-slate-500 ml-1">
+                            {plan.billingPeriod || "/mês"}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1.5 text-xs text-slate-700 bg-slate-50 p-3 rounded-xl">
+                      <p className="font-bold">
+                        📸 Até <strong>{plan.maxPhotos} fotos</strong>
+                      </p>
+                      <p className="font-bold">
+                        🎬 Até <strong>{plan.maxVideos} vídeo(s)</strong>
+                      </p>
+                      <p>
+                        ⭐ Destaque na Home:{" "}
+                        <strong>{plan.hasFeaturedHome ? "Sim" : "Não"}</strong>
+                      </p>
+                      <p>
+                        🖼️ Full Banner Home:{" "}
+                        <strong>{plan.hasBannerHome ? "Sim" : "Não"}</strong>
+                      </p>
+                      <p>
+                        📂 Banner Segmento:{" "}
+                        <strong>{plan.hasBannerSegment ? "Sim" : "Não"}</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openEditPlanModal(plan)}
+                      className="flex-1 bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-xs py-2.5 px-3 rounded-xl inline-flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      Editar Plano
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePlanActive(plan)}
+                      className={`px-3 py-2.5 rounded-xl text-[11px] font-extrabold cursor-pointer ${
+                        plan.active !== false
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-slate-200 text-slate-600"
+                      }`}
+                    >
+                      {plan.active !== false ? "Ativo" : "Oculto"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ABA 3: BANNERS PATROCINADOS (SLIDE HOME E SEGMENTOS) */}
         {activeTab === "banners" && (
           <div className="space-y-6">
             <form
@@ -1243,7 +1524,7 @@ export default function MasterAdminPage() {
                           type="text"
                           value={bannerWhatsappMsg}
                           onChange={(e) => setBannerWhatsappMsg(e.target.value)}
-                          placeholder="Olá! Vi a promoção no Caldas Online..."
+                          placeholder="Olá! Vi a promoção no Caldas Novas Online..."
                           className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                         />
                       </div>
@@ -1365,7 +1646,7 @@ export default function MasterAdminPage() {
           </div>
         )}
 
-        {/* ABA 3: GERENCIAR E EDITAR CATEGORIAS */}
+        {/* ABA 4: GERENCIAR E EDITAR CATEGORIAS */}
         {activeTab === "categories" && (
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
             <div>
@@ -1460,7 +1741,7 @@ export default function MasterAdminPage() {
           </div>
         )}
 
-        {/* ABA 4: UTILIDADES RÁPIDAS (TELEFONES ÚTEIS DO MODAL DO TOPO) */}
+        {/* ABA 5: UTILIDADES RÁPIDAS */}
         {activeTab === "utilities" && (
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
             <div>
@@ -1565,7 +1846,7 @@ export default function MasterAdminPage() {
           </div>
         )}
 
-        {/* ABA 5: WHATSAPP MASTER & GRUPO VIP */}
+        {/* ABA 6: WHATSAPP MASTER & GRUPO VIP */}
         {activeTab === "settings" && (
           <form
             onSubmit={handleSaveSettings}
@@ -1586,7 +1867,7 @@ export default function MasterAdminPage() {
                   onChange={(e) =>
                     setSettings({ ...settings, masterWhatsApp: e.target.value })
                   }
-                  placeholder="5564981005505"
+                  placeholder="5564993049090"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
@@ -1622,6 +1903,276 @@ export default function MasterAdminPage() {
           </form>
         )}
       </main>
+
+      {/* MODAL DE EDIÇÃO DE PLANO (FOTOS, VÍDEOS, VALOR, DESTAQUES E BANNERS) */}
+      {editingPlan && (
+        <div
+          onClick={() => setEditingPlan(null)}
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+        >
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={handleSavePlan}
+            className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 space-y-4 my-auto"
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-lg font-black text-slate-900">
+                Configurar Plano: {editingPlan.name || "Novo Plano"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingPlan(null)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nome do Plano *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingPlan.name}
+                  onChange={(e) =>
+                    setEditingPlan({ ...editingPlan, name: e.target.value })
+                  }
+                  placeholder="Ex: Vitrine, Destaque, Master"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Subtítulo Curto
+                </label>
+                <input
+                  type="text"
+                  value={editingPlan.subtitle}
+                  onChange={(e) =>
+                    setEditingPlan({ ...editingPlan, subtitle: e.target.value })
+                  }
+                  placeholder="Ex: + Fotos e Vídeos"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Valor (R$) — 0 para Grátis
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={editingPlan.price}
+                  onChange={(e) =>
+                    setEditingPlan({
+                      ...editingPlan,
+                      price: Number(e.target.value),
+                    })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Período / Cobrança
+                </label>
+                <input
+                  type="text"
+                  value={editingPlan.billingPeriod}
+                  onChange={(e) =>
+                    setEditingPlan({
+                      ...editingPlan,
+                      billingPeriod: e.target.value,
+                    })
+                  }
+                  placeholder="/mês ou Grátis para sempre"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Quantidade de Fotos *
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  required
+                  value={editingPlan.maxPhotos}
+                  onChange={(e) =>
+                    setEditingPlan({
+                      ...editingPlan,
+                      maxPhotos: Number(e.target.value),
+                    })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Quantidade de Vídeos (0 a 4) *
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={4}
+                  required
+                  value={editingPlan.maxVideos}
+                  onChange={(e) =>
+                    setEditingPlan({
+                      ...editingPlan,
+                      maxVideos: Number(e.target.value),
+                    })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Selo do Card (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={editingPlan.badgeText || ""}
+                  onChange={(e) =>
+                    setEditingPlan({
+                      ...editingPlan,
+                      badgeText: e.target.value,
+                    })
+                  }
+                  placeholder="Ex: Mais Escolhido"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Ordem de Exibição
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={editingPlan.order || 1}
+                  onChange={(e) =>
+                    setEditingPlan({
+                      ...editingPlan,
+                      order: Number(e.target.value),
+                    })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              {/* Opções de Visibilidade VIP */}
+              <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-slate-100">
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-800 bg-slate-50 p-2.5 rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingPlan.hasFeaturedHome}
+                    onChange={(e) =>
+                      setEditingPlan({
+                        ...editingPlan,
+                        hasFeaturedHome: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 accent-[#0A4D9C]"
+                  />
+                  Empresas em Destaque na Home
+                </label>
+
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-800 bg-slate-50 p-2.5 rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingPlan.hasBannerHome}
+                    onChange={(e) =>
+                      setEditingPlan({
+                        ...editingPlan,
+                        hasBannerHome: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 accent-[#0A4D9C]"
+                  />
+                  Full Banner na Home
+                </label>
+
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-800 bg-slate-50 p-2.5 rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingPlan.hasBannerSegment}
+                    onChange={(e) =>
+                      setEditingPlan({
+                        ...editingPlan,
+                        hasBannerSegment: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 accent-[#0A4D9C]"
+                  />
+                  Full Banner no Segmento
+                </label>
+
+                <label className="flex items-center gap-2 text-xs font-bold text-amber-900 bg-amber-50 p-2.5 rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingPlan.highlight}
+                    onChange={(e) =>
+                      setEditingPlan({
+                        ...editingPlan,
+                        highlight: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 accent-[#FF7A00]"
+                  />
+                  Destacar Card (Borda Laranja)
+                </label>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Benefícios Extras (1 por linha)
+                </label>
+                <textarea
+                  rows={4}
+                  value={editingPlanFeaturesText}
+                  onChange={(e) => setEditingPlanFeaturesText(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingPlan(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={savingPlan}
+                className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-[#0A4D9C] hover:bg-[#062F63] text-white inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                {savingPlan ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                Salvar Plano
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* MODAL DE EDIÇÃO DA CATEGORIA */}
       {editingCat && (
