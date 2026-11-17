@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, MessageCircle, ExternalLink } from "lucide-react";
+import { optimizeCloudinaryUrl } from "@/lib/cloudinary";
 import { PromoBanner } from "@/types";
 
 type ExtendedBanner = PromoBanner & {
@@ -30,6 +31,7 @@ export function BannerSlider({ banners, categoryName }: BannerSliderProps) {
   if (!banners || banners.length === 0) return null;
 
   const current = banners[currentIndex % banners.length];
+  const optimizedBannerImage = optimizeCloudinaryUrl(current.imageUrl);
 
   const isWhatsapp =
     current.actionType === "whatsapp" ||
@@ -41,7 +43,7 @@ export function BannerSlider({ banners, categoryName }: BannerSliderProps) {
     current.whatsappMessage?.trim() ||
     `Olá! Vi o anúncio "${current.title || "Promocional"}"${
       categoryName ? ` em ${categoryName}` : ""
-    } no portal Caldas Online e gostaria de mais informações.`;
+    } no portal Caldas Novas Online e gostaria de mais informações.`;
 
   const targetHref = isWhatsapp
     ? cleanWa
@@ -72,8 +74,9 @@ export function BannerSlider({ banners, categoryName }: BannerSliderProps) {
         className="block relative w-full"
       >
         <img
-          src={current.imageUrl}
-          alt={current.title || "Oferta em Destaque • Caldas Online"}
+          src={optimizedBannerImage}
+          alt={current.title || "Oferta em Destaque • Caldas Novas Online"}
+          decoding="async"
           className="w-full max-h-[240px] sm:max-h-[300px] object-cover transition duration-500"
         />
 
