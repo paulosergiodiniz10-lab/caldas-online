@@ -8,14 +8,45 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Caldas Online | O Guia Comercial de Caldas Novas - GO",
+  metadataBase: new URL("https://caldasnovasonline.com.br"),
+  title: {
+    default: "Caldas Novas Online | O Guia Comercial de Caldas Novas - GO",
+    template: "%s | Caldas Novas Online",
+  },
   description:
-    "Tudo o que você precisa em um só lugar! Encontre empresas, hotéis, restaurantes, cupons de desconto exclusivos e utilidades em Caldas Novas.",
+    "Tudo o que você precisa em um só lugar! Encontre empresas, hotéis, restaurantes, cupons de desconto exclusivos e utilidades em Caldas Novas - GO.",
+  alternates: {
+    canonical: "/",
+  },
   manifest: "/manifest.json",
   icons: {
     icon: "https://ldsite.com.br/wp-content/uploads/2026/11/icone-favicon.fw_.png",
     shortcut: "https://ldsite.com.br/wp-content/uploads/2026/11/icone-favicon.fw_.png",
     apple: "https://ldsite.com.br/wp-content/uploads/2026/11/icone-favicon.fw_.png",
+  },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    url: "https://caldasnovasonline.com.br",
+    siteName: "Caldas Novas Online",
+    title: "Caldas Novas Online | O Guia Comercial de Caldas Novas - GO",
+    description:
+      "Encontre empresas, hotéis, restaurantes, cupons de desconto exclusivos e utilidades rápidas em Caldas Novas - GO.",
+    images: [
+      {
+        url: "https://ldsite.com.br/wp-content/uploads/2026/11/logo-site.jpg",
+        width: 1200,
+        height: 400,
+        alt: "Caldas Novas Online • Guia Comercial de Caldas Novas",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Caldas Novas Online | O Guia Comercial de Caldas Novas - GO",
+    description:
+      "Encontre empresas, hotéis, restaurantes, cupons de desconto exclusivos e utilidades em Caldas Novas - GO.",
+    images: ["https://ldsite.com.br/wp-content/uploads/2026/11/logo-site.jpg"],
   },
 };
 
