@@ -20,9 +20,9 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.json",
   icons: {
-    icon: "https://ldsite.com.br/wp-content/uploads/2026/11/icone-oficial.png",
-    shortcut: "https://ldsite.com.br/wp-content/uploads/2026/11/icone-oficial.png",
-    apple: "https://ldsite.com.br/wp-content/uploads/2026/11/icone-oficial.png",
+    icon: "https://ldsite.com.br/wp-content/uploads/2026/11/icone_insta.fw_.png",
+    shortcut: "https://ldsite.com.br/wp-content/uploads/2026/11/icone_insta.fw_.png",
+    apple: "https://ldsite.com.br/wp-content/uploads/2026/11/icone_insta.fw_.png",
   },
   openGraph: {
     type: "website",
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Caldas Novas Online | O Guia Comercial de Caldas Novas - GO",
     description:
-      "Encontre empresas, hotéis, restaurantes, cupons de desconto exclusivos e utilidades rápidas em Caldas Novas - GO.",
+      "Encontre empresas, hotéis, restaurantes, cupons de desconto exclusivos e utilidades em Caldas Novas - GO.",
     images: ["https://ldsite.com.br/wp-content/uploads/2026/11/logo-site.jpg"],
   },
 };
