@@ -15,10 +15,10 @@ export async function compressAndUploadImage(file: File): Promise<string> {
     throw new Error("Configurações do Cloudinary ausentes nas variáveis de ambiente.");
   }
 
-  // Comprime automaticamente no celular/PC do usuário antes de enviar
+  // Comprime automaticamente no celular/PC do usuário antes de enviar (~200-280 KB em WebP)
   const compressedFile = await imageCompression(file, {
-    maxSizeMB: 0.35, // Reduz fotos de 5MB para ~250-350 KB
-    maxWidthOrHeight: 1400,
+    maxSizeMB: 0.28,
+    maxWidthOrHeight: 1280,
     useWebWorker: true,
     fileType: "image/webp",
   });
@@ -30,7 +30,7 @@ export async function compressAndUploadImage(file: File): Promise<string> {
   const formData = new FormData();
   formData.append("file", compressedFile);
   formData.append("upload_preset", uploadPreset);
-  formData.append("folder", "caldas-online");
+  formData.append("folder", "caldas-novas-online");
 
   const response = await fetch(
     `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
@@ -46,4 +46,21 @@ export async function compressAndUploadImage(file: File): Promise<string> {
 
   const data = await response.json();
   return data.secure_url as string;
+}
+
+/**
+ * Otimiza URLs do Cloudinary para entrega leve no navegador.
+ * - Se a imagem já estiver em .webp (comprimida no upload), retorna a URL direta
+ *   para evitar gasto desnecessário de créditos de transformação no plano Free.
+ * - Se for JPG/PNG antigo ou externo no Cloudinary, aplica f_auto,q_auto automaticamente.
+ */
+export function optimizeCloudinaryUrl(url?: string): string {
+  if (!url) return "";
+  if (!url.includes("res.cloudinary.com") || !url.includes("/upload/")) {
+    return url;
+  }
+  if (url.includes("/upload/f_auto") || url.toLowerCase().endsWith(".webp")) {
+    return url;
+  }
+  return url.replace("/upload/", "/upload/f_auto,q_auto/");
 }
