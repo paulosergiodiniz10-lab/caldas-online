@@ -15,6 +15,7 @@ import {
   increment,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { optimizeCloudinaryUrl } from "@/lib/cloudinary";
 import { DEFAULT_SITE_SETTINGS } from "@/lib/constants";
 import { Business, SiteSettings } from "@/types";
 import { Navbar } from "@/components/Navbar";
@@ -228,7 +229,7 @@ export default function BusinessPublicPage() {
             Página em Análise pela Moderação
           </h1>
           <p className="text-sm text-slate-500 max-w-md">
-            Este cadastro está passando por nossa verificação de segurança e estará disponível em breve no guia Caldas Online.
+            Este cadastro está passando por nossa verificação de segurança e estará disponível em breve no guia Caldas Novas Online.
           </p>
           <Link
             href="/"
@@ -245,7 +246,7 @@ export default function BusinessPublicPage() {
   const cleanPhone = (business.whatsapp || "").replace(/\D/g, "");
   const waPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
 
-  const defaultWaMessage = `Olá! Vi a *${business.name}* no guia *Caldas Online* e gostaria de mais informações.`;
+  const defaultWaMessage = `Olá! Vi a *${business.name}* no guia *Caldas Novas Online* e gostaria de mais informações.`;
   const defaultWaUrl = cleanPhone
     ? `https://wa.me/${waPhone}?text=${encodeURIComponent(defaultWaMessage)}`
     : "#";
@@ -263,7 +264,7 @@ export default function BusinessPublicPage() {
   const expiresDate = new Date(nowDate.getTime() + 24 * 60 * 60 * 1000);
   const validUntilText = formatDateTimePtBr(expiresDate);
 
-  const fullCouponMessage = `Olá! Estou no site *Caldas Online* na página da empresa *${business.name}* e quero utilizar o cupom *${couponCode}* (${couponTitle}), válido até ${validUntilText}. Como devo proceder?`;
+  const fullCouponMessage = `Olá! Estou no site *Caldas Novas Online* na página da empresa *${business.name}* e quero utilizar o cupom *${couponCode}* (${couponTitle}), válido até ${validUntilText}. Como devo proceder?`;
 
   const couponWaUrl = cleanPhone
     ? `https://wa.me/${waPhone}?text=${encodeURIComponent(fullCouponMessage)}`
@@ -309,9 +310,9 @@ export default function BusinessPublicPage() {
     ctx.fill();
 
     ctx.fillStyle = "#0F172A";
-    ctx.font = "900 32px sans-serif";
+    ctx.font = "900 30px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("CUPOM EXCLUSIVO • CALDAS ONLINE", 540, 148);
+    ctx.fillText("CUPOM EXCLUSIVO • CALDAS NOVAS ONLINE", 540, 148);
 
     ctx.fillStyle = "#0A4D9C";
     ctx.font = "900 48px sans-serif";
@@ -381,7 +382,7 @@ export default function BusinessPublicPage() {
     ctx.fillText("Guia Comercial de Caldas Novas - GO", 540, 968);
 
     const link = document.createElement("a");
-    link.download = `cupom-${couponCode.toLowerCase()}-${business.slug || "caldas-online"}.png`;
+    link.download = `cupom-${couponCode.toLowerCase()}-${business.slug || "caldas-novas-online"}.png`;
     link.href = canvas.toDataURL("image/png");
     link.click();
   };
@@ -416,8 +417,13 @@ export default function BusinessPublicPage() {
       : [];
 
   const galleryPhotos = Array.isArray(business.gallery)
-    ? business.gallery.slice(0, business.maxPhotos ?? 6)
+    ? business.gallery
+        .slice(0, business.maxPhotos ?? 6)
+        .map((url) => optimizeCloudinaryUrl(url))
     : [];
+
+  const optimizedCover = optimizeCloudinaryUrl(business.coverUrl);
+  const optimizedLogo = optimizeCloudinaryUrl(business.logoUrl);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
@@ -426,7 +432,7 @@ export default function BusinessPublicPage() {
         masterWhatsApp={settings.masterWhatsApp}
       />
 
-      {/* TARJA DE VISTORIA PRÉVIA (VISÍVEL APENAS PARA O MASTER OU DONO ENQUANTO NÃO ESTÁ PUBLICADA) */}
+      {/* TARJA DE VISTORIA PRÉVIA */}
       {isPendingOrBlocked && canPreview && (
         <div className="bg-amber-500 text-slate-950 px-4 py-2.5 text-xs font-extrabold flex flex-wrap items-center justify-center gap-2 text-center">
           <ShieldAlert className="w-4 h-4 shrink-0" />
@@ -446,10 +452,11 @@ export default function BusinessPublicPage() {
 
       {/* CAPA SUPERIOR */}
       <div className="w-full h-44 sm:h-64 bg-gradient-to-r from-[#0A4D9C] to-[#062F63] relative overflow-hidden">
-        {business.coverUrl && (
+        {optimizedCover && (
           <img
-            src={business.coverUrl}
+            src={optimizedCover}
             alt={`Capa ${business.name}`}
+            decoding="async"
             className="w-full h-full object-cover opacity-90"
           />
         )}
@@ -464,13 +471,14 @@ export default function BusinessPublicPage() {
       </div>
 
       <main className="max-w-5xl w-full mx-auto px-4 -mt-12 sm:-mt-16 relative z-20 space-y-6 flex-1">
-        {/* CARTÃO PRINCIPAL DO TOPO: SOMENTE LOGO + NOME + ESPECIALIDADE */}
+        {/* CARTÃO PRINCIPAL DO TOPO */}
         <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-md border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="flex items-center gap-4">
-            {business.logoUrl ? (
+            {optimizedLogo ? (
               <img
-                src={business.logoUrl}
+                src={optimizedLogo}
                 alt={business.name}
+                decoding="async"
                 className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-white shadow-md shrink-0 bg-white"
               />
             ) : (
@@ -516,7 +524,7 @@ export default function BusinessPublicPage() {
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="inline-block bg-slate-950/15 text-slate-950 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full">
-                      Cupom Exclusivo Caldas Online
+                      Cupom Exclusivo Caldas Novas Online
                     </span>
                     <span className="inline-flex items-center gap-1 bg-slate-950 text-[#FFB800] text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full">
                       <Clock className="w-3 h-3" /> Válido por 24h
@@ -662,7 +670,7 @@ export default function BusinessPublicPage() {
           </div>
         </div>
 
-        {/* GALERIA DE FOTOS (ATÉ 6 FOTOS) */}
+        {/* GALERIA DE FOTOS */}
         {galleryPhotos.length > 0 && (
           <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-sm border border-slate-100 space-y-4">
             <h2 className="text-lg font-black text-slate-900">Galeria de Fotos</h2>
@@ -677,6 +685,8 @@ export default function BusinessPublicPage() {
                   <img
                     src={photo}
                     alt={`${business.name} - Foto ${idx + 1}`}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                   />
                 </button>
