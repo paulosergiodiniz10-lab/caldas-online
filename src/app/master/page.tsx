@@ -133,7 +133,7 @@ export default function MasterAdminPage() {
   const [uploadingUtilIcon, setUploadingUtilIcon] = useState(false);
   const [savingUtil, setSavingUtil] = useState(false);
 
-  // Banners Patrocinados (Home + Segmentos)
+  // Banners Patrocinados (Home + Segmentos) — 0 = Aleatório por padrão
   const [banners, setBanners] = useState<ExtendedBanner[]>([]);
   const [bannerTitle, setBannerTitle] = useState("");
   const [bannerImageUrl, setBannerImageUrl] = useState("");
@@ -143,7 +143,7 @@ export default function MasterAdminPage() {
   const [bannerWhatsapp, setBannerWhatsapp] = useState("");
   const [bannerWhatsappMsg, setBannerWhatsappMsg] = useState("");
   const [bannerButtonText, setBannerButtonText] = useState("");
-  const [bannerOrder, setBannerOrder] = useState(1);
+  const [bannerOrder, setBannerOrder] = useState(0);
   const [uploadingPromoBanner, setUploadingPromoBanner] = useState(false);
   const [savingPromoBanner, setSavingPromoBanner] = useState(false);
 
@@ -192,7 +192,7 @@ export default function MasterAdminPage() {
       if (!snapPlans.empty) {
         const planList = snapPlans.docs
           .map((d) => ({ ...(d.data() as Omit<PlanDoc, "id">), id: d.id }))
-          .sort((a, b) => (a.order || 0) - (b.order || 0));
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         setPlans(planList);
       } else {
         setPlans(DEFAULT_PLANS);
@@ -224,7 +224,7 @@ export default function MasterAdminPage() {
       const snapBanners = await getDocs(collection(db, "banners"));
       const banList = snapBanners.docs
         .map((d) => ({ ...(d.data() as Omit<ExtendedBanner, "id">), id: d.id }))
-        .sort((a, b) => (a.order || 0) - (b.order || 0));
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       setBanners(banList);
 
       // 6. Configurações Globais
@@ -372,7 +372,7 @@ export default function MasterAdminPage() {
       highlight: false,
       features: [],
       buttonText: "Contratar no WhatsApp",
-      order: plans.length + 1,
+      order: 0,
       active: true,
     });
     setEditingPlanFeaturesText("Página completa no guia\nBotão direto para WhatsApp");
@@ -396,6 +396,7 @@ export default function MasterAdminPage() {
         price: Number(editingPlan.price) || 0,
         maxPhotos: Math.max(1, Number(editingPlan.maxPhotos) || 6),
         maxVideos: Math.max(0, Math.min(4, Number(editingPlan.maxVideos) || 0)),
+        order: Math.max(0, Number(editingPlan.order) || 0),
         features: featuresList,
       };
 
@@ -406,7 +407,7 @@ export default function MasterAdminPage() {
         const next = exists
           ? prev.map((p) => (p.id === updated.id ? updated : p))
           : [...prev, updated];
-        return next.sort((a, b) => (a.order || 0) - (b.order || 0));
+        return next.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       });
 
       setEditingPlan(null);
@@ -689,13 +690,13 @@ export default function MasterAdminPage() {
         whatsappMessage:
           bannerActionType === "whatsapp" ? bannerWhatsappMsg.trim() : "",
         buttonText: bannerButtonText.trim(),
-        order: Number(bannerOrder) || banners.length + 1,
+        order: Math.max(0, Number(bannerOrder) || 0),
         active: true,
       };
 
       await setDoc(doc(db, "banners", newId), payload);
       setBanners((prev) =>
-        [...prev, payload].sort((a, b) => (a.order || 0) - (b.order || 0))
+        [...prev, payload].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
       );
 
       setBannerTitle("");
@@ -704,7 +705,7 @@ export default function MasterAdminPage() {
       setBannerWhatsapp("");
       setBannerWhatsappMsg("");
       setBannerButtonText("");
-      setBannerOrder(banners.length + 2);
+      setBannerOrder(0);
       alert("✅ Banner patrocinado publicado com sucesso!");
     } catch (err) {
       console.error(err);
@@ -1267,7 +1268,7 @@ export default function MasterAdminPage() {
                   Catálogo de Planos (Grátis, Vitrine, Destaque e Master)
                 </h2>
                 <p className="text-xs text-blue-100 mt-0.5">
-                  Edite valores, quantidade de fotos, vídeos e benefícios abaixo. Tudo reflete na página pública <strong>/planos</strong> e no Painel da Empresa.
+                  Edite valores, quantidade de fotos, vídeos e benefícios abaixo. Ordem <strong>0</strong> mistura a cada acesso; <strong>1, 2, 3</strong> fixa na posição.
                 </p>
               </div>
 
@@ -1324,7 +1325,9 @@ export default function MasterAdminPage() {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <span className="text-[10px] font-black uppercase text-slate-400">
-                          Ordem #{plan.order || 1}
+                          {!plan.order || plan.order <= 0
+                            ? "🎲 Aleatório (0)"
+                            : `📌 Fixo #${plan.order}`}
                         </span>
                         <h3 className="text-lg font-black text-slate-900">
                           {plan.name}
@@ -1417,7 +1420,7 @@ export default function MasterAdminPage() {
                   Criar Novo Banner Patrocinado (Slide)
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Venda espaços publicitários rotativos na Página Inicial ou no topo de qualquer Segmento (ex: Alimentação, Turismo, Saúde).
+                  Deixe a ordem em <strong>0</strong> para misturar aleatoriamente a cada acesso, ou digite <strong>1, 2, 3...</strong> para fixar no início do slide.
                 </p>
               </div>
 
@@ -1456,11 +1459,11 @@ export default function MasterAdminPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Ordem no Slide
+                    Ordem (0 = Aleatório • 1, 2, 3 = Fixo)
                   </label>
                   <input
                     type="number"
-                    min={1}
+                    min={0}
                     value={bannerOrder}
                     onChange={(e) => setBannerOrder(Number(e.target.value))}
                     className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
@@ -1647,8 +1650,10 @@ export default function MasterAdminPage() {
                             <span className="text-[11px] font-extrabold bg-blue-100 text-[#0A4D9C] px-2.5 py-0.5 rounded-full">
                               {getPlacementLabel(ban.placement)}
                             </span>
-                            <span className="text-[11px] font-bold text-slate-400">
-                              Ordem #{ban.order || 1}
+                            <span className="text-[11px] font-bold text-slate-500">
+                              {!ban.order || ban.order <= 0
+                                ? "🎲 Aleatório (0)"
+                                : `📌 Fixo #${ban.order}`}
                             </span>
                           </div>
                           <h4 className="text-sm font-black text-slate-900">
@@ -2243,12 +2248,12 @@ export default function MasterAdminPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Ordem de Exibição
+                  Ordem (0 = Aleatório • 1, 2, 3 = Fixo)
                 </label>
                 <input
                   type="number"
-                  min={1}
-                  value={editingPlan.order || 1}
+                  min={0}
+                  value={editingPlan.order ?? 0}
                   onChange={(e) =>
                     setEditingPlan({
                       ...editingPlan,
