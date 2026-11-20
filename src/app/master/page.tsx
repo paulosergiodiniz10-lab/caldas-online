@@ -152,6 +152,7 @@ export default function MasterAdminPage() {
   const [newSearchLabel, setNewSearchLabel] = useState("");
   const [newSearchQuery, setNewSearchQuery] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
+  const [togglingMostSearched, setTogglingMostSearched] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (currentUser) => {
@@ -740,7 +741,27 @@ export default function MasterAdminPage() {
     }
   };
 
-  // MAIS PROCURADOS (ADICIONAR / REMOVER TERMOS)
+  // MAIS PROCURADOS (OCULTAR/ATIVAR SEM APAGAR + ADICIONAR/REMOVER TERMOS)
+  const handleToggleMostSearchedVisibility = async () => {
+    const nextVisible = settings.showMostSearched === false;
+    const updatedSettings: SiteSettings = {
+      ...settings,
+      showMostSearched: nextVisible,
+    };
+    setSettings(updatedSettings);
+    setTogglingMostSearched(true);
+    try {
+      await setDoc(doc(db, "settings", "global"), updatedSettings, {
+        merge: true,
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao atualizar visibilidade na Home.");
+    } finally {
+      setTogglingMostSearched(false);
+    }
+  };
+
   const handleAddMostSearched = () => {
     const label = newSearchLabel.trim();
     if (!label) return;
@@ -760,13 +781,6 @@ export default function MasterAdminPage() {
     setSettings({
       ...settings,
       mostSearchedItems: currentList.filter((_, idx) => idx !== indexToRemove),
-    });
-  };
-
-  const handleClearMostSearched = () => {
-    setSettings({
-      ...settings,
-      mostSearchedItems: [],
     });
   };
 
@@ -1882,7 +1896,7 @@ export default function MasterAdminPage() {
           <form onSubmit={handleSaveSettings} className="space-y-6">
             {/* BLOCO 1: MAIS PROCURADOS DA PÁGINA INICIAL */}
             <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0">
                     <TrendingUp className="w-5 h-5" />
@@ -1892,21 +1906,28 @@ export default function MasterAdminPage() {
                       Seção &ldquo;Mais Procurados&rdquo; na Página Inicial
                     </h2>
                     <p className="text-xs text-slate-500">
-                      Se você remover todos os termos abaixo e salvar, toda a seção será{" "}
-                      <strong className="text-slate-800">oculta automaticamente da Home</strong>.
+                      Ative ou oculte a seção na Home sem apagar seus termos cadastrados.
                     </p>
                   </div>
                 </div>
 
-                {(settings.mostSearchedItems || []).length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleClearMostSearched}
-                    className="text-xs font-extrabold text-red-600 hover:bg-red-50 border border-red-200 px-3.5 py-2 rounded-xl transition self-start sm:self-auto cursor-pointer"
-                  >
-                    Ocultar da Home (Limpar Tudo)
-                  </button>
-                )}
+                <button
+                  type="button"
+                  disabled={togglingMostSearched}
+                  onClick={handleToggleMostSearchedVisibility}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition self-start sm:self-auto inline-flex items-center gap-2 cursor-pointer ${
+                    settings.showMostSearched !== false
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                      : "bg-slate-900 text-[#FFB800]"
+                  }`}
+                >
+                  {togglingMostSearched && (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  )}
+                  {settings.showMostSearched !== false
+                    ? "✅ Visível na Home (Clique para Ocultar)"
+                    : "🙈 Oculta na Home (Clique para Ativar)"}
+                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1977,11 +1998,10 @@ export default function MasterAdminPage() {
                 </div>
               </div>
 
-              {/* Lista dos Termos Ativos */}
+              {/* Lista dos Termos */}
               {(settings.mostSearchedItems || []).length === 0 ? (
                 <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900 font-semibold">
-                  Nenhum termo cadastrado no momento. Ao clicar em{" "}
-                  <strong>Salvar Tudo</strong> abaixo, a seção &ldquo;Mais Procurados&rdquo; ficará oculta na Página Inicial.
+                  Nenhum termo cadastrado no momento. Sem termos cadastrados, a seção também fica oculta na Página Inicial.
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2">
