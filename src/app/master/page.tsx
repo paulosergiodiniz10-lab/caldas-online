@@ -187,16 +187,30 @@ export default function MasterAdminPage() {
       });
       setBusinesses(bizList);
 
-      // 2. Planos
+      // 2. Planos (mescla os 4 padrões com os salvos no Firestore para nenhum plano desaparecer)
       const snapPlans = await getDocs(collection(db, "plans"));
-      if (!snapPlans.empty) {
-        const planList = snapPlans.docs
-          .map((d) => ({ ...(d.data() as Omit<PlanDoc, "id">), id: d.id }))
-          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        setPlans(planList);
-      } else {
-        setPlans(DEFAULT_PLANS);
-      }
+      const firestorePlansMap = new Map<string, PlanDoc>();
+      snapPlans.docs.forEach((d) => {
+        firestorePlansMap.set(d.id, {
+          ...(d.data() as Omit<PlanDoc, "id">),
+          id: d.id,
+        });
+      });
+
+      const mergedPlansMap = new Map<string, PlanDoc>();
+      DEFAULT_PLANS.forEach((def) => {
+        mergedPlansMap.set(def.id, firestorePlansMap.get(def.id) || def);
+      });
+      firestorePlansMap.forEach((val, key) => {
+        if (!mergedPlansMap.has(key)) {
+          mergedPlansMap.set(key, val);
+        }
+      });
+
+      const planList = Array.from(mergedPlansMap.values()).sort(
+        (a, b) => (a.order ?? 0) - (b.order ?? 0)
+      );
+      setPlans(planList);
 
       // 3. Categorias
       const snapCats = await getDocs(collection(db, "categories"));
