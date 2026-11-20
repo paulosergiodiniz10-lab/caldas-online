@@ -10,21 +10,51 @@ import {
   Search,
   Loader2,
 } from "lucide-react";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Business, PromoBanner } from "@/types";
-import { CATEGORIES, calculateDistanceKm } from "@/lib/constants";
+import { Business, CategoryDoc, PromoBanner, SiteSettings } from "@/types";
+import {
+  DEFAULT_CATEGORIES,
+  DEFAULT_SITE_SETTINGS,
+  calculateDistanceKm,
+} from "@/lib/constants";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { BannerSlider } from "@/components/BannerSlider";
 import { BusinessCard } from "@/components/BusinessCard";
 import { CategoryIcon } from "@/components/CategoryIcon";
 
+// Compatibilidade caso existam empresas cadastradas com slugs antigos
+const LEGACY_SLUG_ALIASES: Record<string, string[]> = {
+  "onde-comer": ["onde-comer", "alimentacao"],
+  "onde-ficar": ["onde-ficar"],
+  turismo: ["turismo", "lazer"],
+  imoveis: ["imoveis"],
+  saude: ["saude", "beleza"],
+  "reforma-construcao": ["reforma-construcao", "construcao"],
+  "energia-solar": ["energia-solar"],
+  "ar-condicionado": ["ar-condicionado"],
+  "automotivo-mobilidade": ["automotivo-mobilidade", "automotivo"],
+  "servicos-profissionais": ["servicos-profissionais", "servicos", "comercio"],
+};
+
+function shuffleArray<T>(items: T[]): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 export default function CategoryPage() {
   const params = useParams();
   const slug = String(params?.slug || "");
-  const category = CATEGORIES.find((c) => c.id === slug);
 
+  const [category, setCategory] = useState<CategoryDoc | undefined>(() =>
+    DEFAULT_CATEGORIES.find((c) => (c.slug || c.id) === slug)
+  );
+  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [banners, setBanners] = useState<PromoBanner[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,30 +67,62 @@ export default function CategoryPage() {
   useEffect(() => {
     async function loadCategoryData() {
       if (!slug) return;
+      setLoading(true);
       try {
-        const qBiz = query(
-          collection(db, "businesses"),
-          where("isApproved", "==", true),
-          where("category", "==", slug)
-        );
+        // 1. Buscar metadados da categoria no Firestore (com fallback nas padrões)
+        const snapCat = await getDoc(doc(db, "categories", slug));
+        if (snapCat.exists()) {
+          setCategory({
+            id: snapCat.id,
+            ...(snapCat.data() as Omit<CategoryDoc, "id">),
+          });
+        } else {
+          setCategory(DEFAULT_CATEGORIES.find((c) => (c.slug || c.id) === slug));
+        }
+
+        // 2. Buscar empresas aprovadas do segmento (incluindo aliases antigos)
+        const targetSlugs = LEGACY_SLUG_ALIASES[slug] || [slug];
+        const qBiz =
+          targetSlugs.length > 1
+            ? query(
+                collection(db, "businesses"),
+                where("isApproved", "==", true),
+                where("category", "in", targetSlugs)
+              )
+            : query(
+                collection(db, "businesses"),
+                where("isApproved", "==", true),
+                where("category", "==", slug)
+              );
+
         const snapBiz = await getDocs(qBiz);
         const listBiz: Business[] = snapBiz.docs.map((d) => ({
           id: d.id,
           ...(d.data() as Omit<Business, "id">),
         }));
-        setBusinesses(listBiz);
+        setBusinesses(shuffleArray(listBiz));
 
-        // Banners específicos deste segmento
+        // 3. Banners específicos deste segmento
         const qBan = query(
           collection(db, "banners"),
           where("active", "==", true),
           where("placement", "==", slug)
         );
         const snapBan = await getDocs(qBan);
-        const listBan: PromoBanner[] = snapBan.docs
-          .map((d) => ({ id: d.id, ...(d.data() as Omit<PromoBanner, "id">) }))
-          .sort((a, b) => (a.order || 0) - (b.order || 0));
+        const listBan: PromoBanner[] = snapBan.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<PromoBanner, "id">),
+        }));
         setBanners(listBan);
+
+        // 4. Configurações globais
+        const snapSet = await getDoc(doc(db, "settings", "global"));
+        if (snapSet.exists()) {
+          setSettings((prev) => ({
+            ...prev,
+            ...(snapSet.data() as Partial<SiteSettings>),
+          }));
+        }
       } catch (err) {
         console.error("Erro ao carregar categoria:", err);
       } finally {
@@ -113,7 +175,8 @@ export default function CategoryPage() {
         return (
           biz.name.toLowerCase().includes(term) ||
           biz.subcategory?.toLowerCase().includes(term) ||
-          biz.neighborhood?.toLowerCase().includes(term)
+          biz.neighborhood?.toLowerCase().includes(term) ||
+          biz.description?.toLowerCase().includes(term)
         );
       })
       .sort((a, b) => {
@@ -132,7 +195,10 @@ export default function CategoryPage() {
 
   return (
     <div className="flex-1 flex flex-col">
-      <Navbar />
+      <Navbar
+        vipGroupUrl={settings.vipGroupUrl}
+        masterWhatsApp={settings.masterWhatsApp}
+      />
 
       {/* Cabeçalho do Segmento */}
       <div className="bg-white border-b border-slate-200 py-5 px-4">
@@ -149,7 +215,11 @@ export default function CategoryPage() {
               <div
                 className={`w-12 h-12 rounded-2xl ${category.bgColor} flex items-center justify-center shadow-sm shrink-0`}
               >
-                <CategoryIcon name={category.iconName} className="w-6 h-6 text-white" />
+                <CategoryIcon
+                  name={category.iconName}
+                  customIconUrl={category.customIconUrl}
+                  className="w-6 h-6 text-white"
+                />
               </div>
             )}
             <div>
@@ -183,8 +253,9 @@ export default function CategoryPage() {
 
           <div className="flex items-center gap-2 flex-wrap">
             <button
+              type="button"
               onClick={handleActivateLocation}
-              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition ${
+              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition cursor-pointer ${
                 userCoords
                   ? "bg-emerald-600 text-white"
                   : "bg-slate-100 hover:bg-slate-200 text-slate-800"
@@ -199,8 +270,9 @@ export default function CategoryPage() {
             </button>
 
             <button
+              type="button"
               onClick={() => setOnlyCoupons(!onlyCoupons)}
-              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition ${
+              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition cursor-pointer ${
                 onlyCoupons
                   ? "bg-[#FF7A00] text-white"
                   : "bg-slate-100 hover:bg-slate-200 text-slate-800"
@@ -244,7 +316,7 @@ export default function CategoryPage() {
         )}
       </main>
 
-      <Footer />
+      <Footer settings={settings} />
     </div>
   );
 }
