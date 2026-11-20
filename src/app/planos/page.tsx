@@ -61,13 +61,29 @@ export default function PublicPlansPage() {
       try {
         const snapPlans = await getDocs(collection(db, "plans"));
         if (!snapPlans.empty) {
-          const activeList = snapPlans.docs
-            .map((d) => ({ id: d.id, ...(d.data() as Omit<PlanDoc, "id">) }))
-            .filter((p) => p.active !== false);
+          const firestoreMap = new Map<string, PlanDoc>();
+          snapPlans.docs.forEach((d) => {
+            firestoreMap.set(d.id, {
+              id: d.id,
+              ...(d.data() as Omit<PlanDoc, "id">),
+            });
+          });
 
-          if (activeList.length > 0) {
-            setPlans(sortHybrid(activeList));
-          }
+          // Mescla os planos padrão com os editados no Firestore para nenhum plano sumir
+          const mergedMap = new Map<string, PlanDoc>();
+          DEFAULT_PLANS.forEach((def) => {
+            mergedMap.set(def.id, firestoreMap.get(def.id) || def);
+          });
+          firestoreMap.forEach((val, key) => {
+            if (!mergedMap.has(key)) {
+              mergedMap.set(key, val);
+            }
+          });
+
+          const activeList = Array.from(mergedMap.values()).filter(
+            (p) => p.active !== false
+          );
+          setPlans(sortHybrid(activeList));
         }
 
         const snapSet = await getDoc(doc(db, "settings", "global"));
