@@ -103,6 +103,7 @@ export interface SiteSettings {
   heroTitlePrefix: string;
   heroTitleHighlight: string;
   searchPlaceholder: string;
+  showMostSearched?: boolean;
   mostSearchedTitle: string;
   mostSearchedSubtitle: string;
   featuredTitle: string;
