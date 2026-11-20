@@ -187,12 +187,13 @@ export default function HomePage() {
 
   const isFiltering = Boolean(searchTerm.trim() || onlyCoupons || userCoords);
 
-  // Termos válidos da seção Mais Procurados (oculta a seção inteira se estiver vazio)
+  // Termos válidos da seção Mais Procurados (oculta se desativado no Master ou se estiver vazio)
   const validMostSearched = useMemo(() => {
+    if (settings.showMostSearched === false) return [];
     return (settings.mostSearchedItems || []).filter(
       (item) => item && item.label && item.label.trim().length > 0
     );
-  }, [settings.mostSearchedItems]);
+  }, [settings.showMostSearched, settings.mostSearchedItems]);
 
   // TODAS as empresas marcadas como Destaque (isFeatured === true), embaralhadas a cada acesso
   const featuredBusinesses = useMemo(() => {
@@ -384,7 +385,7 @@ export default function HomePage() {
           <BannerSlider banners={banners} />
         </section>
 
-        {/* MAIS PROCURADOS (EXIBE APENAS SE HOUVER TERMOS CADASTRADOS NO MASTER) */}
+        {/* MAIS PROCURADOS (EXIBE APENAS SE ATIVO NO MASTER E COM TERMOS CADASTRADOS) */}
         {validMostSearched.length > 0 && (
           <section>
             <div className="flex items-center gap-2 mb-3">
