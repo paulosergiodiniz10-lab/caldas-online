@@ -63,6 +63,7 @@ import {
   Sparkles,
   Copy,
   Check,
+  TrendingUp,
 } from "lucide-react";
 
 const MASTER_EMAIL = "caldasonline10@gmail.com";
@@ -146,8 +147,10 @@ export default function MasterAdminPage() {
   const [uploadingPromoBanner, setUploadingPromoBanner] = useState(false);
   const [savingPromoBanner, setSavingPromoBanner] = useState(false);
 
-  // Configurações Globais
+  // Configurações Globais + Mais Procurados
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+  const [newSearchLabel, setNewSearchLabel] = useState("");
+  const [newSearchQuery, setNewSearchQuery] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
@@ -737,13 +740,43 @@ export default function MasterAdminPage() {
     }
   };
 
+  // MAIS PROCURADOS (ADICIONAR / REMOVER TERMOS)
+  const handleAddMostSearched = () => {
+    const label = newSearchLabel.trim();
+    if (!label) return;
+    const queryValue = newSearchQuery.trim() || label;
+    const currentList = settings.mostSearchedItems || [];
+
+    setSettings({
+      ...settings,
+      mostSearchedItems: [...currentList, { label, query: queryValue }],
+    });
+    setNewSearchLabel("");
+    setNewSearchQuery("");
+  };
+
+  const handleRemoveMostSearched = (indexToRemove: number) => {
+    const currentList = settings.mostSearchedItems || [];
+    setSettings({
+      ...settings,
+      mostSearchedItems: currentList.filter((_, idx) => idx !== indexToRemove),
+    });
+  };
+
+  const handleClearMostSearched = () => {
+    setSettings({
+      ...settings,
+      mostSearchedItems: [],
+    });
+  };
+
   // CONFIGURAÇÕES GLOBAIS
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingSettings(true);
     try {
       await setDoc(doc(db, "settings", "global"), settings, { merge: true });
-      alert("✅ Configurações globais salvas com sucesso!");
+      alert("✅ Configurações salvas! A página inicial já reflete as alterações.");
     } catch (err) {
       console.error(err);
       alert("Erro ao salvar configurações.");
@@ -963,7 +996,7 @@ export default function MasterAdminPage() {
             }`}
           >
             <Settings className="w-4 h-4" />
-            WhatsApp & Grupo VIP
+            Mais Procurados & WhatsApp
           </button>
         </div>
 
@@ -1211,10 +1244,9 @@ export default function MasterAdminPage() {
           </div>
         )}
 
-        {/* ABA 2: PLANOS & PREÇOS (EDITÁVEIS + LINK DE VENDA PARA ENVIAR NO WHATSAPP) */}
+        {/* ABA 2: PLANOS & PREÇOS */}
         {activeTab === "plans" && (
           <div className="space-y-5">
-            {/* Barra de Compartilhamento Rápido do Link /planos */}
             <div className="bg-gradient-to-r from-[#0A4D9C] to-[#062F63] text-white rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
               <div>
                 <h2 className="text-lg font-black">
@@ -1264,7 +1296,6 @@ export default function MasterAdminPage() {
               </div>
             </div>
 
-            {/* Cards dos Planos Configurados */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {plans.map((plan) => (
                 <div
@@ -1360,7 +1391,7 @@ export default function MasterAdminPage() {
           </div>
         )}
 
-        {/* ABA 3: BANNERS PATROCINADOS (SLIDE HOME E SEGMENTOS) */}
+        {/* ABA 3: BANNERS PATROCINADOS */}
         {activeTab === "banners" && (
           <div className="space-y-6">
             <form
@@ -1846,65 +1877,200 @@ export default function MasterAdminPage() {
           </div>
         )}
 
-        {/* ABA 6: WHATSAPP MASTER & GRUPO VIP */}
+        {/* ABA 6: MAIS PROCURADOS + WHATSAPP MASTER & GRUPO VIP */}
         {activeTab === "settings" && (
-          <form
-            onSubmit={handleSaveSettings}
-            className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5"
-          >
-            <h2 className="text-lg font-black text-slate-900">
-              Grupo VIP e WhatsApp Master
-            </h2>
+          <form onSubmit={handleSaveSettings} className="space-y-6">
+            {/* BLOCO 1: MAIS PROCURADOS DA PÁGINA INICIAL */}
+            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+                    <TrendingUp className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-black text-slate-900">
+                      Seção &ldquo;Mais Procurados&rdquo; na Página Inicial
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Se você remover todos os termos abaixo e salvar, toda a seção será{" "}
+                      <strong className="text-slate-800">oculta automaticamente da Home</strong>.
+                    </p>
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  WhatsApp Master (com DDI 55 e DDD)
-                </label>
-                <input
-                  type="text"
-                  value={settings.masterWhatsApp || ""}
-                  onChange={(e) =>
-                    setSettings({ ...settings, masterWhatsApp: e.target.value })
-                  }
-                  placeholder="5564993049090"
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                />
+                {(settings.mostSearchedItems || []).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearMostSearched}
+                    className="text-xs font-extrabold text-red-600 hover:bg-red-50 border border-red-200 px-3.5 py-2 rounded-xl transition self-start sm:self-auto cursor-pointer"
+                  >
+                    Ocultar da Home (Limpar Tudo)
+                  </button>
+                )}
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Link do Grupo VIP de Ofertas (WhatsApp)
-                </label>
-                <input
-                  type="url"
-                  value={settings.vipGroupUrl || ""}
-                  onChange={(e) =>
-                    setSettings({ ...settings, vipGroupUrl: e.target.value })
-                  }
-                  placeholder="https://chat.whatsapp.com/..."
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Título da Seção
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.mostSearchedTitle || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        mostSearchedTitle: e.target.value,
+                      })
+                    }
+                    placeholder="Mais Procurados"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Subtítulo da Seção
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.mostSearchedSubtitle || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        mostSearchedSubtitle: e.target.value,
+                      })
+                    }
+                    placeholder="Acesso rápido aos termos mais buscados em Caldas Novas"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Adicionar Novo Termo */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                <p className="text-xs font-extrabold text-slate-800">
+                  Adicionar botão de busca rápida:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <input
+                    type="text"
+                    value={newSearchLabel}
+                    onChange={(e) => setNewSearchLabel(e.target.value)}
+                    placeholder="Texto do botão (ex: Pizzarias)"
+                    className="rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm"
+                  />
+                  <input
+                    type="text"
+                    value={newSearchQuery}
+                    onChange={(e) => setNewSearchQuery(e.target.value)}
+                    placeholder="Termo buscado (ex: pizza)"
+                    className="rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddMostSearched}
+                    className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl inline-flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Adicionar Termo
+                  </button>
+                </div>
+              </div>
+
+              {/* Lista dos Termos Ativos */}
+              {(settings.mostSearchedItems || []).length === 0 ? (
+                <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900 font-semibold">
+                  Nenhum termo cadastrado no momento. Ao clicar em{" "}
+                  <strong>Salvar Tudo</strong> abaixo, a seção &ldquo;Mais Procurados&rdquo; ficará oculta na Página Inicial.
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {(settings.mostSearchedItems || []).map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="inline-flex items-center gap-2 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs shadow-2xs"
+                    >
+                      <span className="font-extrabold text-slate-900">
+                        {item.label}
+                      </span>
+                      {item.query && item.query !== item.label && (
+                        <span className="text-slate-400">
+                          (busca: {item.query})
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveMostSearched(idx)}
+                        className="text-red-500 hover:text-red-700 p-0.5 rounded-md hover:bg-red-50 cursor-pointer"
+                        title="Remover termo"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* BLOCO 2: WHATSAPP MASTER & GRUPO VIP */}
+            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
+              <h2 className="text-lg font-black text-slate-900">
+                Grupo VIP e WhatsApp Master
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    WhatsApp Master (com DDI 55 e DDD)
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.masterWhatsApp || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        masterWhatsApp: e.target.value,
+                      })
+                    }
+                    placeholder="5564993049090"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Link do Grupo VIP de Ofertas (WhatsApp)
+                  </label>
+                  <input
+                    type="url"
+                    value={settings.vipGroupUrl || ""}
+                    onChange={(e) =>
+                      setSettings({ ...settings, vipGroupUrl: e.target.value })
+                    }
+                    placeholder="https://chat.whatsapp.com/..."
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
               </div>
             </div>
 
             <button
               type="submit"
               disabled={savingSettings}
-              className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-sm px-6 py-3.5 rounded-xl inline-flex items-center gap-2 cursor-pointer"
+              className="bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-sm px-6 py-3.5 rounded-xl inline-flex items-center gap-2 shadow-sm cursor-pointer"
             >
               {savingSettings ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              Salvar Configurações
+              Salvar Tudo
             </button>
           </form>
         )}
       </main>
 
-      {/* MODAL DE EDIÇÃO DE PLANO (FOTOS, VÍDEOS, VALOR, DESTAQUES E BANNERS) */}
+      {/* MODAL DE EDIÇÃO DE PLANO */}
       {editingPlan && (
         <div
           onClick={() => setEditingPlan(null)}
@@ -2073,7 +2239,6 @@ export default function MasterAdminPage() {
                 />
               </div>
 
-              {/* Opções de Visibilidade VIP */}
               <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-slate-100">
                 <label className="flex items-center gap-2 text-xs font-bold text-slate-800 bg-slate-50 p-2.5 rounded-xl cursor-pointer">
                   <input
