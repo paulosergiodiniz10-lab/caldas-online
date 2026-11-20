@@ -28,8 +28,31 @@ function formatBRL(value: number): string {
   });
 }
 
+// Embaralhamento justo (Fisher-Yates) para planos com ordem = 0
+function shuffleItems<T>(items: T[]): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Ordenação híbrida: order > 0 fixo na posição; order === 0 misturado a cada acesso
+function sortHybrid<T extends { order?: number }>(items: T[]): T[] {
+  const fixed = items
+    .filter((item) => typeof item.order === "number" && item.order > 0)
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  const randomPool = shuffleItems(
+    items.filter((item) => !item.order || item.order <= 0)
+  );
+
+  return [...fixed, ...randomPool];
+}
+
 export default function PublicPlansPage() {
-  const [plans, setPlans] = useState<PlanDoc[]>(DEFAULT_PLANS);
+  const [plans, setPlans] = useState<PlanDoc[]>(() => sortHybrid(DEFAULT_PLANS));
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [loading, setLoading] = useState(true);
 
@@ -38,11 +61,13 @@ export default function PublicPlansPage() {
       try {
         const snapPlans = await getDocs(collection(db, "plans"));
         if (!snapPlans.empty) {
-          const list = snapPlans.docs
+          const activeList = snapPlans.docs
             .map((d) => ({ id: d.id, ...(d.data() as Omit<PlanDoc, "id">) }))
-            .filter((p) => p.active !== false)
-            .sort((a, b) => (a.order || 0) - (b.order || 0));
-          if (list.length > 0) setPlans(list);
+            .filter((p) => p.active !== false);
+
+          if (activeList.length > 0) {
+            setPlans(sortHybrid(activeList));
+          }
         }
 
         const snapSet = await getDoc(doc(db, "settings", "global"));
