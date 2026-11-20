@@ -119,7 +119,7 @@ export default function BusinessDashboardPage() {
 
   // Campos da Empresa
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("alimentacao");
+  const [category, setCategory] = useState("onde-comer");
   const [subcategory, setSubcategory] = useState("");
   const [description, setDescription] = useState("");
   const [cep, setCep] = useState("");
@@ -162,18 +162,35 @@ export default function BusinessDashboardPage() {
         if (!snapCats.empty) {
           const list = snapCats.docs
             .map((d) => ({ id: d.id, ...(d.data() as Omit<CategoryDoc, "id">) }))
-            .filter((c) => c.active !== false)
+            .filter((c) => c.active !== false && (c.slug || c.id) !== "utilidades")
             .sort((a, b) => (a.order || 0) - (b.order || 0));
           if (list.length > 0) setCategories(list);
         }
 
         const snapPlans = await getDocs(collection(db, "plans"));
         if (!snapPlans.empty) {
-          const planList = snapPlans.docs
-            .map((d) => ({ id: d.id, ...(d.data() as Omit<PlanDoc, "id">) }))
+          const firestorePlansMap = new Map<string, PlanDoc>();
+          snapPlans.docs.forEach((d) => {
+            firestorePlansMap.set(d.id, {
+              id: d.id,
+              ...(d.data() as Omit<PlanDoc, "id">),
+            });
+          });
+
+          const mergedPlansMap = new Map<string, PlanDoc>();
+          DEFAULT_PLANS.forEach((def) => {
+            mergedPlansMap.set(def.id, firestorePlansMap.get(def.id) || def);
+          });
+          firestorePlansMap.forEach((val, key) => {
+            if (!mergedPlansMap.has(key)) {
+              mergedPlansMap.set(key, val);
+            }
+          });
+
+          const activePlans = Array.from(mergedPlansMap.values())
             .filter((p) => p.active !== false)
-            .sort((a, b) => (a.order || 0) - (b.order || 0));
-          if (planList.length > 0) setPlans(planList);
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+          if (activePlans.length > 0) setPlans(activePlans);
         }
 
         const snapSet = await getDoc(doc(db, "settings", "global"));
@@ -212,7 +229,7 @@ export default function BusinessDashboardPage() {
         };
         setBusinessId(docSnap.id);
         setName(data.name || "");
-        setCategory(data.category || "alimentacao");
+        setCategory(data.category || "onde-comer");
         setSubcategory(data.subcategory || "");
         setDescription(data.description || "");
         setCep(formatCep(data.cep || ""));
@@ -289,13 +306,14 @@ export default function BusinessDashboardPage() {
           setSubmittingAuth(false);
           return;
         }
+        const defaultCat = categories[0]?.slug || categories[0]?.id || "onde-comer";
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const slug = `${createSlug(registerCompanyName)}-${cred.user.uid.slice(0, 5)}`;
         const initialPayload = {
           ownerId: cred.user.uid,
           name: registerCompanyName.trim(),
           slug,
-          category: "alimentacao",
+          category: defaultCat,
           subcategory: "",
           description: "Bem-vindo à nossa empresa no Caldas Novas Online!",
           cep: "",
@@ -322,6 +340,7 @@ export default function BusinessDashboardPage() {
         };
         await setDoc(doc(db, "businesses", slug), initialPayload);
         setName(registerCompanyName.trim());
+        setCategory(defaultCat);
         setBusinessId(slug);
         setIsApproved(false);
       } else {
