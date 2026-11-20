@@ -8,14 +8,18 @@ import {
   BedDouble,
   Palmtree,
   Ticket,
+  Building2,
   Cross,
   Pill,
   Stethoscope,
   Car,
+  Bike,
   Wrench,
   Fuel,
   Home,
   Hammer,
+  Sun,
+  Snowflake,
   Settings,
   Briefcase,
   Laptop,
@@ -79,6 +83,8 @@ export function CategoryIcon({
       return <Palmtree className={className} />;
     case "Ticket":
       return <Ticket className={className} />;
+    case "Building2":
+      return <Building2 className={className} />;
     case "Cross":
       return <Cross className={className} />;
     case "Pill":
@@ -87,6 +93,8 @@ export function CategoryIcon({
       return <Stethoscope className={className} />;
     case "Car":
       return <Car className={className} />;
+    case "Bike":
+      return <Bike className={className} />;
     case "Wrench":
       return <Wrench className={className} />;
     case "Fuel":
@@ -95,6 +103,10 @@ export function CategoryIcon({
       return <Home className={className} />;
     case "Hammer":
       return <Hammer className={className} />;
+    case "Sun":
+      return <Sun className={className} />;
+    case "Snowflake":
+      return <Snowflake className={className} />;
     case "Settings":
       return <Settings className={className} />;
     case "Briefcase":
