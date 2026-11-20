@@ -385,8 +385,8 @@ export default function HomePage() {
           <BannerSlider banners={banners} />
         </section>
 
-        {/* MAIS PROCURADOS (EXIBE APENAS SE ATIVO NO MASTER E COM TERMOS CADASTRADOS) */}
-        {validMostSearched.length > 0 && (
+        {/* MAIS PROCURADOS (EXIBE APENAS APÓS CARREGAR E SE ATIVO NO MASTER) */}
+        {!loading && validMostSearched.length > 0 && (
           <section>
             <div className="flex items-center gap-2 mb-3">
               <TrendingUp className="w-5 h-5 text-red-500" />
