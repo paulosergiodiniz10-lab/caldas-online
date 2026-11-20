@@ -187,6 +187,13 @@ export default function HomePage() {
 
   const isFiltering = Boolean(searchTerm.trim() || onlyCoupons || userCoords);
 
+  // Termos válidos da seção Mais Procurados (oculta a seção inteira se estiver vazio)
+  const validMostSearched = useMemo(() => {
+    return (settings.mostSearchedItems || []).filter(
+      (item) => item && item.label && item.label.trim().length > 0
+    );
+  }, [settings.mostSearchedItems]);
+
   // TODAS as empresas marcadas como Destaque (isFeatured === true), embaralhadas a cada acesso
   const featuredBusinesses = useMemo(() => {
     return businesses.filter((b) => b.isFeatured === true);
@@ -377,32 +384,35 @@ export default function HomePage() {
           <BannerSlider banners={banners} />
         </section>
 
-        {/* MAIS PROCURADOS (ACESSO EM 1 TOQUE) */}
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <TrendingUp className="w-5 h-5 text-red-500" />
-            <div>
-              <h2 className="text-lg font-extrabold text-slate-900 leading-none">
-                {settings.mostSearchedTitle}
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {settings.mostSearchedSubtitle}
-              </p>
+        {/* MAIS PROCURADOS (EXIBE APENAS SE HOUVER TERMOS CADASTRADOS NO MASTER) */}
+        {validMostSearched.length > 0 && (
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="w-5 h-5 text-red-500" />
+              <div>
+                <h2 className="text-lg font-extrabold text-slate-900 leading-none">
+                  {settings.mostSearchedTitle || "Mais Procurados"}
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {settings.mostSearchedSubtitle ||
+                    "Acesso rápido aos termos mais buscados em Caldas Novas"}
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar pb-1">
-            {(settings.mostSearchedItems || []).map((item, idx) => (
-              <button
-                key={idx}
-                onClick={() => setSearchTerm(item.query)}
-                className="bg-white hover:bg-blue-50 border border-slate-200 text-slate-800 font-bold text-sm px-4 py-2.5 rounded-xl shadow-sm whitespace-nowrap transition"
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </section>
+            <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar pb-1">
+              {validMostSearched.map((item, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSearchTerm(item.query || item.label)}
+                  className="bg-white hover:bg-blue-50 border border-slate-200 text-slate-800 font-bold text-sm px-4 py-2.5 rounded-xl shadow-sm whitespace-nowrap transition cursor-pointer"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* EMPRESAS EM DESTAQUE (SEM LIMITE DE QUANTIDADE E EMBARALHADAS A CADA ACESSO) */}
         {!loading && featuredBusinesses.length > 0 && (
