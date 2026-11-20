@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ChevronLeft, ChevronRight, MessageCircle, ExternalLink } from "lucide-react";
 import { optimizeCloudinaryUrl } from "@/lib/cloudinary";
 import { PromoBanner } from "@/types";
@@ -17,20 +17,51 @@ interface BannerSliderProps {
   categoryName?: string;
 }
 
+// Embaralhamento justo (Fisher-Yates) para banners com ordem = 0
+function shuffleBanners<T>(items: T[]): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 export function BannerSlider({ banners, categoryName }: BannerSliderProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  useEffect(() => {
-    if (!banners || banners.length <= 1) return;
-    const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % banners.length);
-    }, 5500);
-    return () => clearInterval(timer);
+  // Ordenação híbrida:
+  // - order > 0 (1, 2, 3...): fixos na posição exata
+  // - order === 0 (ou não definido): misturados aleatoriamente a cada acesso
+  const orderedBanners = useMemo(() => {
+    if (!banners || banners.length === 0) return [];
+
+    const fixed = banners
+      .filter((b) => typeof b.order === "number" && b.order > 0)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const randomPool = shuffleBanners(
+      banners.filter((b) => !b.order || b.order <= 0)
+    );
+
+    return [...fixed, ...randomPool];
   }, [banners]);
 
-  if (!banners || banners.length === 0) return null;
+  useEffect(() => {
+    setCurrentIndex(0);
+  }, [orderedBanners.length]);
 
-  const current = banners[currentIndex % banners.length];
+  useEffect(() => {
+    if (orderedBanners.length <= 1) return;
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % orderedBanners.length);
+    }, 5500);
+    return () => clearInterval(timer);
+  }, [orderedBanners]);
+
+  if (orderedBanners.length === 0) return null;
+
+  const current = orderedBanners[currentIndex % orderedBanners.length];
   const optimizedBannerImage = optimizeCloudinaryUrl(current.imageUrl);
 
   const isWhatsapp =
@@ -56,13 +87,15 @@ export function BannerSlider({ banners, categoryName }: BannerSliderProps) {
   const handlePrev = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setCurrentIndex((prev) => (prev - 1 + banners.length) % banners.length);
+    setCurrentIndex(
+      (prev) => (prev - 1 + orderedBanners.length) % orderedBanners.length
+    );
   };
 
   const handleNext = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setCurrentIndex((prev) => (prev + 1) % banners.length);
+    setCurrentIndex((prev) => (prev + 1) % orderedBanners.length);
   };
 
   return (
@@ -99,7 +132,7 @@ export function BannerSlider({ banners, categoryName }: BannerSliderProps) {
       </a>
 
       {/* Setas de Navegação (aparecem se houver mais de 1 banner) */}
-      {banners.length > 1 && (
+      {orderedBanners.length > 1 && (
         <>
           <button
             type="button"
@@ -121,7 +154,7 @@ export function BannerSlider({ banners, categoryName }: BannerSliderProps) {
 
           {/* Indicadores (Bolinhas) */}
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-slate-950/40 px-2.5 py-1 rounded-full backdrop-blur-xs">
-            {banners.map((_, idx) => (
+            {orderedBanners.map((_, idx) => (
               <button
                 key={idx}
                 type="button"
