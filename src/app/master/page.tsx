@@ -117,6 +117,7 @@ export default function MasterAdminPage() {
   // Planos
   const [plans, setPlans] = useState<PlanDoc[]>(DEFAULT_PLANS);
   const [editingPlan, setEditingPlan] = useState<PlanDoc | null>(null);
+  const [editingPlanOrderInput, setEditingPlanOrderInput] = useState("0");
   const [editingPlanFeaturesText, setEditingPlanFeaturesText] = useState("");
   const [savingPlan, setSavingPlan] = useState(false);
   const [copiedPlansLink, setCopiedPlansLink] = useState(false);
@@ -126,6 +127,7 @@ export default function MasterAdminPage() {
   const [newCatName, setNewCatName] = useState("");
   const [newCatSubtitle, setNewCatSubtitle] = useState("");
   const [editingCat, setEditingCat] = useState<CategoryDoc | null>(null);
+  const [editingCatOrderInput, setEditingCatOrderInput] = useState("1");
   const [uploadingCatIcon, setUploadingCatIcon] = useState(false);
   const [savingCat, setSavingCat] = useState(false);
   const [syncingCategories, setSyncingCategories] = useState(false);
@@ -135,10 +137,11 @@ export default function MasterAdminPage() {
   const [newUtilName, setNewUtilName] = useState("");
   const [newUtilNumber, setNewUtilNumber] = useState("");
   const [editingUtil, setEditingUtil] = useState<UtilityDoc | null>(null);
+  const [editingUtilOrderInput, setEditingUtilOrderInput] = useState("1");
   const [uploadingUtilIcon, setUploadingUtilIcon] = useState(false);
   const [savingUtil, setSavingUtil] = useState(false);
 
-  // Banners Patrocinados (Home + Segmentos) — 0 = Aleatório por padrão
+  // Banners Patrocinados (Home + Segmentos) — vazio/0 = Aleatório por padrão
   const [banners, setBanners] = useState<ExtendedBanner[]>([]);
   const [bannerTitle, setBannerTitle] = useState("");
   const [bannerImageUrl, setBannerImageUrl] = useState("");
@@ -148,9 +151,15 @@ export default function MasterAdminPage() {
   const [bannerWhatsapp, setBannerWhatsapp] = useState("");
   const [bannerWhatsappMsg, setBannerWhatsappMsg] = useState("");
   const [bannerButtonText, setBannerButtonText] = useState("");
-  const [bannerOrder, setBannerOrder] = useState(0);
+  const [bannerOrderInput, setBannerOrderInput] = useState("");
   const [uploadingPromoBanner, setUploadingPromoBanner] = useState(false);
   const [savingPromoBanner, setSavingPromoBanner] = useState(false);
+
+  // Edição de Banner Existente
+  const [editingBanner, setEditingBanner] = useState<ExtendedBanner | null>(null);
+  const [editingBannerOrderInput, setEditingBannerOrderInput] = useState("");
+  const [uploadingEditBanner, setUploadingEditBanner] = useState(false);
+  const [savingEditBanner, setSavingEditBanner] = useState(false);
 
   // Configurações Globais + Mais Procurados
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
@@ -371,6 +380,7 @@ export default function MasterAdminPage() {
   // GERENCIAMENTO DE PLANOS (GRÁTIS, VITRINE, DESTAQUE, MASTER)
   const openEditPlanModal = (plan: PlanDoc) => {
     setEditingPlan({ ...plan });
+    setEditingPlanOrderInput(plan.order && plan.order > 0 ? String(plan.order) : "");
     setEditingPlanFeaturesText((plan.features || []).join("\n"));
   };
 
@@ -394,6 +404,7 @@ export default function MasterAdminPage() {
       order: 0,
       active: true,
     });
+    setEditingPlanOrderInput("");
     setEditingPlanFeaturesText("Página completa no guia\nBotão direto para WhatsApp");
   };
 
@@ -408,6 +419,8 @@ export default function MasterAdminPage() {
         .map((line) => line.trim())
         .filter(Boolean);
 
+      const parsedOrder = parseInt(editingPlanOrderInput.replace(/\D/g, ""), 10);
+
       const updated: PlanDoc = {
         ...editingPlan,
         name: editingPlan.name.trim(),
@@ -415,7 +428,7 @@ export default function MasterAdminPage() {
         price: Number(editingPlan.price) || 0,
         maxPhotos: Math.max(1, Number(editingPlan.maxPhotos) || 6),
         maxVideos: Math.max(0, Math.min(4, Number(editingPlan.maxVideos) || 0)),
-        order: Math.max(0, Number(editingPlan.order) || 0),
+        order: !isNaN(parsedOrder) && parsedOrder > 0 ? parsedOrder : 0,
         features: featuresList,
       };
 
@@ -527,6 +540,11 @@ export default function MasterAdminPage() {
     }
   };
 
+  const openEditCategoryModal = (cat: CategoryDoc) => {
+    setEditingCat(cat);
+    setEditingCatOrderInput(String(cat.order || 1));
+  };
+
   const handleUploadCategoryImage = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -550,10 +568,12 @@ export default function MasterAdminPage() {
     setSavingCat(true);
     try {
       const docId = editingCat.slug || editingCat.id;
+      const parsedOrder = parseInt(editingCatOrderInput.replace(/\D/g, ""), 10);
       const updated: CategoryDoc = {
         ...editingCat,
         id: docId,
         slug: docId,
+        order: !isNaN(parsedOrder) && parsedOrder > 0 ? parsedOrder : 1,
       };
       await setDoc(doc(db, "categories", docId), updated, { merge: true });
       setCategories((prev) =>
@@ -615,6 +635,11 @@ export default function MasterAdminPage() {
     }
   };
 
+  const openEditUtilityModal = (util: UtilityDoc) => {
+    setEditingUtil(util);
+    setEditingUtilOrderInput(String(util.order || 1));
+  };
+
   const handleUploadUtilityImage = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -637,12 +662,17 @@ export default function MasterAdminPage() {
     if (!editingUtil) return;
     setSavingUtil(true);
     try {
-      await setDoc(doc(db, "utilities", editingUtil.id), editingUtil, {
+      const parsedOrder = parseInt(editingUtilOrderInput.replace(/\D/g, ""), 10);
+      const updatedUtil: UtilityDoc = {
+        ...editingUtil,
+        order: !isNaN(parsedOrder) && parsedOrder > 0 ? parsedOrder : 1,
+      };
+      await setDoc(doc(db, "utilities", updatedUtil.id), updatedUtil, {
         merge: true,
       });
       setUtilities((prev) =>
         prev
-          .map((u) => (u.id === editingUtil.id ? editingUtil : u))
+          .map((u) => (u.id === updatedUtil.id ? updatedUtil : u))
           .sort((a, b) => (a.order || 0) - (b.order || 0))
       );
       setEditingUtil(null);
@@ -724,6 +754,8 @@ export default function MasterAdminPage() {
     setSavingPromoBanner(true);
     try {
       const newId = `banner-${Date.now()}`;
+      const parsedOrder = parseInt(bannerOrderInput.replace(/\D/g, ""), 10);
+
       const payload: ExtendedBanner = {
         id: newId,
         title: bannerTitle.trim() || "Oferta em Destaque",
@@ -738,7 +770,7 @@ export default function MasterAdminPage() {
         whatsappMessage:
           bannerActionType === "whatsapp" ? bannerWhatsappMsg.trim() : "",
         buttonText: bannerButtonText.trim(),
-        order: Math.max(0, Number(bannerOrder) || 0),
+        order: !isNaN(parsedOrder) && parsedOrder > 0 ? parsedOrder : 0,
         active: true,
       };
 
@@ -753,13 +785,104 @@ export default function MasterAdminPage() {
       setBannerWhatsapp("");
       setBannerWhatsappMsg("");
       setBannerButtonText("");
-      setBannerOrder(0);
+      setBannerOrderInput("");
       alert("✅ Banner patrocinado publicado com sucesso!");
     } catch (err) {
       console.error(err);
       alert("Erro ao salvar banner patrocinado.");
     } finally {
       setSavingPromoBanner(false);
+    }
+  };
+
+  const openEditBannerModal = (banner: ExtendedBanner) => {
+    setEditingBanner({
+      ...banner,
+      actionType: banner.actionType || (banner.whatsappNumber ? "whatsapp" : "link"),
+      whatsappNumber: banner.whatsappNumber || "",
+      whatsappMessage: banner.whatsappMessage || "",
+      linkUrl: banner.linkUrl || "",
+      buttonText: banner.buttonText || "",
+      order: banner.order ?? 0,
+    });
+    setEditingBannerOrderInput(
+      banner.order && banner.order > 0 ? String(banner.order) : ""
+    );
+  };
+
+  const handleUploadEditBannerFile = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingBanner) return;
+    setUploadingEditBanner(true);
+    try {
+      const url = await compressAndUploadImage(file);
+      setEditingBanner({ ...editingBanner, imageUrl: url });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erro ao enviar nova arte do banner.");
+    } finally {
+      setUploadingEditBanner(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleSaveEditedBanner = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBanner) return;
+
+    if (!editingBanner.imageUrl.trim()) {
+      alert("Envie a imagem do banner antes de salvar.");
+      return;
+    }
+
+    const actionType = editingBanner.actionType || "whatsapp";
+    if (actionType === "link" && !(editingBanner.linkUrl || "").trim()) {
+      alert("Informe o link de destino do banner.");
+      return;
+    }
+
+    if (actionType === "whatsapp" && !(editingBanner.whatsappNumber || "").trim()) {
+      alert("Informe o número de WhatsApp do anunciante (com DDD).");
+      return;
+    }
+
+    setSavingEditBanner(true);
+    try {
+      const parsedOrder = parseInt(editingBannerOrderInput.replace(/\D/g, ""), 10);
+
+      const updated: ExtendedBanner = {
+        ...editingBanner,
+        title: editingBanner.title.trim() || "Oferta em Destaque",
+        imageUrl: editingBanner.imageUrl.trim(),
+        placement: editingBanner.placement || "home",
+        actionType,
+        linkUrl: actionType === "link" ? (editingBanner.linkUrl || "").trim() : "",
+        whatsappNumber:
+          actionType === "whatsapp"
+            ? (editingBanner.whatsappNumber || "").replace(/\D/g, "")
+            : "",
+        whatsappMessage:
+          actionType === "whatsapp"
+            ? (editingBanner.whatsappMessage || "").trim()
+            : "",
+        buttonText: (editingBanner.buttonText || "").trim(),
+        order: !isNaN(parsedOrder) && parsedOrder > 0 ? parsedOrder : 0,
+      };
+
+      await setDoc(doc(db, "banners", updated.id), updated, { merge: true });
+      setBanners((prev) =>
+        prev
+          .map((b) => (b.id === updated.id ? updated : b))
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      );
+      setEditingBanner(null);
+      alert("✅ Banner atualizado com sucesso!");
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao salvar alterações do banner.");
+    } finally {
+      setSavingEditBanner(false);
     }
   };
 
@@ -1316,7 +1439,7 @@ export default function MasterAdminPage() {
                   Catálogo de Planos (Grátis, Vitrine, Destaque e Master)
                 </h2>
                 <p className="text-xs text-blue-100 mt-0.5">
-                  Edite valores, quantidade de fotos, vídeos e benefícios abaixo. Ordem <strong>0</strong> mistura a cada acesso; <strong>1, 2, 3</strong> fixa na posição.
+                  Edite valores, quantidade de fotos, vídeos e benefícios abaixo. Ordem <strong>0</strong> (ou vazio) mistura a cada acesso; <strong>1, 2, 3</strong> fixa na posição.
                 </p>
               </div>
 
@@ -1468,7 +1591,7 @@ export default function MasterAdminPage() {
                   Criar Novo Banner Patrocinado (Slide)
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Deixe a ordem em <strong>0</strong> para misturar aleatoriamente a cada acesso, ou digite <strong>1, 2, 3...</strong> para fixar no início do slide.
+                  Deixe a ordem em branco ou <strong>0</strong> para misturar aleatoriamente a cada acesso, ou digite <strong>1, 2, 3...</strong> para fixar no início do slide.
                 </p>
               </div>
 
@@ -1507,13 +1630,16 @@ export default function MasterAdminPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Ordem (0 = Aleatório • 1, 2, 3 = Fixo)
+                    Ordem (Vazio ou 0 = Aleatório • 1, 2, 3 = Fixo)
                   </label>
                   <input
-                    type="number"
-                    min={0}
-                    value={bannerOrder}
-                    onChange={(e) => setBannerOrder(Number(e.target.value))}
+                    type="text"
+                    inputMode="numeric"
+                    value={bannerOrderInput}
+                    onChange={(e) =>
+                      setBannerOrderInput(e.target.value.replace(/\D/g, ""))
+                    }
+                    placeholder="0 (Aleatório)"
                     className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                   />
                 </div>
@@ -1727,13 +1853,24 @@ export default function MasterAdminPage() {
                             {ban.active ? "Ativo no Slide" : "Pausado"}
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteBanner(ban)}
-                            className="inline-flex items-center gap-1 text-xs font-bold text-red-600 hover:bg-red-50 px-2.5 py-1.5 rounded-lg cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> Excluir
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openEditBannerModal(ban)}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-[#0A4D9C] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition cursor-pointer"
+                              title="Editar banner, segmento, link ou imagem"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" /> Editar
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteBanner(ban)}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-red-600 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Excluir
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1830,7 +1967,7 @@ export default function MasterAdminPage() {
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={() => setEditingCat(cat)}
+                      onClick={() => openEditCategoryModal(cat)}
                       className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#0A4D9C] transition cursor-pointer"
                       title="Editar texto, cor e foto"
                     >
@@ -1926,7 +2063,7 @@ export default function MasterAdminPage() {
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={() => setEditingUtil(util)}
+                      onClick={() => openEditUtilityModal(util)}
                       className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#0A4D9C] transition cursor-pointer"
                       title="Editar nome, número, cor e foto"
                     >
@@ -2159,6 +2296,277 @@ export default function MasterAdminPage() {
         )}
       </main>
 
+      {/* MODAL DE EDIÇÃO DO BANNER PATROCINADO */}
+      {editingBanner && (
+        <div
+          onClick={() => setEditingBanner(null)}
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+        >
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={handleSaveEditedBanner}
+            className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 space-y-4 my-auto"
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-lg font-black text-slate-900">
+                Editar Banner: {editingBanner.title}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingBanner(null)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nome / Anunciante *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingBanner.title}
+                  onChange={(e) =>
+                    setEditingBanner({ ...editingBanner, title: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Onde exibir este banner? *
+                </label>
+                <select
+                  value={editingBanner.placement}
+                  onChange={(e) =>
+                    setEditingBanner({
+                      ...editingBanner,
+                      placement: e.target.value,
+                    })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white font-semibold"
+                >
+                  <option value="home">🏠 Página Inicial (Home)</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.slug || cat.id}>
+                      📂 Segmento: {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Ordem (Vazio ou 0 = Aleatório • 1, 2, 3 = Fixo)
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={editingBannerOrderInput}
+                  onChange={(e) =>
+                    setEditingBannerOrderInput(e.target.value.replace(/\D/g, ""))
+                  }
+                  placeholder="0 (Aleatório)"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div className="sm:col-span-3 space-y-2">
+                <label className="block text-xs font-bold text-slate-700">
+                  Arte do Banner (Trocar imagem)
+                </label>
+                {editingBanner.imageUrl && (
+                  <img
+                    src={editingBanner.imageUrl}
+                    alt={editingBanner.title}
+                    className="w-full max-h-40 object-cover rounded-2xl border border-slate-200"
+                  />
+                )}
+                <label className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs px-4 py-2.5 rounded-xl cursor-pointer">
+                  {uploadingEditBanner ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  {uploadingEditBanner ? "Enviando Nova Arte..." : "Substituir Arte do Banner"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleUploadEditBannerFile}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              <div className="sm:col-span-3 pt-2 border-t border-slate-100 space-y-3">
+                <label className="block text-xs font-bold text-slate-700">
+                  Ação ao clicar no Banner *
+                </label>
+                <div className="flex flex-wrap gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingBanner({
+                        ...editingBanner,
+                        actionType: "whatsapp",
+                      })
+                    }
+                    className={`px-4 py-2 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 border transition cursor-pointer ${
+                      (editingBanner.actionType || "whatsapp") === "whatsapp"
+                        ? "bg-[#1DB954] text-white border-[#1DB954]"
+                        : "bg-white text-slate-700 border-slate-300"
+                    }`}
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Botão Ação WhatsApp
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingBanner({
+                        ...editingBanner,
+                        actionType: "link",
+                      })
+                    }
+                    className={`px-4 py-2 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 border transition cursor-pointer ${
+                      editingBanner.actionType === "link"
+                        ? "bg-[#0A4D9C] text-white border-[#0A4D9C]"
+                        : "bg-white text-slate-700 border-slate-300"
+                    }`}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Link para Site / Página
+                  </button>
+                </div>
+
+                {(editingBanner.actionType || "whatsapp") === "whatsapp" ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        WhatsApp (com DDD) *
+                      </label>
+                      <input
+                        type="text"
+                        value={editingBanner.whatsappNumber || ""}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            whatsappNumber: e.target.value,
+                          })
+                        }
+                        placeholder="64999999999"
+                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Texto do Botão (opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={editingBanner.buttonText || ""}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            buttonText: e.target.value,
+                          })
+                        }
+                        placeholder="Ex: Simular no WhatsApp"
+                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Mensagem Pronta
+                      </label>
+                      <input
+                        type="text"
+                        value={editingBanner.whatsappMessage || ""}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            whatsappMessage: e.target.value,
+                          })
+                        }
+                        placeholder="Olá! Vi o banner no Caldas Novas Online..."
+                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Link de Destino *
+                      </label>
+                      <input
+                        type="text"
+                        value={editingBanner.linkUrl || ""}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            linkUrl: e.target.value,
+                          })
+                        }
+                        placeholder="https://... ou /empresa/slug"
+                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Texto do Botão (opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={editingBanner.buttonText || ""}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            buttonText: e.target.value,
+                          })
+                        }
+                        placeholder="Ex: Saiba Mais"
+                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingBanner(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={savingEditBanner}
+                className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-[#0A4D9C] hover:bg-[#062F63] text-white inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                {savingEditBanner ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                Salvar Alterações
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* MODAL DE EDIÇÃO DE PLANO */}
       {editingPlan && (
         <div
@@ -2312,18 +2720,16 @@ export default function MasterAdminPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Ordem (0 = Aleatório • 1, 2, 3 = Fixo)
+                  Ordem (Vazio ou 0 = Aleatório • 1, 2, 3 = Fixo)
                 </label>
                 <input
-                  type="number"
-                  min={0}
-                  value={editingPlan.order ?? 0}
+                  type="text"
+                  inputMode="numeric"
+                  value={editingPlanOrderInput}
                   onChange={(e) =>
-                    setEditingPlan({
-                      ...editingPlan,
-                      order: Number(e.target.value),
-                    })
+                    setEditingPlanOrderInput(e.target.value.replace(/\D/g, ""))
                   }
+                  placeholder="0 (Aleatório)"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
@@ -2473,15 +2879,13 @@ export default function MasterAdminPage() {
                   Ordem de Exibição
                 </label>
                 <input
-                  type="number"
-                  min={1}
-                  value={editingCat.order || 1}
+                  type="text"
+                  inputMode="numeric"
+                  value={editingCatOrderInput}
                   onChange={(e) =>
-                    setEditingCat({
-                      ...editingCat,
-                      order: Number(e.target.value),
-                    })
+                    setEditingCatOrderInput(e.target.value.replace(/\D/g, ""))
                   }
+                  placeholder="1"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
@@ -2658,15 +3062,13 @@ export default function MasterAdminPage() {
                   Ordem de Exibição
                 </label>
                 <input
-                  type="number"
-                  min={1}
-                  value={editingUtil.order || 1}
+                  type="text"
+                  inputMode="numeric"
+                  value={editingUtilOrderInput}
                   onChange={(e) =>
-                    setEditingUtil({
-                      ...editingUtil,
-                      order: Number(e.target.value),
-                    })
+                    setEditingUtilOrderInput(e.target.value.replace(/\D/g, ""))
                   }
+                  placeholder="1"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
