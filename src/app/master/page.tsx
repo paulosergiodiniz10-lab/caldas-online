@@ -16,6 +16,7 @@ import {
   updateDoc,
   deleteDoc,
   getDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { compressAndUploadImage } from "@/lib/cloudinary";
@@ -64,6 +65,7 @@ import {
   Copy,
   Check,
   TrendingUp,
+  RefreshCw,
 } from "lucide-react";
 
 const MASTER_EMAIL = "caldasonline10@gmail.com";
@@ -88,6 +90,8 @@ const COLOR_PRESETS = [
   { label: "Rosa", value: "bg-pink-500" },
   { label: "Teal", value: "bg-teal-600" },
   { label: "Índigo", value: "bg-indigo-600" },
+  { label: "Amarelo", value: "bg-yellow-500" },
+  { label: "Grafite", value: "bg-slate-600" },
 ];
 
 export default function MasterAdminPage() {
@@ -124,6 +128,7 @@ export default function MasterAdminPage() {
   const [editingCat, setEditingCat] = useState<CategoryDoc | null>(null);
   const [uploadingCatIcon, setUploadingCatIcon] = useState(false);
   const [savingCat, setSavingCat] = useState(false);
+  const [syncingCategories, setSyncingCategories] = useState(false);
 
   // Utilidades Rápidas
   const [utilities, setUtilities] = useState<UtilityDoc[]>(DEFAULT_UTILITIES);
@@ -461,6 +466,35 @@ export default function MasterAdminPage() {
   };
 
   // CATEGORIAS
+  const handleResetCategoriesToDefault = async () => {
+    const confirmed = window.confirm(
+      "🔄 ATUALIZAR PARA AS 10 CATEGORIAS NOVAS?\n\nIsso vai substituir as categorias antigas no banco pelas 10 novas (Onde Comer, Onde Ficar, Turismo & Parques, Imóveis, Saúde & Bem-estar, Casa & Reforma, Energia Solar, Ar Condicionado, Automotivo & Mobilidade e Profissionais & Serviços).\n\nDeseja aplicar agora?"
+    );
+    if (!confirmed) return;
+
+    setSyncingCategories(true);
+    try {
+      const batch = writeBatch(db);
+      const snapExisting = await getDocs(collection(db, "categories"));
+      snapExisting.docs.forEach((d) => {
+        batch.delete(d.ref);
+      });
+
+      DEFAULT_CATEGORIES.forEach((cat) => {
+        batch.set(doc(db, "categories", cat.slug || cat.id), cat);
+      });
+
+      await batch.commit();
+      setCategories(DEFAULT_CATEGORIES);
+      alert("✅ As 10 novas categorias foram gravadas no banco com sucesso!");
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao atualizar categorias no banco.");
+    } finally {
+      setSyncingCategories(false);
+    }
+  };
+
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -1713,13 +1747,29 @@ export default function MasterAdminPage() {
         {/* ABA 4: GERENCIAR E EDITAR CATEGORIAS */}
         {activeTab === "categories" && (
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
-            <div>
-              <h2 className="text-lg font-black text-slate-900">
-                Gerenciar Categorias do Guia
-              </h2>
-              <p className="text-xs text-slate-500">
-                Clique em <strong>Editar</strong> em qualquer categoria para alterar o texto, subtítulo, cor ou enviar uma foto/ícone personalizado.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">
+                  Gerenciar Categorias do Guia
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Clique em <strong>Editar</strong> em qualquer categoria para alterar o texto, subtítulo, cor ou enviar uma foto/ícone personalizado.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={syncingCategories}
+                onClick={handleResetCategoriesToDefault}
+                className="bg-[#FF7A00] hover:bg-orange-500 text-slate-950 font-extrabold text-xs px-4 py-2.5 rounded-xl inline-flex items-center gap-1.5 shadow-sm transition cursor-pointer shrink-0 self-start sm:self-auto"
+              >
+                {syncingCategories ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                Aplicar as 10 Categorias Novas no Banco
+              </button>
             </div>
 
             <form
@@ -1813,7 +1863,7 @@ export default function MasterAdminPage() {
                 Gerenciar Utilidades Rápidas (Telefones Úteis)
               </h2>
               <p className="text-xs text-slate-500">
-                Estes contatos aparecem quando o usuário clica no card <strong>Utilidades</strong> no topo do guia. Clique em <strong>Editar</strong> para alterar nome, número, cor ou foto.
+                Estes contatos aparecem no botão <strong>Utilidades Públicas</strong> no rodapé do guia. Clique em <strong>Editar</strong> para alterar nome, número, cor ou foto.
               </p>
             </div>
 
