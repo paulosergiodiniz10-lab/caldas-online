@@ -474,18 +474,22 @@ export default function BusinessPublicPage() {
         </div>
       )}
 
-      {/* BANNER CAPA HORIZONTAL SEM SOBREPOSIÇÃO DO CARTÃO */}
+      {/* BANNER CAPA EM PROPORÇÃO EXATA 3:1 (1200x400px) */}
       <div className="max-w-5xl w-full mx-auto px-4 pt-4">
-        <div className="w-full h-48 sm:h-64 md:h-72 rounded-3xl bg-gradient-to-r from-[#0A4D9C] to-[#062F63] relative overflow-hidden shadow-sm border border-slate-200/80">
+        <div
+          className={`w-full rounded-3xl bg-gradient-to-r from-[#0A4D9C] to-[#062F63] relative overflow-hidden shadow-sm border border-slate-200/80 ${
+            optimizedCover ? "aspect-[3/1]" : "h-36 sm:h-44"
+          }`}
+        >
           {optimizedCover && (
             <img
               src={optimizedCover}
               alt={`Capa ${business.name}`}
               decoding="async"
-              className="w-full h-full object-cover object-top"
+              className="w-full h-full object-cover"
             />
           )}
-          <div className="absolute top-3.5 left-3.5 z-10">
+          <div className="absolute top-3 left-3 z-10">
             <Link
               href="/"
               className="inline-flex items-center gap-1.5 bg-slate-950/65 hover:bg-slate-950/85 text-white text-xs font-bold px-3.5 py-2 rounded-full backdrop-blur-sm transition"
