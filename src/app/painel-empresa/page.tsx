@@ -1236,28 +1236,34 @@ export default function BusinessDashboardPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* 1. LOGOMARCA QUADRADA */}
                 <div className="border border-dashed border-slate-300 rounded-2xl p-4 flex flex-col justify-between gap-3 bg-slate-50/40">
-                  <div className="flex items-center gap-3">
-                    {logoUrl ? (
-                      <img
-                        src={logoUrl}
-                        alt="Logo"
-                        className="w-16 h-16 rounded-xl object-cover border bg-white shrink-0"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center text-xs text-slate-400 font-bold shrink-0">
-                        Logo
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-3">
+                      {logoUrl ? (
+                        <img
+                          src={logoUrl}
+                          alt="Logo"
+                          className="w-16 h-16 rounded-xl object-cover border bg-white shrink-0"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center text-xs text-slate-400 font-bold shrink-0">
+                          Logo
+                        </div>
+                      )}
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-extrabold text-slate-900">
+                          1. Logomarca Quadrada
+                        </p>
+                        <p className="text-[11px] text-slate-600">
+                          Tamanho: <strong>1024×1024px</strong> (1:1)
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          Exibe no perfil da empresa
+                        </p>
                       </div>
-                    )}
-                    <div className="space-y-0.5">
-                      <p className="text-xs font-extrabold text-slate-900">
-                        1. Logomarca Quadrada
-                      </p>
-                      <p className="text-[11px] text-slate-500">
-                        Ideal: <strong>500×500px</strong> (1:1)
-                      </p>
-                      <p className="text-[10px] text-slate-400">
-                        Exibe no perfil da empresa
-                      </p>
+                    </div>
+
+                    <div className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-[10px] font-bold text-slate-700">
+                      🤖 Melhor no GPT: <span className="text-[#0A4D9C]">Quadrada (1:1)</span>
                     </div>
                   </div>
 
@@ -1279,28 +1285,34 @@ export default function BusinessDashboardPage() {
 
                 {/* 2. FOTO VITRINE (CARD DA HOME E CATEGORIAS) */}
                 <div className="border-2 border-dashed border-[#0A4D9C]/40 rounded-2xl p-4 flex flex-col justify-between gap-3 bg-blue-50/30">
-                  <div className="flex items-center gap-3">
-                    {showcaseUrl ? (
-                      <img
-                        src={showcaseUrl}
-                        alt="Foto Vitrine"
-                        className="w-20 h-16 rounded-xl object-cover border bg-white shrink-0"
-                      />
-                    ) : (
-                      <div className="w-20 h-16 rounded-xl bg-blue-100/70 flex items-center justify-center text-[11px] text-[#0A4D9C] font-extrabold shrink-0 text-center px-1">
-                        Vitrine
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-3">
+                      {showcaseUrl ? (
+                        <img
+                          src={showcaseUrl}
+                          alt="Foto Vitrine"
+                          className="w-20 h-14 rounded-xl object-cover border bg-white shrink-0"
+                        />
+                      ) : (
+                        <div className="w-20 h-14 rounded-xl bg-blue-100/70 flex items-center justify-center text-[11px] text-[#0A4D9C] font-extrabold shrink-0 text-center px-1">
+                          Vitrine
+                        </div>
+                      )}
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-extrabold text-slate-900">
+                          2. Foto Vitrine (Card)
+                        </p>
+                        <p className="text-[11px] text-slate-600">
+                          Tamanho: <strong>1536×1024px</strong> (3:2)
+                        </p>
+                        <p className="text-[10px] text-[#0A4D9C] font-semibold">
+                          Capa do card na Home e Busca
+                        </p>
                       </div>
-                    )}
-                    <div className="space-y-0.5">
-                      <p className="text-xs font-extrabold text-slate-900">
-                        2. Foto Vitrine (Card)
-                      </p>
-                      <p className="text-[11px] text-slate-600">
-                        Ideal: <strong>800×600px</strong> (4:3)
-                      </p>
-                      <p className="text-[10px] text-[#0A4D9C] font-semibold">
-                        Capa do card na Home e Busca
-                      </p>
+                    </div>
+
+                    <div className="rounded-lg bg-blue-100/80 px-2.5 py-1.5 text-[10px] font-bold text-[#0A4D9C]">
+                      🤖 Melhor no GPT: <span className="underline">Horizontal (3:2)</span>
                     </div>
                   </div>
 
@@ -1322,28 +1334,34 @@ export default function BusinessDashboardPage() {
 
                 {/* 3. BANNER CAPA (TOPO DA PÁGINA INTERNA) */}
                 <div className="border border-dashed border-slate-300 rounded-2xl p-4 flex flex-col justify-between gap-3 bg-slate-50/40">
-                  <div className="flex items-center gap-3">
-                    {coverUrl ? (
-                      <img
-                        src={coverUrl}
-                        alt="Banner Capa"
-                        className="w-24 h-16 rounded-xl object-cover border bg-white shrink-0"
-                      />
-                    ) : (
-                      <div className="w-24 h-16 rounded-xl bg-slate-100 flex items-center justify-center text-[11px] text-slate-400 font-bold shrink-0">
-                        Banner Capa
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-3">
+                      {coverUrl ? (
+                        <img
+                          src={coverUrl}
+                          alt="Banner Capa"
+                          className="w-20 h-14 rounded-xl object-cover border bg-white shrink-0"
+                        />
+                      ) : (
+                        <div className="w-20 h-14 rounded-xl bg-slate-100 flex items-center justify-center text-[11px] text-slate-400 font-bold shrink-0">
+                          Capa
+                        </div>
+                      )}
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-extrabold text-slate-900">
+                          3. Banner Capa (Topo)
+                        </p>
+                        <p className="text-[11px] text-slate-600">
+                          Tamanho: <strong>1536×1024px</strong> (3:2)
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          Topo da página da empresa
+                        </p>
                       </div>
-                    )}
-                    <div className="space-y-0.5">
-                      <p className="text-xs font-extrabold text-slate-900">
-                        3. Banner Capa (Topo)
-                      </p>
-                      <p className="text-[11px] text-slate-500">
-                        Ideal: <strong>1200×400px</strong> (3:1)
-                      </p>
-                      <p className="text-[10px] text-slate-400">
-                        Faixa larga no topo da página
-                      </p>
+                    </div>
+
+                    <div className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-[10px] font-bold text-slate-700">
+                      🤖 Melhor no GPT: <span className="text-[#0A4D9C]">Horizontal (3:2)</span>
                     </div>
                   </div>
 
@@ -1366,12 +1384,12 @@ export default function BusinessDashboardPage() {
 
               <div className="pt-2 border-t border-slate-100 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
+                  <div className="space-y-0.5">
                     <p className="text-xs font-bold text-slate-700">
                       Fotos da Galeria ({gallery.length} de {maxPhotos} utilizadas)
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      Ideal: <strong>1080×1080px</strong> (1:1) ou <strong>1080×1350px</strong> (4:5) — aceita horizontal ou vertical direto do celular
+                      🤖 Melhor no GPT: <strong>Quadrada (1:1 • 1024×1024px)</strong> ou <strong>Vertical (2:3 • 1024×1536px)</strong> — aceita também fotos diretas do celular
                     </p>
                   </div>
 
