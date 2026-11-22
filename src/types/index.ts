@@ -38,7 +38,8 @@ export interface Business {
   instagram?: string;
   facebook?: string;
   logoUrl: string;
-  coverUrl: string;
+  showcaseUrl?: string; // Foto Vitrine (Card da Home/Categorias - 800x600px)
+  coverUrl: string;     // Banner Capa (Topo da página interna - 1200x400px)
   gallery: string[];
   maxPhotos?: number; // Master pode aumentar por cliente
   maxVideos?: number; // Master pode aumentar até 4 por cliente
@@ -57,19 +58,19 @@ export interface Business {
 
 export interface PlanDoc {
   id: string;
-  name: string; // Ex: "Grátis", "Vitrine", "Destaque", "Master"
-  subtitle: string; // Ex: "Presença Básica", "+ Fotos e Vídeos"
-  price: number; // 0 para Grátis, ou valor mensal (ex: 49.9, 89.9, 199.9)
-  billingPeriod: string; // Ex: "/mês" ou "Grátis para sempre"
-  maxPhotos: number; // Editável no Master (ex: 6, 20, 30)
-  maxVideos: number; // Editável no Master (ex: 0, 2, 4)
-  hasFeaturedHome: boolean; // Se inclui Empresas em Destaque na Home
-  hasBannerHome: boolean; // Se inclui Full Banner na Home
-  hasBannerSegment: boolean; // Se inclui Full Banner no Segmento
-  badgeText?: string; // Ex: "Mais Escolhido" ou "Vagas Limitadas"
-  highlight: boolean; // Destaque visual no card do plano
-  features: string[]; // Lista extra de benefícios editáveis
-  buttonText: string; // Ex: "Começar Grátis" ou "Contratar no WhatsApp"
+  name: string;
+  subtitle: string;
+  price: number;
+  billingPeriod: string;
+  maxPhotos: number;
+  maxVideos: number;
+  hasFeaturedHome: boolean;
+  hasBannerHome: boolean;
+  hasBannerSegment: boolean;
+  badgeText?: string;
+  highlight: boolean;
+  features: string[];
+  buttonText: string;
   order: number;
   active: boolean;
 }
