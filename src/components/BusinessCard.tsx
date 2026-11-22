@@ -25,7 +25,7 @@ interface BusinessCardProps {
   distanceKm?: number | null;
 }
 
-// Selo Verificada estilo Meta (círculo serrilhado azul sólido com check branco)
+// Selo Verificada estilo Meta (círculo azul sólido com check branco)
 function MetaVerifiedBadge({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <span
@@ -48,7 +48,6 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
     ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waMessage)}`
     : "#";
 
-  // Só exibe o botão Localização se o anunciante informou link do Maps, coordenadas ou endereço
   const hasGoogleMapsLink = Boolean(
     business.googleMapsUrl && business.googleMapsUrl.trim()
   );
@@ -87,8 +86,12 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
   const isClosedNow = openStatus.hasSchedule && !openStatus.isOpen;
   const isVerified = business.isVerified !== false;
 
+  // Prioriza Foto Vitrine (showcaseUrl), depois 1ª foto da galeria, capa ou logo
   const rawCardImage =
-    business.coverUrl || business.gallery?.[0] || business.logoUrl;
+    business.showcaseUrl ||
+    business.gallery?.[0] ||
+    business.coverUrl ||
+    business.logoUrl;
   const optimizedCardImage = optimizeCloudinaryUrl(rawCardImage);
 
   const handleWhatsappClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -108,10 +111,10 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
           : "bg-white border-slate-300/90 hover:border-[#0A4D9C]/60"
       }`}
     >
-      {/* FOTO LIMPA E VALORIZADA */}
+      {/* FOTO VITRINE LIMPA E PROPORCIONAL (4:3) */}
       <Link
         href={detailsHref}
-        className="relative w-full h-48 bg-slate-100 overflow-hidden block"
+        className="relative w-full aspect-[4/3] bg-slate-100 overflow-hidden block"
       >
         {optimizedCardImage ? (
           <img
