@@ -39,7 +39,6 @@ import {
   Navigation,
   Clock,
   ShieldAlert,
-  BadgeCheck,
   X,
 } from "lucide-react";
 
@@ -403,20 +402,29 @@ export default function BusinessPublicPage() {
     link.click();
   };
 
+  const hasGoogleMapsLink = Boolean(
+    business.googleMapsUrl && business.googleMapsUrl.trim()
+  );
+  const hasCoordinates =
+    typeof business.lat === "number" && typeof business.lng === "number";
+  const hasStreetAddress = Boolean(business.address && business.address.trim());
+  const hasLocation = hasGoogleMapsLink || hasCoordinates || hasStreetAddress;
+
   const fullAddressParts = [
     business.address,
     business.neighborhood ? `Bairro ${business.neighborhood}` : "",
     business.cep ? `CEP ${business.cep}` : "",
     "Caldas Novas - GO",
   ].filter(Boolean);
-  const fullAddressText = fullAddressParts.join(" • ");
+  const fullAddressText = hasStreetAddress ? fullAddressParts.join(" • ") : "";
 
-  const mapsDestinationUrl =
-    business.googleMapsUrl && business.googleMapsUrl.trim()
-      ? business.googleMapsUrl.trim()
-      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          `${business.name} ${fullAddressParts.join(", ")}`
-        )}`;
+  const mapsDestinationUrl = hasGoogleMapsLink
+    ? business.googleMapsUrl!.trim()
+    : hasCoordinates
+    ? `https://www.google.com/maps/search/?api=1&query=${business.lat},${business.lng}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        `${business.name} ${fullAddressParts.join(", ")}`
+      )}`;
 
   const allowedVideos = business.maxVideos ?? 0;
   const horizontalEmbed =
@@ -488,7 +496,7 @@ export default function BusinessPublicPage() {
 
       <main className="max-w-5xl w-full mx-auto px-4 -mt-12 sm:-mt-16 relative z-20 space-y-6 flex-1">
         {/* CARTÃO PRINCIPAL DO TOPO */}
-        <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-md border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-5">
+        <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-md border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="flex items-center gap-4">
             {optimizedLogo ? (
               <img
@@ -504,11 +512,13 @@ export default function BusinessPublicPage() {
             )}
 
             <div className="space-y-1.5">
-              {/* SELOS: EMPRESA VERIFICADA + STATUS DE FUNCIONAMENTO */}
+              {/* SELOS: EMPRESA VERIFICADA (ESTILO META) + STATUS DE FUNCIONAMENTO */}
               <div className="flex flex-wrap items-center gap-2">
                 {isVerified && (
-                  <span className="inline-flex items-center gap-1 bg-blue-50 text-[#0A4D9C] border border-blue-200/80 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full">
-                    <BadgeCheck className="w-3.5 h-3.5 text-[#0A4D9C]" />
+                  <span className="inline-flex items-center gap-1.5 bg-[#1877F2]/10 text-[#1877F2] border border-[#1877F2]/25 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full">
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#1877F2] text-white inline-flex items-center justify-center shrink-0">
+                      <Check className="w-2.5 h-2.5 stroke-[3.5]" />
+                    </span>
                     Empresa Verificada
                   </span>
                 )}
@@ -523,8 +533,7 @@ export default function BusinessPublicPage() {
                   ) : (
                     <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-200 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full">
                       <Clock className="w-3.5 h-3.5" />
-                      {openStatus.label}
-                      {openStatus.detail ? ` • ${openStatus.detail}` : ""}
+                      Fechado agora
                     </span>
                   )
                 )}
@@ -560,7 +569,7 @@ export default function BusinessPublicPage() {
               </a>
               {isClosedNow && (
                 <span className="text-[11px] font-bold text-red-600 text-center sm:text-right">
-                  Loja fechada no momento ({openStatus.detail})
+                  Loja fechada no momento
                 </span>
               )}
             </div>
@@ -644,14 +653,14 @@ export default function BusinessPublicPage() {
         )}
 
         {/* SOBRE A EMPRESA + ENDEREÇO E LOCALIZAÇÃO */}
-        <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-sm border border-slate-100 space-y-5">
+        <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-sm border border-slate-200/80 space-y-5">
           <h2 className="text-lg font-black text-slate-900">Sobre a Empresa</h2>
 
           <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">
             {business.description}
           </p>
 
-          {fullAddressText && (
+          {hasLocation && (
             <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 rounded-xl bg-orange-100 text-[#FF7A00] flex items-center justify-center shrink-0 mt-0.5">
@@ -659,10 +668,10 @@ export default function BusinessPublicPage() {
                 </div>
                 <div>
                   <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
-                    Endereço e Localização
+                    Localização
                   </p>
                   <p className="text-xs sm:text-sm font-bold text-slate-800 mt-0.5">
-                    {fullAddressText}
+                    {fullAddressText || "Caldas Novas - GO"}
                   </p>
                 </div>
               </div>
@@ -679,54 +688,58 @@ export default function BusinessPublicPage() {
             </div>
           )}
 
-          <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2.5">
-            {business.instagram && (
-              <a
-                href={
-                  business.instagram.startsWith("http")
-                    ? business.instagram
-                    : `https://instagram.com/${business.instagram.replace("@", "")}`
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2.5 rounded-xl transition"
-              >
-                <Instagram className="w-4 h-4 text-pink-600" />
-                Instagram
-              </a>
-            )}
+          {(business.instagram || business.website || hasLocation) && (
+            <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2.5">
+              {business.instagram && (
+                <a
+                  href={
+                    business.instagram.startsWith("http")
+                      ? business.instagram
+                      : `https://instagram.com/${business.instagram.replace("@", "")}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2.5 rounded-xl transition"
+                >
+                  <Instagram className="w-4 h-4 text-pink-600" />
+                  Instagram
+                </a>
+              )}
 
-            {business.website && (
-              <a
-                href={
-                  business.website.startsWith("http")
-                    ? business.website
-                    : `https://${business.website}`
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2.5 rounded-xl transition"
-              >
-                <Globe className="w-4 h-4 text-[#0A4D9C]" />
-                Site / Cardápio
-              </a>
-            )}
+              {business.website && (
+                <a
+                  href={
+                    business.website.startsWith("http")
+                      ? business.website
+                      : `https://${business.website}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2.5 rounded-xl transition"
+                >
+                  <Globe className="w-4 h-4 text-[#0A4D9C]" />
+                  Site / Cardápio
+                </a>
+              )}
 
-            <a
-              href={mapsDestinationUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-xs font-bold bg-orange-50 hover:bg-orange-100 text-orange-800 px-4 py-2.5 rounded-xl transition"
-            >
-              <MapPin className="w-4 h-4 text-[#FF7A00]" />
-              Como Chegar (Google Maps)
-            </a>
-          </div>
+              {hasLocation && (
+                <a
+                  href={mapsDestinationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-xs font-bold bg-orange-50 hover:bg-orange-100 text-orange-800 px-4 py-2.5 rounded-xl transition"
+                >
+                  <MapPin className="w-4 h-4 text-[#FF7A00]" />
+                  Como Chegar (Google Maps)
+                </a>
+              )}
+            </div>
+          )}
         </div>
 
         {/* HORÁRIO DE FUNCIONAMENTO */}
         {business.businessHours?.enabled && (
-          <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-sm border border-slate-100 space-y-4">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-sm border border-slate-200/80 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-[#0A4D9C]" />
@@ -742,7 +755,7 @@ export default function BusinessPublicPage() {
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 text-xs font-extrabold px-3 py-1 rounded-full">
-                  {openStatus.label} {openStatus.detail ? `(${openStatus.detail})` : ""}
+                  Fechado agora
                 </span>
               )}
             </div>
@@ -792,7 +805,7 @@ export default function BusinessPublicPage() {
 
         {/* GALERIA DE FOTOS */}
         {galleryPhotos.length > 0 && (
-          <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-sm border border-slate-100 space-y-4">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-sm border border-slate-200/80 space-y-4">
             <h2 className="text-lg font-black text-slate-900">Galeria de Fotos</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
               {galleryPhotos.map((photo, idx) => (
@@ -817,7 +830,7 @@ export default function BusinessPublicPage() {
 
         {/* VÍDEOS DO YOUTUBE (ASSINANTES) */}
         {(horizontalEmbed || verticalEmbeds.length > 0) && (
-          <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-sm border border-slate-100 space-y-5">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-sm border border-slate-200/80 space-y-5">
             <h2 className="text-lg font-black text-slate-900">Vídeos</h2>
 
             {horizontalEmbed && (
