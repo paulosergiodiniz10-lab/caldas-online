@@ -474,7 +474,7 @@ export default function BusinessPublicPage() {
         </div>
       )}
 
-      {/* BANNER CAPA HORIZONTAL COMPACTO (1200x400px / 3:1) */}
+      {/* BANNER CAPA HORIZONTAL SEM SOBREPOSIÇÃO DO CARTÃO */}
       <div className="max-w-5xl w-full mx-auto px-4 pt-4">
         <div className="w-full h-48 sm:h-64 md:h-72 rounded-3xl bg-gradient-to-r from-[#0A4D9C] to-[#062F63] relative overflow-hidden shadow-sm border border-slate-200/80">
           {optimizedCover && (
@@ -482,7 +482,7 @@ export default function BusinessPublicPage() {
               src={optimizedCover}
               alt={`Capa ${business.name}`}
               decoding="async"
-              className="w-full h-full object-cover object-center"
+              className="w-full h-full object-cover object-top"
             />
           )}
           <div className="absolute top-3.5 left-3.5 z-10">
@@ -496,7 +496,7 @@ export default function BusinessPublicPage() {
         </div>
       </div>
 
-      <main className="max-w-5xl w-full mx-auto px-4 -mt-8 sm:-mt-10 relative z-20 space-y-6 flex-1 pb-8">
+      <main className="max-w-5xl w-full mx-auto px-4 mt-4 relative z-20 space-y-6 flex-1 pb-8">
         {/* CARTÃO PRINCIPAL DO TOPO */}
         <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-md border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="flex items-center gap-4">
@@ -505,7 +505,7 @@ export default function BusinessPublicPage() {
                 src={optimizedLogo}
                 alt={business.name}
                 decoding="async"
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-white shadow-md shrink-0 bg-white"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border border-slate-200 shadow-sm shrink-0 bg-white"
               />
             ) : (
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-blue-50 text-[#0A4D9C] flex items-center justify-center shrink-0 border border-blue-100">
