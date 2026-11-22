@@ -4,20 +4,24 @@ import Link from "next/link";
 import { doc, updateDoc, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { optimizeCloudinaryUrl } from "@/lib/cloudinary";
-import { getBusinessOpenStatus } from "@/lib/constants";
+import { DEFAULT_CATEGORIES, getBusinessOpenStatus } from "@/lib/constants";
 import { Business } from "@/types";
 import {
   Ticket,
   MessageCircle,
-  ChevronRight,
   Building2,
   Star,
   BadgeCheck,
-  Clock,
+  MapPin,
 } from "lucide-react";
 
+type BusinessWithMaps = Business & {
+  cep?: string;
+  googleMapsUrl?: string;
+};
+
 interface BusinessCardProps {
-  business: Business;
+  business: BusinessWithMaps;
   distanceKm?: number | null;
 }
 
@@ -31,6 +35,26 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
   const waUrl = cleanPhone
     ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waMessage)}`
     : "#";
+
+  const fullAddressParts = [
+    business.address,
+    business.neighborhood ? `Bairro ${business.neighborhood}` : "",
+    business.cep ? `CEP ${business.cep}` : "",
+    "Caldas Novas - GO",
+  ].filter(Boolean);
+
+  const mapsUrl =
+    business.googleMapsUrl && business.googleMapsUrl.trim()
+      ? business.googleMapsUrl.trim()
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          `${business.name} ${fullAddressParts.join(", ")}`
+        )}`;
+
+  const categoryObj = DEFAULT_CATEGORIES.find(
+    (c) => (c.slug || c.id) === business.category
+  );
+  const categoryLabel =
+    categoryObj?.name || business.subcategory || business.category || "";
 
   const hasCoupon = Boolean(
     business.coupon?.active &&
@@ -56,16 +80,16 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
 
   return (
     <div
-      className={`group rounded-3xl border shadow-sm hover:shadow-md transition overflow-hidden flex flex-col ${
+      className={`group rounded-2xl border shadow-sm hover:shadow-md transition overflow-hidden flex flex-col ${
         isClosedNow
-          ? "bg-slate-50/90 border-slate-200/80"
-          : "bg-white border-slate-100 hover:border-[#0A4D9C]/30"
+          ? "bg-slate-50/70 border-slate-200/80"
+          : "bg-white border-slate-200/70 hover:border-[#0A4D9C]/40"
       }`}
     >
-      {/* IMAGEM SUPERIOR CLICÁVEL PARA DETALHES */}
+      {/* FOTO LIMPA E VALORIZADA (APENAS BADGES DISCRETOS NO TOPO) */}
       <Link
         href={detailsHref}
-        className="relative w-full h-44 bg-slate-100 overflow-hidden block"
+        className="relative w-full h-48 bg-slate-100 overflow-hidden block"
       >
         {optimizedCardImage ? (
           <img
@@ -74,77 +98,58 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
             loading="lazy"
             decoding="async"
             className={`w-full h-full object-cover group-hover:scale-105 transition duration-300 ${
-              isClosedNow ? "grayscale-[45%] opacity-80" : ""
+              isClosedNow ? "grayscale-[30%] opacity-90" : ""
             }`}
           />
         ) : (
-          <div
-            className={`w-full h-full bg-gradient-to-br from-[#0A4D9C] to-[#062F63] flex items-center justify-center text-white/40 ${
-              isClosedNow ? "grayscale-[45%] opacity-80" : ""
-            }`}
-          >
+          <div className="w-full h-full bg-gradient-to-br from-[#0A4D9C] to-[#062F63] flex items-center justify-center text-white/40">
             <Building2 className="w-12 h-12" />
           </div>
         )}
 
-        {/* BADGES SUPERIORES */}
-        <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
-          {hasCoupon ? (
-            <span className="inline-flex items-center gap-1 bg-[#FF7A00] text-white text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow">
-              <Ticket className="w-3 h-3" /> Cupom Ativo
+        {/* BADGES SUPERIORES LIMPOS */}
+        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-2 pointer-events-none">
+          {business.isFeatured ? (
+            <span className="inline-flex items-center gap-1 bg-[#FFB800] text-slate-950 text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-lg shadow-sm">
+              <Star className="w-3 h-3 fill-slate-950" /> Destaque
+            </span>
+          ) : hasCoupon ? (
+            <span className="inline-flex items-center gap-1 bg-[#FF7A00] text-white text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-lg shadow-sm">
+              <Ticket className="w-3 h-3" /> Cupom
             </span>
           ) : (
             <span />
           )}
 
-          {business.isFeatured && (
-            <span className="inline-flex items-center gap-1 bg-slate-950/80 text-[#FFB800] text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full backdrop-blur-xs">
-              <Star className="w-3 h-3 fill-[#FFB800]" /> Destaque
+          {hasCoupon && business.isFeatured ? (
+            <span
+              title="Cupom de Desconto Ativo"
+              className="inline-flex items-center gap-1 bg-[#FF7A00] text-white text-[10px] font-black uppercase px-2 py-1 rounded-lg shadow-sm"
+            >
+              <Ticket className="w-3 h-3" /> Cupom
             </span>
-          )}
+          ) : isVerified ? (
+            <span
+              title="Empresa Verificada"
+              className="w-7 h-7 rounded-full bg-white/95 text-[#0A4D9C] flex items-center justify-center shadow-sm"
+            >
+              <BadgeCheck className="w-4 h-4" />
+            </span>
+          ) : null}
         </div>
-
-        {/* BADGE INFERIOR DE HORÁRIO (ABERTO OU FECHADO AGORA) */}
-        {openStatus.hasSchedule && (
-          <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between gap-2">
-            {openStatus.isOpen ? (
-              <span className="inline-flex items-center gap-1.5 bg-emerald-600/95 text-white text-[10px] font-extrabold uppercase tracking-wide px-2.5 py-1 rounded-full shadow backdrop-blur-xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                {openStatus.label}
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 bg-red-600/95 text-white text-[10px] font-extrabold uppercase tracking-wide px-2.5 py-1 rounded-full shadow backdrop-blur-xs">
-                <Clock className="w-3 h-3" />
-                {openStatus.label}
-              </span>
-            )}
-
-            {openStatus.detail && (
-              <span className="bg-slate-950/75 text-white text-[10px] font-bold px-2.5 py-1 rounded-full backdrop-blur-xs truncate">
-                {openStatus.detail}
-              </span>
-            )}
-          </div>
-        )}
       </Link>
 
-      {/* CORPO DO CARD */}
-      <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5">
-        <div className="space-y-1.5">
-          {/* TÍTULO + SELO VERIFICADA */}
+      {/* CORPO ORGANIZADO DO CARD */}
+      <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+        <div className="space-y-1">
+          {/* NOME DA EMPRESA + SELO VERIFICADA */}
           <Link href={detailsHref} className="block group/title">
-            <h3
-              className={`text-base sm:text-lg font-black leading-snug line-clamp-2 ${
-                isClosedNow
-                  ? "text-slate-600 group-hover/title:text-[#0A4D9C]"
-                  : "text-slate-900 group-hover/title:text-[#0A4D9C]"
-              }`}
-            >
+            <h3 className="text-[15px] sm:text-base font-black text-slate-900 group-hover/title:text-[#0A4D9C] leading-snug line-clamp-2">
               <span>{business.name}</span>
               {isVerified && (
                 <span
-                  title="Empresa Verificada no Guia"
-                  className="inline-flex items-center align-middle ml-1.5"
+                  title="Empresa Verificada"
+                  className="inline-flex items-center align-middle ml-1"
                 >
                   <BadgeCheck className="w-4 h-4 text-[#0A4D9C] fill-blue-50 inline" />
                 </span>
@@ -152,58 +157,99 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
             </h3>
           </Link>
 
-          <Link href={detailsHref} className="block">
+          {/* NOME DA CATEGORIA (SEM O TEXTO "CATEGORIA") */}
+          {categoryLabel && (
             <p className="text-xs font-semibold text-slate-500 line-clamp-1">
-              {business.subcategory ? `${business.subcategory} • ` : ""}
-              {business.neighborhood || "Caldas Novas"}
-              {typeof distanceKm === "number" ? ` • ${distanceKm.toFixed(1)} km` : ""}
+              {categoryLabel}
             </p>
-          </Link>
+          )}
 
+          {/* BAIRRO / DISTÂNCIA */}
+          <p className="text-[11px] font-medium text-slate-400 flex items-center gap-1 line-clamp-1 pt-0.5">
+            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+            <span>
+              {business.neighborhood || "Caldas Novas"}
+              {typeof distanceKm === "number"
+                ? ` • ${distanceKm.toFixed(1).replace(".", ",")} km`
+                : ""}
+            </span>
+          </p>
+
+          {/* STATUS DE FUNCIONAMENTO (VERDE ABERTO / VERMELHO FECHADO) */}
+          {openStatus.hasSchedule && (
+            <div className="pt-0.5">
+              {openStatus.isOpen ? (
+                <p className="text-xs font-extrabold text-emerald-600 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="truncate">
+                    {openStatus.label}
+                    {openStatus.detail ? ` • ${openStatus.detail}` : ""}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-xs font-extrabold text-red-600 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                  <span className="truncate">
+                    {openStatus.label}
+                    {openStatus.detail ? ` • ${openStatus.detail}` : ""}
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* BOX DE CUPOM (IGUAL AO ATUAL) */}
           {hasCoupon && (
             <Link
               href={detailsHref}
-              className={`mt-2 block rounded-xl border border-dashed px-3 py-2 text-xs font-extrabold transition line-clamp-2 ${
-                isClosedNow
-                  ? "border-slate-300 bg-slate-100 text-slate-600"
-                  : "border-[#FF7A00] bg-orange-50/70 text-orange-800 hover:bg-orange-100/70"
-              }`}
+              className="mt-2 block rounded-xl border border-dashed border-[#FF7A00] bg-orange-50/70 px-3 py-2 text-xs font-extrabold text-orange-800 hover:bg-orange-100/70 transition line-clamp-2"
             >
               🎟️ {business.coupon?.title || `Cupom: ${business.coupon?.code}`}
             </Link>
           )}
         </div>
 
-        {/* DOIS BOTÕES LADO A LADO NA BASE: WHATSAPP | VER MAIS */}
-        <div className={`grid gap-2 ${cleanPhone ? "grid-cols-2" : "grid-cols-1"}`}>
-          {cleanPhone && (
-            <a
-              href={waUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={handleWhatsappClick}
-              className={`w-full font-extrabold text-xs py-3 px-2 rounded-xl shadow-xs inline-flex items-center justify-center gap-1.5 transition ${
-                isClosedNow
-                  ? "bg-slate-200 hover:bg-slate-300 text-slate-700"
-                  : "bg-[#1DB954] hover:bg-[#18a349] text-white"
-              }`}
-            >
-              <MessageCircle
-                className={`w-4 h-4 shrink-0 ${
-                  isClosedNow ? "text-slate-600" : "fill-white"
-                }`}
-              />
-              <span>WhatsApp</span>
-            </a>
-          )}
-
+        {/* BOTÕES NA BASE: VER PERFIL (TOPO) + WHATSAPP | LOCALIZAÇÃO */}
+        <div className="pt-1 space-y-2">
           <Link
             href={detailsHref}
-            className="w-full bg-blue-50 hover:bg-[#0A4D9C] text-[#0A4D9C] hover:text-white font-extrabold text-xs py-3 px-2 rounded-xl inline-flex items-center justify-center gap-1 transition"
+            className="w-full py-2 px-3 rounded-xl border border-[#0A4D9C] text-[#0A4D9C] hover:bg-[#0A4D9C] hover:text-white font-extrabold text-xs text-center block transition"
           >
-            <span>Ver mais</span>
-            <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+            Ver perfil
           </Link>
+
+          <div className={`grid gap-2 ${cleanPhone ? "grid-cols-2" : "grid-cols-1"}`}>
+            {cleanPhone && (
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleWhatsappClick}
+                className={`w-full py-2 px-2 rounded-xl font-extrabold text-[11px] inline-flex items-center justify-center gap-1 transition ${
+                  isClosedNow
+                    ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                    : "bg-[#1DB954] hover:bg-[#18a349] text-white shadow-2xs"
+                }`}
+              >
+                <MessageCircle
+                  className={`w-3.5 h-3.5 shrink-0 ${
+                    isClosedNow ? "text-slate-600" : "fill-white"
+                  }`}
+                />
+                <span>WhatsApp</span>
+              </a>
+            )}
+
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/80 font-extrabold text-[11px] inline-flex items-center justify-center gap-1 transition"
+            >
+              <MapPin className="w-3.5 h-3.5 text-[#FF7A00] shrink-0" />
+              <span>Localização</span>
+            </a>
+          </div>
         </div>
       </div>
     </div>
