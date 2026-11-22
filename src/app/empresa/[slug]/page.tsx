@@ -474,27 +474,29 @@ export default function BusinessPublicPage() {
         </div>
       )}
 
-      {/* CAPA SUPERIOR */}
-      <div className="w-full h-44 sm:h-64 bg-gradient-to-r from-[#0A4D9C] to-[#062F63] relative overflow-hidden">
-        {optimizedCover && (
-          <img
-            src={optimizedCover}
-            alt={`Capa ${business.name}`}
-            decoding="async"
-            className="w-full h-full object-cover opacity-90"
-          />
-        )}
-        <div className="max-w-5xl mx-auto px-4 pt-4 relative z-10">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 bg-slate-950/60 hover:bg-slate-950/80 text-white text-xs font-bold px-3.5 py-2 rounded-full backdrop-blur-sm transition"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> Voltar ao Guia
-          </Link>
+      {/* BANNER CAPA ENCAIXADO NO CONTAINER (PROPORÇÃO 3:2 DO GPT SEM FICAR GIGANTE) */}
+      <div className="max-w-5xl w-full mx-auto px-4 pt-4">
+        <div className="w-full h-48 sm:h-64 md:h-72 rounded-3xl bg-gradient-to-r from-[#0A4D9C] to-[#062F63] relative overflow-hidden shadow-sm border border-slate-200/80">
+          {optimizedCover && (
+            <img
+              src={optimizedCover}
+              alt={`Capa ${business.name}`}
+              decoding="async"
+              className="w-full h-full object-cover object-center"
+            />
+          )}
+          <div className="absolute top-3.5 left-3.5 z-10">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 bg-slate-950/65 hover:bg-slate-950/85 text-white text-xs font-bold px-3.5 py-2 rounded-full backdrop-blur-sm transition"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> Voltar ao Guia
+            </Link>
+          </div>
         </div>
       </div>
 
-      <main className="max-w-5xl w-full mx-auto px-4 -mt-12 sm:-mt-16 relative z-20 space-y-6 flex-1">
+      <main className="max-w-5xl w-full mx-auto px-4 -mt-8 sm:-mt-10 relative z-20 space-y-6 flex-1 pb-8">
         {/* CARTÃO PRINCIPAL DO TOPO */}
         <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-md border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="flex items-center gap-4">
