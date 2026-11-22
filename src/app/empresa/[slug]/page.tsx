@@ -474,25 +474,21 @@ export default function BusinessPublicPage() {
         </div>
       )}
 
-      {/* BANNER CAPA 100% DA LARGURA NA PROPORÇÃO EXATA 3:2 (1536x1024px DO GPT) */}
+      {/* BANNER CAPA HORIZONTAL COMPACTO (1200x400px / 3:1) */}
       <div className="max-w-5xl w-full mx-auto px-4 pt-4">
-        <div
-          className={`w-full rounded-3xl overflow-hidden shadow-sm border border-slate-200/80 relative bg-gradient-to-r from-[#0A4D9C] to-[#062F63] ${
-            optimizedCover ? "aspect-[3/2]" : "h-36 sm:h-44"
-          }`}
-        >
+        <div className="w-full h-48 sm:h-64 md:h-72 rounded-3xl bg-gradient-to-r from-[#0A4D9C] to-[#062F63] relative overflow-hidden shadow-sm border border-slate-200/80">
           {optimizedCover && (
             <img
               src={optimizedCover}
               alt={`Capa ${business.name}`}
               decoding="async"
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover object-center"
             />
           )}
-          <div className="absolute top-3.5 left-3.5 sm:top-5 sm:left-5 z-10">
+          <div className="absolute top-3.5 left-3.5 z-10">
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 bg-slate-950/65 hover:bg-slate-950/85 text-white text-xs font-bold px-3.5 py-2 rounded-full backdrop-blur-sm transition shadow-sm"
+              className="inline-flex items-center gap-1.5 bg-slate-950/65 hover:bg-slate-950/85 text-white text-xs font-bold px-3.5 py-2 rounded-full backdrop-blur-sm transition"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Voltar ao Guia
             </Link>
@@ -500,7 +496,7 @@ export default function BusinessPublicPage() {
         </div>
       </div>
 
-      <main className="max-w-5xl w-full mx-auto px-4 -mt-8 sm:-mt-12 relative z-20 space-y-6 flex-1 pb-8">
+      <main className="max-w-5xl w-full mx-auto px-4 -mt-8 sm:-mt-10 relative z-20 space-y-6 flex-1 pb-8">
         {/* CARTÃO PRINCIPAL DO TOPO */}
         <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-md border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="flex items-center gap-4">
