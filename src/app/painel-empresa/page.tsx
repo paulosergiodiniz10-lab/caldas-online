@@ -141,6 +141,7 @@ export default function BusinessDashboardPage() {
   const [instagram, setInstagram] = useState("");
   const [website, setWebsite] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
+  const [showcaseUrl, setShowcaseUrl] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
   const [gallery, setGallery] = useState<string[]>([]);
 
@@ -168,6 +169,7 @@ export default function BusinessDashboardPage() {
   const [couponRules, setCouponRules] = useState("");
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingShowcase, setUploadingShowcase] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
 
@@ -256,6 +258,7 @@ export default function BusinessDashboardPage() {
         setInstagram(data.instagram || "");
         setWebsite(data.website || "");
         setLogoUrl(data.logoUrl || "");
+        setShowcaseUrl(data.showcaseUrl || "");
         setCoverUrl(data.coverUrl || "");
         setGallery(data.gallery || []);
         setMaxPhotos(Math.max(6, data.maxPhotos ?? 6));
@@ -382,6 +385,7 @@ export default function BusinessDashboardPage() {
           instagram: "",
           website: "",
           logoUrl: "",
+          showcaseUrl: "",
           coverUrl: "",
           gallery: [],
           businessHours: DEFAULT_BUSINESS_HOURS,
@@ -423,21 +427,24 @@ export default function BusinessDashboardPage() {
 
   const handleUploadSingle = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    target: "logo" | "cover"
+    target: "logo" | "showcase" | "cover"
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (target === "logo") setUploadingLogo(true);
+    else if (target === "showcase") setUploadingShowcase(true);
     else setUploadingCover(true);
 
     try {
       const url = await compressAndUploadImage(file);
       if (target === "logo") setLogoUrl(url);
+      else if (target === "showcase") setShowcaseUrl(url);
       else setCoverUrl(url);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Erro ao enviar imagem.");
     } finally {
       if (target === "logo") setUploadingLogo(false);
+      else if (target === "showcase") setUploadingShowcase(false);
       else setUploadingCover(false);
       e.target.value = "";
     }
@@ -520,6 +527,7 @@ export default function BusinessDashboardPage() {
         instagram: instagram.trim(),
         website: website.trim(),
         logoUrl,
+        showcaseUrl,
         coverUrl,
         gallery: gallery.slice(0, finalMaxPhotos),
         businessHours,
@@ -1210,13 +1218,13 @@ export default function BusinessDashboardPage() {
               )}
             </div>
 
-            {/* 3. LOGOMARCA, CAPA E GALERIA */}
+            {/* 3. LOGOMARCA, FOTO VITRINE, BANNER CAPA E GALERIA */}
             <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <ImageIcon className="w-5 h-5 text-[#0A4D9C]" />
                   <h2 className="font-extrabold text-slate-900">
-                    3. Logomarca, Capa e Galeria ({gallery.length}/{maxPhotos} fotos)
+                    3. Logo, Foto Vitrine, Banner Capa e Galeria ({gallery.length}/{maxPhotos} fotos)
                   </h2>
                 </div>
                 <span className="text-[11px] font-bold bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-lg">
@@ -1224,73 +1232,135 @@ export default function BusinessDashboardPage() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="border border-dashed border-slate-300 rounded-2xl p-4 flex items-center gap-4">
-                  {logoUrl ? (
-                    <img
-                      src={logoUrl}
-                      alt="Logo"
-                      className="w-16 h-16 rounded-xl object-cover border shrink-0"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center text-xs text-slate-400 font-bold shrink-0">
-                      Logo
-                    </div>
-                  )}
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold text-slate-800">Logomarca Quadrada</p>
-                    <p className="text-[11px] text-slate-500">
-                      Tamanho ideal: <strong>500x500px</strong> (1:1)
-                    </p>
-                    <label className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl cursor-pointer mt-1">
-                      {uploadingLogo ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Upload className="w-3.5 h-3.5" />
-                      )}
-                      Enviar Logo
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleUploadSingle(e, "logo")}
-                        className="hidden"
+              {/* 3 IDENTIDADES VISUAIS SEPARADAS (LOGO | FOTO VITRINE | BANNER CAPA) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* 1. LOGOMARCA QUADRADA */}
+                <div className="border border-dashed border-slate-300 rounded-2xl p-4 flex flex-col justify-between gap-3 bg-slate-50/40">
+                  <div className="flex items-center gap-3">
+                    {logoUrl ? (
+                      <img
+                        src={logoUrl}
+                        alt="Logo"
+                        className="w-16 h-16 rounded-xl object-cover border bg-white shrink-0"
                       />
-                    </label>
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center text-xs text-slate-400 font-bold shrink-0">
+                        Logo
+                      </div>
+                    )}
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-extrabold text-slate-900">
+                        1. Logomarca Quadrada
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Ideal: <strong>500×500px</strong> (1:1)
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        Exibe no perfil da empresa
+                      </p>
+                    </div>
                   </div>
+
+                  <label className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-bold bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 px-3 py-2 rounded-xl cursor-pointer transition">
+                    {uploadingLogo ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5 text-[#0A4D9C]" />
+                    )}
+                    {logoUrl ? "Trocar Logo" : "Enviar Logo"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleUploadSingle(e, "logo")}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
 
-                <div className="border border-dashed border-slate-300 rounded-2xl p-4 flex items-center gap-4">
-                  {coverUrl ? (
-                    <img
-                      src={coverUrl}
-                      alt="Capa"
-                      className="w-24 h-16 rounded-xl object-cover border shrink-0"
-                    />
-                  ) : (
-                    <div className="w-24 h-16 rounded-xl bg-slate-100 flex items-center justify-center text-xs text-slate-400 font-bold shrink-0">
-                      Capa
-                    </div>
-                  )}
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold text-slate-800">Foto de Capa</p>
-                    <p className="text-[11px] text-slate-500">
-                      Tamanho ideal: <strong>1200x400px</strong> (Horizontal)
-                    </p>
-                    <label className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl cursor-pointer mt-1">
-                      {uploadingCover ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Upload className="w-3.5 h-3.5" />
-                      )}
-                      Enviar Capa
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleUploadSingle(e, "cover")}
-                        className="hidden"
+                {/* 2. FOTO VITRINE (CARD DA HOME E CATEGORIAS) */}
+                <div className="border-2 border-dashed border-[#0A4D9C]/40 rounded-2xl p-4 flex flex-col justify-between gap-3 bg-blue-50/30">
+                  <div className="flex items-center gap-3">
+                    {showcaseUrl ? (
+                      <img
+                        src={showcaseUrl}
+                        alt="Foto Vitrine"
+                        className="w-20 h-16 rounded-xl object-cover border bg-white shrink-0"
                       />
-                    </label>
+                    ) : (
+                      <div className="w-20 h-16 rounded-xl bg-blue-100/70 flex items-center justify-center text-[11px] text-[#0A4D9C] font-extrabold shrink-0 text-center px-1">
+                        Vitrine
+                      </div>
+                    )}
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-extrabold text-slate-900">
+                        2. Foto Vitrine (Card)
+                      </p>
+                      <p className="text-[11px] text-slate-600">
+                        Ideal: <strong>800×600px</strong> (4:3)
+                      </p>
+                      <p className="text-[10px] text-[#0A4D9C] font-semibold">
+                        Capa do card na Home e Busca
+                      </p>
+                    </div>
                   </div>
+
+                  <label className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-extrabold bg-[#0A4D9C] hover:bg-[#062F63] text-white px-3 py-2 rounded-xl cursor-pointer transition">
+                    {uploadingShowcase ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                    {showcaseUrl ? "Trocar Foto Vitrine" : "Enviar Foto Vitrine"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleUploadSingle(e, "showcase")}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* 3. BANNER CAPA (TOPO DA PÁGINA INTERNA) */}
+                <div className="border border-dashed border-slate-300 rounded-2xl p-4 flex flex-col justify-between gap-3 bg-slate-50/40">
+                  <div className="flex items-center gap-3">
+                    {coverUrl ? (
+                      <img
+                        src={coverUrl}
+                        alt="Banner Capa"
+                        className="w-24 h-16 rounded-xl object-cover border bg-white shrink-0"
+                      />
+                    ) : (
+                      <div className="w-24 h-16 rounded-xl bg-slate-100 flex items-center justify-center text-[11px] text-slate-400 font-bold shrink-0">
+                        Banner Capa
+                      </div>
+                    )}
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-extrabold text-slate-900">
+                        3. Banner Capa (Topo)
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Ideal: <strong>1200×400px</strong> (3:1)
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        Faixa larga no topo da página
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-bold bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 px-3 py-2 rounded-xl cursor-pointer transition">
+                    {uploadingCover ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5 text-[#0A4D9C]" />
+                    )}
+                    {coverUrl ? "Trocar Banner Capa" : "Enviar Banner Capa"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleUploadSingle(e, "cover")}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
               </div>
 
@@ -1301,7 +1371,7 @@ export default function BusinessDashboardPage() {
                       Fotos da Galeria ({gallery.length} de {maxPhotos} utilizadas)
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      Ideal: <strong>1080x1080px</strong> ou <strong>1080x1350px</strong> (aceita horizontal ou vertical direto do celular)
+                      Ideal: <strong>1080×1080px</strong> (1:1) ou <strong>1080×1350px</strong> (4:5) — aceita horizontal ou vertical direto do celular
                     </p>
                   </div>
 
