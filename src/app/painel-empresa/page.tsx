@@ -26,8 +26,17 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_PLANS,
   DEFAULT_SITE_SETTINGS,
+  DEFAULT_BUSINESS_HOURS,
+  WEEK_DAYS,
 } from "@/lib/constants";
-import { Business, CategoryDoc, PlanDoc, SiteSettings } from "@/types";
+import {
+  Business,
+  BusinessHours,
+  CategoryDoc,
+  DayKey,
+  PlanDoc,
+  SiteSettings,
+} from "@/types";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import {
@@ -55,6 +64,7 @@ import {
   Star,
   Megaphone,
   FileEdit,
+  Copy,
 } from "lucide-react";
 
 function createSlug(text: string) {
@@ -132,6 +142,11 @@ export default function BusinessDashboardPage() {
   const [logoUrl, setLogoUrl] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
   const [gallery, setGallery] = useState<string[]>([]);
+
+  // Horário de Funcionamento
+  const [businessHours, setBusinessHours] = useState<BusinessHours>(
+    DEFAULT_BUSINESS_HOURS
+  );
 
   // Limites controlados pelo Master (Plano Grátis: 6 fotos e 0 vídeos)
   const [maxPhotos, setMaxPhotos] = useState(6);
@@ -250,6 +265,17 @@ export default function BusinessDashboardPage() {
         setViewsCount(data.viewsCount || 0);
         setWhatsappClicks(data.whatsappClicks || 0);
 
+        if (data.businessHours) {
+          setBusinessHours({
+            enabled: Boolean(data.businessHours.enabled),
+            is24h: Boolean(data.businessHours.is24h),
+            days: {
+              ...DEFAULT_BUSINESS_HOURS.days,
+              ...(data.businessHours.days || {}),
+            },
+          });
+        }
+
         setYoutubeHorizontal(data.youtubeHorizontal || "");
         const verts = data.youtubeVerticals || [];
         setYoutubeVertical1(verts[0] || "");
@@ -290,6 +316,37 @@ export default function BusinessDashboardPage() {
     }
   };
 
+  const handleUpdateDaySchedule = (
+    dayKey: DayKey,
+    field: "open" | "start" | "end",
+    value: boolean | string
+  ) => {
+    setBusinessHours((prev) => ({
+      ...prev,
+      days: {
+        ...prev.days,
+        [dayKey]: {
+          ...prev.days[dayKey],
+          [field]: value,
+        },
+      },
+    }));
+  };
+
+  const handleCopyMondayToWeekdays = () => {
+    const monday = businessHours.days.seg;
+    setBusinessHours((prev) => ({
+      ...prev,
+      days: {
+        ...prev.days,
+        ter: { ...monday },
+        qua: { ...monday },
+        qui: { ...monday },
+        sex: { ...monday },
+      },
+    }));
+  };
+
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
@@ -326,11 +383,13 @@ export default function BusinessDashboardPage() {
           logoUrl: "",
           coverUrl: "",
           gallery: [],
+          businessHours: DEFAULT_BUSINESS_HOURS,
           maxPhotos: 6,
           maxVideos: 0,
           youtubeHorizontal: "",
           youtubeVerticals: [],
           coupon: { active: false, title: "", code: "", rules: "" },
+          isVerified: true,
           isFeatured: false,
           isApproved: false,
           acceptedTerms: false,
@@ -462,6 +521,7 @@ export default function BusinessDashboardPage() {
         logoUrl,
         coverUrl,
         gallery: gallery.slice(0, finalMaxPhotos),
+        businessHours,
         maxPhotos: finalMaxPhotos,
         maxVideos,
         youtubeHorizontal: maxVideos >= 1 ? youtubeHorizontal.trim() : "",
@@ -483,6 +543,7 @@ export default function BusinessDashboardPage() {
         await setDoc(doc(db, "businesses", newSlug), {
           ...payload,
           slug: newSlug,
+          isVerified: true,
           isFeatured: false,
           isApproved: false,
           viewsCount: 0,
@@ -1009,13 +1070,146 @@ export default function BusinessDashboardPage() {
               </div>
             </div>
 
-            {/* 2. LOGOMARCA, CAPA E GALERIA */}
+            {/* 2. HORÁRIO DE FUNCIONAMENTO */}
+            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-[#0A4D9C]" />
+                  <div>
+                    <h2 className="font-extrabold text-slate-900">
+                      2. Horário de Funcionamento
+                    </h2>
+                    <p className="text-[11px] text-slate-500">
+                      Mostra no anúncio se a loja está <strong>Aberta agora</strong> ou <strong>Fechada</strong> em tempo real
+                    </p>
+                  </div>
+                </div>
+
+                <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-800 cursor-pointer bg-blue-50 px-3.5 py-2 rounded-xl">
+                  <input
+                    type="checkbox"
+                    checked={businessHours.enabled}
+                    onChange={(e) =>
+                      setBusinessHours({
+                        ...businessHours,
+                        enabled: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 accent-[#0A4D9C]"
+                  />
+                  Exibir Horário de Funcionamento
+                </label>
+              </div>
+
+              {businessHours.enabled && (
+                <div className="space-y-3 pt-2 border-t border-slate-100">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="inline-flex items-center gap-2 text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-2 rounded-xl cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(businessHours.is24h)}
+                        onChange={(e) =>
+                          setBusinessHours({
+                            ...businessHours,
+                            is24h: e.target.checked,
+                          })
+                        }
+                        className="w-4 h-4 accent-emerald-600"
+                      />
+                      Atendimento 24 horas (todos os dias)
+                    </label>
+
+                    {!businessHours.is24h && (
+                      <button
+                        type="button"
+                        onClick={handleCopyMondayToWeekdays}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0A4D9C] hover:bg-blue-50 px-3 py-2 rounded-xl transition cursor-pointer"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        Replicar Segunda para Seg–Sex
+                      </button>
+                    )}
+                  </div>
+
+                  {!businessHours.is24h && (
+                    <div className="space-y-2">
+                      {WEEK_DAYS.map((day) => {
+                        const sched = businessHours.days[day.key];
+                        return (
+                          <div
+                            key={day.key}
+                            className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/70"
+                          >
+                            <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-800 min-w-[130px] cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={sched.open}
+                                onChange={(e) =>
+                                  handleUpdateDaySchedule(
+                                    day.key,
+                                    "open",
+                                    e.target.checked
+                                  )
+                                }
+                                className="w-4 h-4 accent-[#0A4D9C]"
+                              />
+                              <span>{day.label}</span>
+                            </label>
+
+                            {sched.open ? (
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-slate-500 font-semibold">
+                                  Abre:
+                                </span>
+                                <input
+                                  type="time"
+                                  value={sched.start}
+                                  onChange={(e) =>
+                                    handleUpdateDaySchedule(
+                                      day.key,
+                                      "start",
+                                      e.target.value
+                                    )
+                                  }
+                                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 font-bold text-slate-800"
+                                />
+                                <span className="text-slate-500 font-semibold">
+                                  Fecha:
+                                </span>
+                                <input
+                                  type="time"
+                                  value={sched.end}
+                                  onChange={(e) =>
+                                    handleUpdateDaySchedule(
+                                      day.key,
+                                      "end",
+                                      e.target.value
+                                    )
+                                  }
+                                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 font-bold text-slate-800"
+                                />
+                              </div>
+                            ) : (
+                              <span className="text-xs font-bold text-red-600 px-2">
+                                Fechado neste dia
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 3. LOGOMARCA, CAPA E GALERIA */}
             <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <ImageIcon className="w-5 h-5 text-[#0A4D9C]" />
                   <h2 className="font-extrabold text-slate-900">
-                    2. Logomarca, Capa e Galeria ({gallery.length}/{maxPhotos} fotos)
+                    3. Logomarca, Capa e Galeria ({gallery.length}/{maxPhotos} fotos)
                   </h2>
                 </div>
                 <span className="text-[11px] font-bold bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-lg">
@@ -1157,13 +1351,13 @@ export default function BusinessDashboardPage() {
               </div>
             </div>
 
-            {/* 3. VÍDEOS DO YOUTUBE (EXCLUSIVO ASSINANTES) */}
+            {/* 4. VÍDEOS DO YOUTUBE (EXCLUSIVO ASSINANTES) */}
             <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <Youtube className="w-5 h-5 text-red-600" />
                   <h2 className="font-extrabold text-slate-900">
-                    3. Vídeos do YouTube ({maxVideos} vídeo(s) liberados)
+                    4. Vídeos do YouTube ({maxVideos} vídeo(s) liberados)
                   </h2>
                 </div>
 
@@ -1235,13 +1429,13 @@ export default function BusinessDashboardPage() {
               </div>
             </div>
 
-            {/* 4. CUPOM DE DESCONTO */}
+            {/* 5. CUPOM DE DESCONTO */}
             <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Ticket className="w-5 h-5 text-[#FF7A00]" />
                   <h2 className="font-extrabold text-slate-900">
-                    4. Cupom de Desconto Exclusivo
+                    5. Cupom de Desconto Exclusivo
                   </h2>
                 </div>
                 <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-800 cursor-pointer">
@@ -1299,12 +1493,12 @@ export default function BusinessDashboardPage() {
               )}
             </div>
 
-            {/* 5. REGRAS DO GUIA E TERMO DE RESPONSABILIDADE */}
+            {/* 6. REGRAS DO GUIA E TERMO DE RESPONSABILIDADE */}
             <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200 space-y-3">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-[#0A4D9C]" />
                 <h2 className="font-extrabold text-slate-900">
-                  5. Regras do Guia e Termo de Responsabilidade
+                  6. Regras do Guia e Termo de Responsabilidade
                 </h2>
               </div>
 
