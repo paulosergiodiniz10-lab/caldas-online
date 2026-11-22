@@ -15,10 +15,11 @@ export async function compressAndUploadImage(file: File): Promise<string> {
     throw new Error("Configurações do Cloudinary ausentes nas variáveis de ambiente.");
   }
 
-  // Comprime automaticamente no celular/PC do usuário antes de enviar (~200-280 KB em WebP)
+  // Comprime automaticamente no navegador do usuário antes do envio (~300-450 KB em WebP nítido)
   const compressedFile = await imageCompression(file, {
-    maxSizeMB: 0.28,
-    maxWidthOrHeight: 1280,
+    maxSizeMB: 0.45,
+    maxWidthOrHeight: 1536,
+    initialQuality: 0.88,
     useWebWorker: true,
     fileType: "image/webp",
   });
