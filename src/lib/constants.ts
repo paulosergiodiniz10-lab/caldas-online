@@ -1,4 +1,159 @@
-import { CategoryDoc, UtilityDoc, SiteSettings, PlanDoc } from "@/types";
+import {
+  CategoryDoc,
+  UtilityDoc,
+  SiteSettings,
+  PlanDoc,
+  BusinessHours,
+  DayKey,
+} from "@/types";
+
+export const WEEK_DAYS: { key: DayKey; label: string; short: string }[] = [
+  { key: "seg", label: "Segunda-feira", short: "Seg" },
+  { key: "ter", label: "Terça-feira", short: "Ter" },
+  { key: "qua", label: "Quarta-feira", short: "Qua" },
+  { key: "qui", label: "Quinta-feira", short: "Qui" },
+  { key: "sex", label: "Sexta-feira", short: "Sex" },
+  { key: "sab", label: "Sábado", short: "Sáb" },
+  { key: "dom", label: "Domingo", short: "Dom" },
+];
+
+export const DEFAULT_BUSINESS_HOURS: BusinessHours = {
+  enabled: false,
+  is24h: false,
+  days: {
+    seg: { open: true, start: "08:00", end: "18:00" },
+    ter: { open: true, start: "08:00", end: "18:00" },
+    qua: { open: true, start: "08:00", end: "18:00" },
+    qui: { open: true, start: "08:00", end: "18:00" },
+    sex: { open: true, start: "08:00", end: "18:00" },
+    sab: { open: true, start: "08:00", end: "12:00" },
+    dom: { open: false, start: "08:00", end: "12:00" },
+  },
+};
+
+const JS_DAY_TO_KEY: DayKey[] = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
+
+function parseMinutes(hhmm: string): number {
+  const [h, m] = (hhmm || "00:00").split(":").map((n) => parseInt(n, 10) || 0);
+  return h * 60 + m;
+}
+
+export interface BusinessOpenStatus {
+  hasSchedule: boolean;
+  isOpen: boolean;
+  label: string;
+  detail: string;
+}
+
+export function getBusinessOpenStatus(
+  hours?: BusinessHours
+): BusinessOpenStatus {
+  if (!hours || !hours.enabled) {
+    return {
+      hasSchedule: false,
+      isOpen: true,
+      label: "",
+      detail: "",
+    };
+  }
+
+  if (hours.is24h) {
+    return {
+      hasSchedule: true,
+      isOpen: true,
+      label: "Aberto 24h",
+      detail: "Atendimento 24 horas",
+    };
+  }
+
+  // Hora oficial de Caldas Novas / Goiás (UTC-3 / America/Sao_Paulo)
+  const nowStr = new Date().toLocaleString("en-US", {
+    timeZone: "America/Sao_Paulo",
+  });
+  const localNow = new Date(nowStr);
+  const currentDayIndex = localNow.getDay(); // 0 = dom ... 6 = sab
+  const currentMinutes = localNow.getHours() * 60 + localNow.getMinutes();
+
+  const todayKey = JS_DAY_TO_KEY[currentDayIndex];
+  const yesterdayIndex = (currentDayIndex + 6) % 7;
+  const yesterdayKey = JS_DAY_TO_KEY[yesterdayIndex];
+
+  // 1. Verifica se ontem abriu e virou a madrugada (ex: 18:00 às 01:00)
+  const yesterdaySchedule = hours.days?.[yesterdayKey];
+  if (yesterdaySchedule?.open) {
+    const yStart = parseMinutes(yesterdaySchedule.start);
+    const yEnd = parseMinutes(yesterdaySchedule.end);
+    if (yEnd < yStart && currentMinutes < yEnd) {
+      return {
+        hasSchedule: true,
+        isOpen: true,
+        label: "Aberto agora",
+        detail: `Fecha às ${yesterdaySchedule.end}`,
+      };
+    }
+  }
+
+  // 2. Verifica o horário de hoje
+  const todaySchedule = hours.days?.[todayKey];
+  if (todaySchedule?.open) {
+    const startMin = parseMinutes(todaySchedule.start);
+    const endMin = parseMinutes(todaySchedule.end);
+
+    if (endMin < startMin) {
+      // Turno que atravessa a meia-noite (ex: 18:00 às 01:00)
+      if (currentMinutes >= startMin) {
+        return {
+          hasSchedule: true,
+          isOpen: true,
+          label: "Aberto agora",
+          detail: `Fecha às ${todaySchedule.end}`,
+        };
+      }
+    } else if (currentMinutes >= startMin && currentMinutes < endMin) {
+      return {
+        hasSchedule: true,
+        isOpen: true,
+        label: "Aberto agora",
+        detail: `Fecha às ${todaySchedule.end}`,
+      };
+    }
+
+    // Ainda vai abrir hoje
+    if (currentMinutes < startMin) {
+      return {
+        hasSchedule: true,
+        isOpen: false,
+        label: "Fechado agora",
+        detail: `Abre hoje às ${todaySchedule.start}`,
+      };
+    }
+  }
+
+  // 3. Procura o próximo dia da semana em que abre
+  for (let offset = 1; offset <= 7; offset++) {
+    const nextIdx = (currentDayIndex + offset) % 7;
+    const nextKey = JS_DAY_TO_KEY[nextIdx];
+    const nextSched = hours.days?.[nextKey];
+    if (nextSched?.open) {
+      const dayShort =
+        WEEK_DAYS.find((d) => d.key === nextKey)?.short || nextKey;
+      const whenText = offset === 1 ? "amanhã" : dayShort;
+      return {
+        hasSchedule: true,
+        isOpen: false,
+        label: "Fechado agora",
+        detail: `Abre ${whenText} às ${nextSched.start}`,
+      };
+    }
+  }
+
+  return {
+    hasSchedule: true,
+    isOpen: false,
+    label: "Fechado agora",
+    detail: "Consulte horários",
+  };
+}
 
 export const ICON_OPTIONS = [
   { name: "Utensils", label: "Onde Comer / Restaurante" },
