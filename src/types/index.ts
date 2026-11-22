@@ -5,6 +5,20 @@ export interface Coupon {
   rules: string;
 }
 
+export type DayKey = "seg" | "ter" | "qua" | "qui" | "sex" | "sab" | "dom";
+
+export interface DaySchedule {
+  open: boolean;
+  start: string; // Ex: "08:00"
+  end: string;   // Ex: "18:00"
+}
+
+export interface BusinessHours {
+  enabled: boolean; // Se a empresa ativou controle de horário
+  is24h?: boolean;  // Se atende 24 horas todos os dias
+  days: Record<DayKey, DaySchedule>;
+}
+
 export interface Business {
   id: string;
   ownerId: string;
@@ -15,6 +29,8 @@ export interface Business {
   description: string;
   neighborhood: string;
   address: string;
+  cep?: string;
+  googleMapsUrl?: string;
   lat: number | null;
   lng: number | null;
   whatsapp: string;
@@ -29,7 +45,9 @@ export interface Business {
   youtubeHorizontal?: string; // 1 vídeo horizontal (exibe primeiro)
   youtubeVerticals?: string[]; // Até 3 vídeos verticais (Shorts/YouTube)
   coupon?: Coupon;
+  businessHours?: BusinessHours; // Horário de funcionamento semanal
   planId?: string; // Identificador do plano contratado (opcional)
+  isVerified?: boolean; // Selo Empresa Verificada (controlado no Master)
   isFeatured: boolean;
   isApproved: boolean;
   viewsCount: number;
