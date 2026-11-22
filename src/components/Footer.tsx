@@ -85,17 +85,17 @@ export function Footer({ settings, vipGroupUrl, masterWhatsApp }: FooterProps) {
     <>
       <footer className="mt-12 space-y-6 pb-8">
         <div className="max-w-6xl mx-auto px-4 space-y-5">
-          {/* BANNER 1: CLUBE EXCLUSIVO / GRUPO VIP */}
-          <div className="rounded-3xl bg-gradient-to-r from-[#FF7A00] via-orange-500 to-[#FFB800] p-6 sm:p-8 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          {/* BANNER 1: CLUBE EXCLUSIVO / GRUPO VIP (VERDE ESMERALDA VIP) */}
+          <div className="rounded-3xl bg-gradient-to-r from-[#064E3B] via-[#047857] to-[#059669] p-6 sm:p-8 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-6 text-white">
             <div className="space-y-2 max-w-2xl">
-              <span className="inline-flex items-center gap-1.5 bg-slate-950 text-[#FFB800] text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full">
+              <span className="inline-flex items-center gap-1.5 bg-slate-950/60 text-[#FFB800] border border-white/15 text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full">
                 <Flame className="w-3.5 h-3.5 fill-[#FFB800]" />
                 {cfg.vipGroupBadge}
               </span>
-              <h2 className="text-2xl sm:text-3xl font-black text-slate-950 leading-tight">
+              <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight">
                 {cfg.vipGroupTitle}
               </h2>
-              <p className="text-sm text-slate-900/90 font-medium leading-relaxed">
+              <p className="text-sm text-emerald-50/90 font-medium leading-relaxed">
                 {cfg.vipGroupSubtitle}
               </p>
             </div>
@@ -104,9 +104,9 @@ export function Footer({ settings, vipGroupUrl, masterWhatsApp }: FooterProps) {
               href={resolveVipHref()}
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-slate-950 hover:bg-slate-900 text-white font-extrabold text-xs sm:text-sm px-6 py-4 rounded-2xl shadow-lg inline-flex items-center gap-2.5 transition shrink-0 w-full md:w-auto justify-center"
+              className="bg-white hover:bg-emerald-50 text-[#064E3B] font-extrabold text-xs sm:text-sm px-6 py-4 rounded-2xl shadow-lg inline-flex items-center gap-2.5 transition shrink-0 w-full md:w-auto justify-center"
             >
-              <MessageCircle className="w-5 h-5 text-[#25D366]" />
+              <MessageCircle className="w-5 h-5 text-[#1DB954] fill-[#1DB954]" />
               {cfg.vipGroupButtonText}
             </a>
           </div>
