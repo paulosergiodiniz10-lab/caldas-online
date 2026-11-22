@@ -17,7 +17,6 @@ import {
 import { auth, db } from "@/lib/firebase";
 import { optimizeCloudinaryUrl } from "@/lib/cloudinary";
 import {
-  DEFAULT_CATEGORIES,
   DEFAULT_SITE_SETTINGS,
   WEEK_DAYS,
   getBusinessOpenStatus,
@@ -427,12 +426,6 @@ export default function BusinessPublicPage() {
         `${business.name} ${fullAddressParts.join(", ")}`
       )}`;
 
-  const categoryObj = DEFAULT_CATEGORIES.find(
-    (c) => (c.slug || c.id) === business.category
-  );
-  const categoryLabel =
-    categoryObj?.name || business.subcategory || business.category || "";
-
   const allowedVideos = business.maxVideos ?? 0;
   const horizontalEmbed =
     allowedVideos >= 1 && business.youtubeHorizontal
@@ -481,61 +474,33 @@ export default function BusinessPublicPage() {
         </div>
       )}
 
-      {/* BANNER CAPA DIVIDIDO (ENCAIXA 100% DA IMAGEM 3:2 DO GPT SEM CORTAR E SEM ESTICAR) */}
+      {/* BANNER CAPA 100% DA LARGURA NA PROPORÇÃO EXATA 3:2 (1536x1024px DO GPT) */}
       <div className="max-w-5xl w-full mx-auto px-4 pt-4">
-        <div className="rounded-3xl bg-gradient-to-r from-[#0A4D9C] via-[#073B7A] to-[#062F63] overflow-hidden shadow-sm border border-slate-200/80 flex flex-col md:flex-row md:h-72 relative">
-          {/* LADO ESQUERDO: NAVEGAÇÃO + IDENTIDADE DO GUIA */}
-          <div className="flex-1 p-4 sm:p-6 md:p-7 flex flex-col justify-between gap-3 text-white">
-            <div>
-              <Link
-                href="/"
-                className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-xs font-bold px-3.5 py-2 rounded-full backdrop-blur-xs transition"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" /> Voltar ao Guia
-              </Link>
-            </div>
-
-            {optimizedCover ? (
-              <div className="hidden md:block space-y-1.5">
-                <span className="inline-block bg-[#FFB800] text-slate-950 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full">
-                  {categoryLabel || "Caldas Novas Online"}
-                </span>
-                <p className="text-lg lg:text-xl font-black leading-snug line-clamp-2 text-white">
-                  {business.name}
-                </p>
-                {business.neighborhood && (
-                  <p className="text-xs text-blue-200 font-semibold">
-                    📍 {business.neighborhood} • Caldas Novas - GO
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="py-4 md:py-0 space-y-1">
-                <span className="inline-block bg-[#FFB800] text-slate-950 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full">
-                  {categoryLabel || "Guia Comercial"}
-                </span>
-                <p className="text-xl sm:text-2xl font-black text-white">
-                  {business.name}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* LADO DIREITO: FOTO 3:2 EXATA (ZERO CORTE, ZERO DISTORÇÃO) */}
+        <div
+          className={`w-full rounded-3xl overflow-hidden shadow-sm border border-slate-200/80 relative bg-gradient-to-r from-[#0A4D9C] to-[#062F63] ${
+            optimizedCover ? "aspect-[3/2]" : "h-36 sm:h-44"
+          }`}
+        >
           {optimizedCover && (
-            <div className="w-full md:w-auto md:h-full aspect-[3/2] shrink-0 bg-slate-900 overflow-hidden relative">
-              <img
-                src={optimizedCover}
-                alt={`Capa ${business.name}`}
-                decoding="async"
-                className="w-full h-full object-cover"
-              />
-            </div>
+            <img
+              src={optimizedCover}
+              alt={`Capa ${business.name}`}
+              decoding="async"
+              className="w-full h-full object-cover"
+            />
           )}
+          <div className="absolute top-3.5 left-3.5 sm:top-5 sm:left-5 z-10">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 bg-slate-950/65 hover:bg-slate-950/85 text-white text-xs font-bold px-3.5 py-2 rounded-full backdrop-blur-sm transition shadow-sm"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> Voltar ao Guia
+            </Link>
+          </div>
         </div>
       </div>
 
-      <main className="max-w-5xl w-full mx-auto px-4 mt-4 sm:mt-5 relative z-20 space-y-6 flex-1 pb-8">
+      <main className="max-w-5xl w-full mx-auto px-4 -mt-8 sm:-mt-12 relative z-20 space-y-6 flex-1 pb-8">
         {/* CARTÃO PRINCIPAL DO TOPO */}
         <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-md border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="flex items-center gap-4">
@@ -544,7 +509,7 @@ export default function BusinessPublicPage() {
                 src={optimizedLogo}
                 alt={business.name}
                 decoding="async"
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border border-slate-200 shadow-sm shrink-0 bg-white"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-white shadow-md shrink-0 bg-white"
               />
             ) : (
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-blue-50 text-[#0A4D9C] flex items-center justify-center shrink-0 border border-blue-100">
