@@ -12,6 +12,7 @@ import {
   PhoneCall,
   Store,
   Loader2,
+  Clock,
   X,
 } from "lucide-react";
 import { collection, getDocs, query, where, doc, getDoc } from "firebase/firestore";
@@ -28,6 +29,7 @@ import {
   DEFAULT_UTILITIES,
   DEFAULT_SITE_SETTINGS,
   calculateDistanceKm,
+  getBusinessOpenStatus,
 } from "@/lib/constants";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -59,6 +61,7 @@ export default function HomePage() {
   // Filtros e Busca
   const [searchTerm, setSearchTerm] = useState("");
   const [onlyCoupons, setOnlyCoupons] = useState(false);
+  const [onlyOpenNow, setOnlyOpenNow] = useState(false);
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
 
@@ -159,9 +162,12 @@ export default function HomePage() {
         if (userCoords && typeof biz.lat === "number" && typeof biz.lng === "number") {
           distanceKm = calculateDistanceKm(userCoords.lat, userCoords.lng, biz.lat, biz.lng);
         }
-        return { ...biz, distanceKm };
+        const status = getBusinessOpenStatus(biz.businessHours);
+        const isClosedNow = status.hasSchedule && !status.isOpen;
+        return { ...biz, distanceKm, isClosedNow };
       })
       .filter((biz) => {
+        if (onlyOpenNow && biz.isClosedNow) return false;
         if (onlyCoupons && !biz.coupon?.active) return false;
         if (!term) return true;
         return (
@@ -172,6 +178,11 @@ export default function HomePage() {
         );
       })
       .sort((a, b) => {
+        // 1. Lojas fechadas agora vão automaticamente para o final da fila
+        if (!a.isClosedNow && b.isClosedNow) return -1;
+        if (a.isClosedNow && !b.isClosedNow) return 1;
+
+        // 2. Se GPS ativo, ordena pela menor distância
         if (userCoords) {
           if (a.distanceKm !== null && b.distanceKm !== null) {
             return a.distanceKm - b.distanceKm;
@@ -179,13 +190,17 @@ export default function HomePage() {
           if (a.distanceKm !== null) return -1;
           if (b.distanceKm !== null) return 1;
         }
+
+        // 3. Destaques no topo dentro do mesmo status
         if (a.isFeatured && !b.isFeatured) return -1;
         if (!a.isFeatured && b.isFeatured) return 1;
         return 0;
       });
-  }, [businesses, searchTerm, onlyCoupons, userCoords]);
+  }, [businesses, searchTerm, onlyCoupons, onlyOpenNow, userCoords]);
 
-  const isFiltering = Boolean(searchTerm.trim() || onlyCoupons || userCoords);
+  const isFiltering = Boolean(
+    searchTerm.trim() || onlyCoupons || onlyOpenNow || userCoords
+  );
 
   // Termos válidos da seção Mais Procurados (oculta se desativado no Master ou se estiver vazio)
   const validMostSearched = useMemo(() => {
@@ -195,14 +210,39 @@ export default function HomePage() {
     );
   }, [settings.showMostSearched, settings.mostSearchedItems]);
 
-  // TODAS as empresas marcadas como Destaque (isFeatured === true), embaralhadas a cada acesso
+  // TODAS as empresas marcadas como Destaque (abertas primeiro, fechadas por último)
   const featuredBusinesses = useMemo(() => {
-    return businesses.filter((b) => b.isFeatured === true);
+    return businesses
+      .filter((b) => b.isFeatured === true)
+      .sort((a, b) => {
+        const aClosed =
+          getBusinessOpenStatus(a.businessHours).hasSchedule &&
+          !getBusinessOpenStatus(a.businessHours).isOpen;
+        const bClosed =
+          getBusinessOpenStatus(b.businessHours).hasSchedule &&
+          !getBusinessOpenStatus(b.businessHours).isOpen;
+        if (!aClosed && bClosed) return -1;
+        if (aClosed && !bClosed) return 1;
+        return 0;
+      });
   }, [businesses]);
 
-  // Amostra rotativa de até 8 empresas gratuitas (2 linhas de 4 cards) a cada acesso
+  // Amostra rotativa de até 8 empresas gratuitas (abertas primeiro, fechadas no final)
   const regularBusinesses = useMemo(() => {
-    return businesses.filter((b) => !b.isFeatured).slice(0, 8);
+    return businesses
+      .filter((b) => !b.isFeatured)
+      .sort((a, b) => {
+        const aClosed =
+          getBusinessOpenStatus(a.businessHours).hasSchedule &&
+          !getBusinessOpenStatus(a.businessHours).isOpen;
+        const bClosed =
+          getBusinessOpenStatus(b.businessHours).hasSchedule &&
+          !getBusinessOpenStatus(b.businessHours).isOpen;
+        if (!aClosed && bClosed) return -1;
+        if (aClosed && !bClosed) return 1;
+        return 0;
+      })
+      .slice(0, 8);
   }, [businesses]);
 
   return (
@@ -247,11 +287,29 @@ export default function HomePage() {
             </button>
           </div>
 
-          {/* Pills de Ação Instantânea (GPS + Cupons) */}
+          {/* Pills de Ação Instantânea (Abertas agora + GPS + Cupons) */}
           <div className="mt-3.5 flex flex-wrap items-center justify-center gap-2">
             <button
+              type="button"
+              onClick={() => setOnlyOpenNow(!onlyOpenNow)}
+              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-full transition shadow-sm cursor-pointer ${
+                onlyOpenNow
+                  ? "bg-emerald-600 text-white"
+                  : "bg-white/95 hover:bg-white text-slate-800"
+              }`}
+            >
+              <Clock
+                className={`w-3.5 h-3.5 ${
+                  onlyOpenNow ? "text-white" : "text-emerald-600"
+                }`}
+              />
+              Abertas agora
+            </button>
+
+            <button
+              type="button"
               onClick={handleActivateLocation}
-              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-full transition shadow-sm ${
+              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-full transition shadow-sm cursor-pointer ${
                 userCoords
                   ? "bg-emerald-500 text-white"
                   : "bg-white/95 hover:bg-white text-slate-800"
@@ -260,20 +318,29 @@ export default function HomePage() {
               {locating ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                <Navigation className="w-3.5 h-3.5 text-orange-500" />
+                <Navigation
+                  className={`w-3.5 h-3.5 ${
+                    userCoords ? "text-white" : "text-orange-500"
+                  }`}
+                />
               )}
               {userCoords ? "Perto de mim (Ativo)" : "Ordenar por mais perto"}
             </button>
 
             <button
+              type="button"
               onClick={() => setOnlyCoupons(!onlyCoupons)}
-              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-full transition shadow-sm ${
+              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-full transition shadow-sm cursor-pointer ${
                 onlyCoupons
                   ? "bg-[#FF7A00] text-white"
                   : "bg-white/95 hover:bg-white text-slate-800"
               }`}
             >
-              <Ticket className="w-3.5 h-3.5 text-orange-500" />
+              <Ticket
+                className={`w-3.5 h-3.5 ${
+                  onlyCoupons ? "text-white" : "text-orange-500"
+                }`}
+              />
               Com Cupom de Desconto
             </button>
           </div>
@@ -345,18 +412,22 @@ export default function HomePage() {
                   Resultados encontrados ({processedBusinesses.length})
                 </h2>
                 <p className="text-xs text-slate-500">
-                  {userCoords
+                  {onlyOpenNow
+                    ? "Mostrando apenas empresas abertas neste momento"
+                    : userCoords
                     ? "Ordenados da menor distância para a maior até você"
-                    : "Mostrando empresas correspondentes"}
+                    : "Mostrando empresas correspondentes (lojas fechadas vão para o final)"}
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => {
                   setSearchTerm("");
                   setOnlyCoupons(false);
+                  setOnlyOpenNow(false);
                   setUserCoords(null);
                 }}
-                className="text-xs font-bold text-[#0A4D9C] hover:underline"
+                className="text-xs font-bold text-[#0A4D9C] hover:underline cursor-pointer"
               >
                 Limpar filtros
               </button>
