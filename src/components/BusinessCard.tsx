@@ -11,8 +11,8 @@ import {
   MessageCircle,
   Building2,
   Star,
-  BadgeCheck,
   MapPin,
+  Check,
 } from "lucide-react";
 
 type BusinessWithMaps = Business & {
@@ -23,6 +23,18 @@ type BusinessWithMaps = Business & {
 interface BusinessCardProps {
   business: BusinessWithMaps;
   distanceKm?: number | null;
+}
+
+// Selo Verificada estilo Meta (círculo serrilhado azul sólido com check branco)
+function MetaVerifiedBadge({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <span
+      title="Empresa Verificada"
+      className={`inline-flex items-center justify-center rounded-full bg-[#1877F2] text-white shadow-2xs shrink-0 ${className}`}
+    >
+      <Check className="w-[68%] h-[68%] stroke-[3.5]" />
+    </span>
+  );
 }
 
 export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
@@ -36,6 +48,15 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
     ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waMessage)}`
     : "#";
 
+  // Só exibe o botão Localização se o anunciante informou link do Maps, coordenadas ou endereço
+  const hasGoogleMapsLink = Boolean(
+    business.googleMapsUrl && business.googleMapsUrl.trim()
+  );
+  const hasCoordinates =
+    typeof business.lat === "number" && typeof business.lng === "number";
+  const hasStreetAddress = Boolean(business.address && business.address.trim());
+  const hasLocation = hasGoogleMapsLink || hasCoordinates || hasStreetAddress;
+
   const fullAddressParts = [
     business.address,
     business.neighborhood ? `Bairro ${business.neighborhood}` : "",
@@ -43,12 +64,13 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
     "Caldas Novas - GO",
   ].filter(Boolean);
 
-  const mapsUrl =
-    business.googleMapsUrl && business.googleMapsUrl.trim()
-      ? business.googleMapsUrl.trim()
-      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          `${business.name} ${fullAddressParts.join(", ")}`
-        )}`;
+  const mapsUrl = hasGoogleMapsLink
+    ? business.googleMapsUrl!.trim()
+    : hasCoordinates
+    ? `https://www.google.com/maps/search/?api=1&query=${business.lat},${business.lng}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        `${business.name} ${fullAddressParts.join(", ")}`
+      )}`;
 
   const categoryObj = DEFAULT_CATEGORIES.find(
     (c) => (c.slug || c.id) === business.category
@@ -82,11 +104,11 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
     <div
       className={`group rounded-2xl border shadow-sm hover:shadow-md transition overflow-hidden flex flex-col ${
         isClosedNow
-          ? "bg-slate-50/70 border-slate-200/80"
-          : "bg-white border-slate-200/70 hover:border-[#0A4D9C]/40"
+          ? "bg-slate-50/80 border-slate-300"
+          : "bg-white border-slate-300/90 hover:border-[#0A4D9C]/60"
       }`}
     >
-      {/* FOTO LIMPA E VALORIZADA (APENAS BADGES DISCRETOS NO TOPO) */}
+      {/* FOTO LIMPA E VALORIZADA */}
       <Link
         href={detailsHref}
         className="relative w-full h-48 bg-slate-100 overflow-hidden block"
@@ -121,61 +143,45 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
             <span />
           )}
 
-          {hasCoupon && business.isFeatured ? (
+          {hasCoupon && business.isFeatured && (
             <span
               title="Cupom de Desconto Ativo"
               className="inline-flex items-center gap-1 bg-[#FF7A00] text-white text-[10px] font-black uppercase px-2 py-1 rounded-lg shadow-sm"
             >
               <Ticket className="w-3 h-3" /> Cupom
             </span>
-          ) : isVerified ? (
-            <span
-              title="Empresa Verificada"
-              className="w-7 h-7 rounded-full bg-white/95 text-[#0A4D9C] flex items-center justify-center shadow-sm"
-            >
-              <BadgeCheck className="w-4 h-4" />
-            </span>
-          ) : null}
+          )}
         </div>
       </Link>
 
       {/* CORPO ORGANIZADO DO CARD */}
       <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
         <div className="space-y-1">
-          {/* NOME DA EMPRESA + SELO VERIFICADA */}
+          {/* NOME DA EMPRESA + SELO VERIFICADA ESTILO META */}
           <Link href={detailsHref} className="block group/title">
             <h3 className="text-[15px] sm:text-base font-black text-slate-900 group-hover/title:text-[#0A4D9C] leading-snug line-clamp-2">
               <span>{business.name}</span>
               {isVerified && (
-                <span
-                  title="Empresa Verificada"
-                  className="inline-flex items-center align-middle ml-1"
-                >
-                  <BadgeCheck className="w-4 h-4 text-[#0A4D9C] fill-blue-50 inline" />
+                <span className="inline-flex items-center align-middle ml-1.5 -mt-0.5">
+                  <MetaVerifiedBadge className="w-4 h-4" />
                 </span>
               )}
             </h3>
           </Link>
 
-          {/* NOME DA CATEGORIA (SEM O TEXTO "CATEGORIA") */}
-          {categoryLabel && (
+          {/* NOME DA CATEGORIA (E DISTÂNCIA APENAS QUANDO GPS ESTIVER ATIVO) */}
+          {(categoryLabel || typeof distanceKm === "number") && (
             <p className="text-xs font-semibold text-slate-500 line-clamp-1">
               {categoryLabel}
+              {typeof distanceKm === "number"
+                ? `${categoryLabel ? " • " : ""}${distanceKm
+                    .toFixed(1)
+                    .replace(".", ",")} km`
+                : ""}
             </p>
           )}
 
-          {/* BAIRRO / DISTÂNCIA */}
-          <p className="text-[11px] font-medium text-slate-400 flex items-center gap-1 line-clamp-1 pt-0.5">
-            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-            <span>
-              {business.neighborhood || "Caldas Novas"}
-              {typeof distanceKm === "number"
-                ? ` • ${distanceKm.toFixed(1).replace(".", ",")} km`
-                : ""}
-            </span>
-          </p>
-
-          {/* STATUS DE FUNCIONAMENTO (VERDE ABERTO / VERMELHO FECHADO) */}
+          {/* STATUS DE FUNCIONAMENTO ENXUTO */}
           {openStatus.hasSchedule && (
             <div className="pt-0.5">
               {openStatus.isOpen ? (
@@ -189,16 +195,13 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
               ) : (
                 <p className="text-xs font-extrabold text-red-600 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-                  <span className="truncate">
-                    {openStatus.label}
-                    {openStatus.detail ? ` • ${openStatus.detail}` : ""}
-                  </span>
+                  <span>Fechado agora</span>
                 </p>
               )}
             </div>
           )}
 
-          {/* BOX DE CUPOM (IGUAL AO ATUAL) */}
+          {/* BOX DE CUPOM */}
           {hasCoupon && (
             <Link
               href={detailsHref}
@@ -209,7 +212,7 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
           )}
         </div>
 
-        {/* BOTÕES NA BASE: VER PERFIL (TOPO) + WHATSAPP | LOCALIZAÇÃO */}
+        {/* BOTÕES NA BASE: VER PERFIL + WHATSAPP (E LOCALIZAÇÃO SE CADASTRADA) */}
         <div className="pt-1 space-y-2">
           <Link
             href={detailsHref}
@@ -218,38 +221,46 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
             Ver perfil
           </Link>
 
-          <div className={`grid gap-2 ${cleanPhone ? "grid-cols-2" : "grid-cols-1"}`}>
-            {cleanPhone && (
-              <a
-                href={waUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={handleWhatsappClick}
-                className={`w-full py-2 px-2 rounded-xl font-extrabold text-[11px] inline-flex items-center justify-center gap-1 transition ${
-                  isClosedNow
-                    ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
-                    : "bg-[#1DB954] hover:bg-[#18a349] text-white shadow-2xs"
-                }`}
-              >
-                <MessageCircle
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    isClosedNow ? "text-slate-600" : "fill-white"
-                  }`}
-                />
-                <span>WhatsApp</span>
-              </a>
-            )}
-
-            <a
-              href={mapsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/80 font-extrabold text-[11px] inline-flex items-center justify-center gap-1 transition"
+          {(cleanPhone || hasLocation) && (
+            <div
+              className={`grid gap-2 ${
+                cleanPhone && hasLocation ? "grid-cols-2" : "grid-cols-1"
+              }`}
             >
-              <MapPin className="w-3.5 h-3.5 text-[#FF7A00] shrink-0" />
-              <span>Localização</span>
-            </a>
-          </div>
+              {cleanPhone && (
+                <a
+                  href={waUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={handleWhatsappClick}
+                  className={`w-full py-2 px-2 rounded-xl font-extrabold text-[11px] inline-flex items-center justify-center gap-1 transition ${
+                    isClosedNow
+                      ? "bg-slate-200/80 hover:bg-slate-300 text-slate-700 border border-slate-300"
+                      : "bg-[#1DB954] hover:bg-[#18a349] text-white shadow-2xs"
+                  }`}
+                >
+                  <MessageCircle
+                    className={`w-3.5 h-3.5 shrink-0 ${
+                      isClosedNow ? "text-slate-600" : "fill-white"
+                    }`}
+                  />
+                  <span>WhatsApp</span>
+                </a>
+              )}
+
+              {hasLocation && (
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300/80 font-extrabold text-[11px] inline-flex items-center justify-center gap-1 transition"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-[#FF7A00] shrink-0" />
+                  <span>Localização</span>
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
