@@ -9,6 +9,7 @@ import {
   Ticket,
   Search,
   Loader2,
+  Clock,
 } from "lucide-react";
 import { collection, getDocs, query, where, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -17,6 +18,7 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_SITE_SETTINGS,
   calculateDistanceKm,
+  getBusinessOpenStatus,
 } from "@/lib/constants";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -61,6 +63,7 @@ export default function CategoryPage() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [onlyCoupons, setOnlyCoupons] = useState(false);
+  const [onlyOpenNow, setOnlyOpenNow] = useState(false);
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
 
@@ -167,9 +170,12 @@ export default function CategoryPage() {
         if (userCoords && typeof biz.lat === "number" && typeof biz.lng === "number") {
           distanceKm = calculateDistanceKm(userCoords.lat, userCoords.lng, biz.lat, biz.lng);
         }
-        return { ...biz, distanceKm };
+        const status = getBusinessOpenStatus(biz.businessHours);
+        const isClosedNow = status.hasSchedule && !status.isOpen;
+        return { ...biz, distanceKm, isClosedNow };
       })
       .filter((biz) => {
+        if (onlyOpenNow && biz.isClosedNow) return false;
         if (onlyCoupons && !biz.coupon?.active) return false;
         if (!term) return true;
         return (
@@ -180,6 +186,11 @@ export default function CategoryPage() {
         );
       })
       .sort((a, b) => {
+        // 1. Lojas fechadas no momento vão automaticamente para o final da fila
+        if (!a.isClosedNow && b.isClosedNow) return -1;
+        if (a.isClosedNow && !b.isClosedNow) return 1;
+
+        // 2. GPS mais próximo
         if (userCoords) {
           if (a.distanceKm !== null && b.distanceKm !== null) {
             return a.distanceKm - b.distanceKm;
@@ -187,11 +198,13 @@ export default function CategoryPage() {
           if (a.distanceKm !== null) return -1;
           if (b.distanceKm !== null) return 1;
         }
+
+        // 3. Destaques no topo
         if (a.isFeatured && !b.isFeatured) return -1;
         if (!a.isFeatured && b.isFeatured) return 1;
         return 0;
       });
-  }, [businesses, searchTerm, onlyCoupons, userCoords]);
+  }, [businesses, searchTerm, onlyCoupons, onlyOpenNow, userCoords]);
 
   return (
     <div className="flex-1 flex flex-col">
@@ -254,6 +267,23 @@ export default function CategoryPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
+              onClick={() => setOnlyOpenNow(!onlyOpenNow)}
+              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition cursor-pointer ${
+                onlyOpenNow
+                  ? "bg-emerald-600 text-white"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-800"
+              }`}
+            >
+              <Clock
+                className={`w-3.5 h-3.5 ${
+                  onlyOpenNow ? "text-white" : "text-emerald-600"
+                }`}
+              />
+              Abertas agora
+            </button>
+
+            <button
+              type="button"
               onClick={handleActivateLocation}
               className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition cursor-pointer ${
                 userCoords
@@ -264,7 +294,11 @@ export default function CategoryPage() {
               {locating ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                <Navigation className="w-3.5 h-3.5 text-orange-500" />
+                <Navigation
+                  className={`w-3.5 h-3.5 ${
+                    userCoords ? "text-white" : "text-orange-500"
+                  }`}
+                />
               )}
               {userCoords ? "Mais perto (Ativo)" : "Ordenar por mais perto"}
             </button>
@@ -278,7 +312,11 @@ export default function CategoryPage() {
                   : "bg-slate-100 hover:bg-slate-200 text-slate-800"
               }`}
             >
-              <Ticket className="w-3.5 h-3.5 text-orange-500" />
+              <Ticket
+                className={`w-3.5 h-3.5 ${
+                  onlyCoupons ? "text-white" : "text-orange-500"
+                }`}
+              />
               Com Cupom
             </button>
           </div>
