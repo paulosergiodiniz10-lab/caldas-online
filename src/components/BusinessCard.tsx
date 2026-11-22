@@ -111,10 +111,10 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
           : "bg-white border-slate-300/90 hover:border-[#0A4D9C]/60"
       }`}
     >
-      {/* FOTO VITRINE LIMPA E PROPORCIONAL (4:3) */}
+      {/* FOTO VITRINE PROPORÇÃO EXATA 3:2 (1536x1024px DO GPT) */}
       <Link
         href={detailsHref}
-        className="relative w-full aspect-[4/3] bg-slate-100 overflow-hidden block"
+        className="relative w-full aspect-[3/2] bg-slate-100 overflow-hidden block"
       >
         {optimizedCardImage ? (
           <img
