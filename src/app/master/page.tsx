@@ -66,6 +66,7 @@ import {
   Check,
   TrendingUp,
   RefreshCw,
+  BadgeCheck,
 } from "lucide-react";
 
 const MASTER_EMAIL = "caldasonline10@gmail.com";
@@ -299,11 +300,14 @@ export default function MasterAdminPage() {
     try {
       await updateDoc(doc(db, "businesses", biz.id), {
         isApproved: true,
+        isVerified: biz.isVerified !== false,
         approvedAt: Date.now(),
       });
       setBusinesses((prev) =>
         prev.map((item) =>
-          item.id === biz.id ? { ...item, isApproved: true } : item
+          item.id === biz.id
+            ? { ...item, isApproved: true, isVerified: biz.isVerified !== false }
+            : item
         )
       );
       alert(`"${biz.name}" foi liberada e já está visível no site!`);
@@ -371,7 +375,7 @@ export default function MasterAdminPage() {
       );
     } catch (err) {
       console.error(err);
-      alert("Erro ao atualizar plano da empresa.");
+      alert("Erro ao atualizar empresa.");
     } finally {
       setUpdatingId(null);
     }
@@ -1251,6 +1255,7 @@ export default function MasterAdminPage() {
                 {filteredBusinesses.map((biz) => {
                   const isPending = biz.isApproved === false;
                   const isBusy = updatingId === biz.id;
+                  const isVerified = biz.isVerified !== false;
 
                   return (
                     <div
@@ -1272,6 +1277,12 @@ export default function MasterAdminPage() {
                             <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 text-xs font-extrabold uppercase tracking-wider px-3 py-1 rounded-full">
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               PUBLICADA NO SITE
+                            </span>
+                          )}
+
+                          {isVerified && (
+                            <span className="inline-flex items-center gap-1 bg-sky-100 text-[#0A4D9C] text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-full">
+                              <BadgeCheck className="w-3.5 h-3.5" /> Verificada
                             </span>
                           )}
 
@@ -1362,6 +1373,24 @@ export default function MasterAdminPage() {
                               <option value={4}>4 (1H + 3V)</option>
                             </select>
                           </label>
+
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() =>
+                              handleUpdatePlan(biz, {
+                                isVerified: !isVerified,
+                              })
+                            }
+                            className={`px-3 py-1.5 rounded-lg text-xs font-extrabold inline-flex items-center gap-1 transition cursor-pointer ${
+                              isVerified
+                                ? "bg-[#0A4D9C] text-white"
+                                : "bg-white border border-slate-300 text-slate-600 hover:bg-slate-100"
+                            }`}
+                          >
+                            <BadgeCheck className="w-3.5 h-3.5" />
+                            {isVerified ? "Verificada" : "Verificar"}
+                          </button>
 
                           <button
                             type="button"
