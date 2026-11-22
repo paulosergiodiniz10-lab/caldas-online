@@ -126,6 +126,7 @@ export default function BusinessDashboardPage() {
   const [isFeatured, setIsFeatured] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [fastTrackClicked, setFastTrackClicked] = useState(false);
 
   // Campos da Empresa
   const [name, setName] = useState("");
@@ -555,6 +556,7 @@ export default function BusinessDashboardPage() {
       }
 
       if (!isApproved) {
+        setFastTrackClicked(false);
         setShowApprovalModal(true);
       } else {
         alert("✅ Alterações salvas e atualizadas na sua página!");
@@ -565,6 +567,11 @@ export default function BusinessDashboardPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCloseApprovalModal = () => {
+    setShowApprovalModal(false);
+    setFastTrackClicked(false);
   };
 
   if (loadingAuth) {
@@ -1691,15 +1698,21 @@ export default function BusinessDashboardPage() {
         )}
       </main>
 
-      {/* POP-UP DE CADASTRO RECEBIDO / AGUARDANDO LIBERAÇÃO */}
+      {/* POP-UP DE CADASTRO RECEBIDO / CONFIRMAÇÃO APÓS CLICAR NO WHATSAPP */}
       {showApprovalModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 relative space-y-4 text-center">
+        <div
+          onClick={handleCloseApprovalModal}
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 relative space-y-4 text-center"
+          >
             <button
               type="button"
-              onClick={() => setShowApprovalModal(false)}
+              onClick={handleCloseApprovalModal}
               aria-label="Fechar"
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-full"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-full cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1708,33 +1721,58 @@ export default function BusinessDashboardPage() {
               <CheckCircle2 className="w-8 h-8" />
             </div>
 
-            <h3 className="text-xl font-black text-slate-900">
-              Cadastro Salvo com Sucesso!
-            </h3>
+            {fastTrackClicked ? (
+              <>
+                <h3 className="text-xl font-black text-slate-900">
+                  Obrigado! Já estamos organizando tudo
+                </h3>
 
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              Os dados da empresa <strong>{name}</strong> foram enviados para a nossa equipe de moderação. Num prazo de até <strong>48 horas</strong> sua página estará publicada no guia <strong>Caldas Novas Online</strong>.
-            </p>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Recebemos a solicitação da <strong>{name}</strong>! Nossa equipe já está priorizando a revisão do seu cadastro para colocar sua página no ar no <strong>Caldas Novas Online</strong> o mais rápido possível.
+                </p>
 
-            <div className="pt-2 space-y-2.5">
-              <a
-                href={fastTrackApprovalWaUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-xs sm:text-sm py-3.5 px-5 rounded-2xl shadow-md inline-flex items-center justify-center gap-2 transition"
-              >
-                <MessageCircle className="w-5 h-5 fill-white" />
-                Clique aqui para acelerar sua publicação
-              </a>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleCloseApprovalModal}
+                    className="w-full bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-sm py-3.5 px-5 rounded-2xl shadow-md transition cursor-pointer"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-xl font-black text-slate-900">
+                  Cadastro Salvo com Sucesso!
+                </h3>
 
-              <button
-                type="button"
-                onClick={() => setShowApprovalModal(false)}
-                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition cursor-pointer"
-              >
-                Entendi, aguardar análise
-              </button>
-            </div>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Os dados da empresa <strong>{name}</strong> foram enviados para a nossa equipe de moderação. Num prazo de até <strong>48 horas</strong> sua página estará publicada no guia <strong>Caldas Novas Online</strong>.
+                </p>
+
+                <div className="pt-2 space-y-2.5">
+                  <a
+                    href={fastTrackApprovalWaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setFastTrackClicked(true)}
+                    className="w-full bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-xs sm:text-sm py-3.5 px-5 rounded-2xl shadow-md inline-flex items-center justify-center gap-2 transition"
+                  >
+                    <MessageCircle className="w-5 h-5 fill-white" />
+                    Clique aqui para acelerar sua publicação
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={handleCloseApprovalModal}
+                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition cursor-pointer"
+                  >
+                    Entendi, aguardar análise
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
