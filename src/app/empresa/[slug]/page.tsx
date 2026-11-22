@@ -16,8 +16,12 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { optimizeCloudinaryUrl } from "@/lib/cloudinary";
-import { DEFAULT_SITE_SETTINGS } from "@/lib/constants";
-import { Business, SiteSettings } from "@/types";
+import {
+  DEFAULT_SITE_SETTINGS,
+  WEEK_DAYS,
+  getBusinessOpenStatus,
+} from "@/lib/constants";
+import { Business, DayKey, SiteSettings } from "@/types";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import {
@@ -35,10 +39,13 @@ import {
   Navigation,
   Clock,
   ShieldAlert,
+  BadgeCheck,
   X,
 } from "lucide-react";
 
 const MASTER_EMAIL = "caldasonline10@gmail.com";
+
+const JS_DAY_TO_KEY: DayKey[] = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 
 type BusinessWithExtra = Business & {
   cep?: string;
@@ -250,6 +257,15 @@ export default function BusinessPublicPage() {
   const defaultWaUrl = cleanPhone
     ? `https://wa.me/${waPhone}?text=${encodeURIComponent(defaultWaMessage)}`
     : "#";
+
+  const openStatus = getBusinessOpenStatus(business.businessHours);
+  const isClosedNow = openStatus.hasSchedule && !openStatus.isOpen;
+  const isVerified = business.isVerified !== false;
+
+  const localCaldasNow = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })
+  );
+  const todayKey = JS_DAY_TO_KEY[localCaldasNow.getDay()];
 
   const hasCoupon = Boolean(
     business.coupon?.active &&
@@ -487,10 +503,37 @@ export default function BusinessPublicPage() {
               </div>
             )}
 
-            <div className="space-y-1">
+            <div className="space-y-1.5">
+              {/* SELOS: EMPRESA VERIFICADA + STATUS DE FUNCIONAMENTO */}
+              <div className="flex flex-wrap items-center gap-2">
+                {isVerified && (
+                  <span className="inline-flex items-center gap-1 bg-blue-50 text-[#0A4D9C] border border-blue-200/80 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full">
+                    <BadgeCheck className="w-3.5 h-3.5 text-[#0A4D9C]" />
+                    Empresa Verificada
+                  </span>
+                )}
+
+                {openStatus.hasSchedule && (
+                  openStatus.isOpen ? (
+                    <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      {openStatus.label}
+                      {openStatus.detail ? ` • ${openStatus.detail}` : ""}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-200 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full">
+                      <Clock className="w-3.5 h-3.5" />
+                      {openStatus.label}
+                      {openStatus.detail ? ` • ${openStatus.detail}` : ""}
+                    </span>
+                  )
+                )}
+              </div>
+
               <h1 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight">
                 {business.name}
               </h1>
+
               {business.subcategory && (
                 <p className="text-xs sm:text-sm font-semibold text-slate-500">
                   {business.subcategory}
@@ -500,16 +543,27 @@ export default function BusinessPublicPage() {
           </div>
 
           {cleanPhone && (
-            <a
-              href={defaultWaUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={handleTrackWhatsappClick}
-              className="bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-sm px-6 py-4 rounded-2xl shadow-md inline-flex items-center justify-center gap-2 transition shrink-0"
-            >
-              <MessageCircle className="w-5 h-5 fill-white" />
-              Chamar no WhatsApp
-            </a>
+            <div className="flex flex-col items-stretch sm:items-end gap-1.5 shrink-0">
+              <a
+                href={defaultWaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleTrackWhatsappClick}
+                className={`font-extrabold text-sm px-6 py-4 rounded-2xl shadow-md inline-flex items-center justify-center gap-2 transition ${
+                  isClosedNow
+                    ? "bg-slate-700 hover:bg-slate-800 text-white"
+                    : "bg-[#1DB954] hover:bg-[#18a349] text-white"
+                }`}
+              >
+                <MessageCircle className="w-5 h-5 fill-white" />
+                {isClosedNow ? "Deixar Mensagem no WhatsApp" : "Chamar no WhatsApp"}
+              </a>
+              {isClosedNow && (
+                <span className="text-[11px] font-bold text-red-600 text-center sm:text-right">
+                  Loja fechada no momento ({openStatus.detail})
+                </span>
+              )}
+            </div>
           )}
         </div>
 
@@ -669,6 +723,72 @@ export default function BusinessPublicPage() {
             </a>
           </div>
         </div>
+
+        {/* HORÁRIO DE FUNCIONAMENTO */}
+        {business.businessHours?.enabled && (
+          <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-sm border border-slate-100 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-[#0A4D9C]" />
+                <h2 className="text-lg font-black text-slate-900">
+                  Horário de Funcionamento
+                </h2>
+              </div>
+
+              {openStatus.isOpen ? (
+                <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-extrabold px-3 py-1 rounded-full">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  {openStatus.label} {openStatus.detail ? `(${openStatus.detail})` : ""}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 text-xs font-extrabold px-3 py-1 rounded-full">
+                  {openStatus.label} {openStatus.detail ? `(${openStatus.detail})` : ""}
+                </span>
+              )}
+            </div>
+
+            {business.businessHours.is24h ? (
+              <div className="rounded-2xl bg-emerald-50/70 border border-emerald-200 p-4 text-sm font-extrabold text-emerald-900">
+                ⏰ Atendimento 24 horas todos os dias da semana.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {WEEK_DAYS.map((day) => {
+                  const sched = business.businessHours?.days?.[day.key];
+                  const isToday = day.key === todayKey;
+
+                  return (
+                    <div
+                      key={day.key}
+                      className={`flex items-center justify-between px-4 py-2.5 rounded-xl border text-xs sm:text-sm ${
+                        isToday
+                          ? "bg-blue-50/80 border-[#0A4D9C]/40 font-extrabold text-slate-900"
+                          : "bg-slate-50 border-slate-200/70 text-slate-700 font-semibold"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        {day.label}
+                        {isToday && (
+                          <span className="text-[10px] font-black uppercase bg-[#0A4D9C] text-white px-2 py-0.5 rounded-full">
+                            Hoje
+                          </span>
+                        )}
+                      </span>
+
+                      {sched?.open ? (
+                        <span className="text-slate-900 font-bold">
+                          {sched.start} às {sched.end}
+                        </span>
+                      ) : (
+                        <span className="text-red-600 font-bold">Fechado</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* GALERIA DE FOTOS */}
         {galleryPhotos.length > 0 && (
