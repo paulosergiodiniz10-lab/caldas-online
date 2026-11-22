@@ -1340,10 +1340,10 @@ export default function BusinessDashboardPage() {
                         <img
                           src={coverUrl}
                           alt="Banner Capa"
-                          className="w-20 h-14 rounded-xl object-cover border bg-white shrink-0"
+                          className="w-24 h-12 rounded-xl object-cover border bg-white shrink-0"
                         />
                       ) : (
-                        <div className="w-20 h-14 rounded-xl bg-slate-100 flex items-center justify-center text-[11px] text-slate-400 font-bold shrink-0">
+                        <div className="w-24 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-[11px] text-slate-400 font-bold shrink-0">
                           Capa
                         </div>
                       )}
@@ -1352,16 +1352,16 @@ export default function BusinessDashboardPage() {
                           3. Banner Capa (Topo)
                         </p>
                         <p className="text-[11px] text-slate-600">
-                          Tamanho: <strong>1536×1024px</strong> (3:2)
+                          Tamanho: <strong>1200×400px</strong> (3:1)
                         </p>
                         <p className="text-[10px] text-slate-400">
-                          Topo da página da empresa
+                          Faixa panorâmica no topo da página
                         </p>
                       </div>
                     </div>
 
                     <div className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-[10px] font-bold text-slate-700">
-                      🤖 Melhor no GPT: <span className="text-[#0A4D9C]">Horizontal (3:2)</span>
+                      🤖 No GPT: <span className="text-[#0A4D9C]">Horizontal 3:1 panorâmico</span>
                     </div>
                   </div>
 
