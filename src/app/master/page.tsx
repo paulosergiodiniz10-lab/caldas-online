@@ -418,7 +418,7 @@ export default function MasterAdminPage() {
     });
   };
 
-  // GERENCIAMENTO DE PLANOS (GRÁTIS, VITRINE, DESTAQUE, MASTER)
+  // GERENCIAMENTO DE PLANOS (GRÁTIS, VITRINE, DESTAQUE, MASTER, SÓ BANNER)
   const openEditPlanModal = (plan: PlanDoc) => {
     setEditingPlan({ ...plan });
     setEditingPlanOrderInput(plan.order && plan.order > 0 ? String(plan.order) : "");
@@ -449,6 +449,36 @@ export default function MasterAdminPage() {
     setEditingPlanFeaturesText("Página completa no guia\nBotão direto para WhatsApp");
   };
 
+  const handleOpenNewBannerOnlyPlanModal = () => {
+    const newId = `plano-banner-${Date.now()}`;
+    setEditingPlan({
+      id: newId,
+      name: "Full Banner",
+      subtitle: "Anúncio exclusivo sem página",
+      price: 127,
+      billingPeriod: "/mês",
+      maxPhotos: 0,
+      maxVideos: 0,
+      hasFeaturedHome: false,
+      hasBannerHome: true,
+      hasBannerSegment: false,
+      badgeText: "IDEAL P/ OUTRAS CIDADES",
+      highlight: false,
+      features: [
+        "Arte horizontal 1200x300px no topo do portal",
+        "Botão direto para WhatsApp ou Site externo",
+        "Não precisa criar página ou cadastro de loja",
+      ],
+      buttonText: "Anunciar no Banner",
+      order: 0,
+      active: true,
+    });
+    setEditingPlanOrderInput("");
+    setEditingPlanFeaturesText(
+      "Arte horizontal 1200x300px no topo do portal\nBotão direto para WhatsApp ou Site externo\nNão precisa criar página ou cadastro de loja"
+    );
+  };
+
   const handleSavePlan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPlan || !editingPlan.name.trim()) return;
@@ -467,7 +497,7 @@ export default function MasterAdminPage() {
         name: editingPlan.name.trim(),
         subtitle: editingPlan.subtitle.trim(),
         price: Number(editingPlan.price) || 0,
-        maxPhotos: Math.max(1, Number(editingPlan.maxPhotos) || 6),
+        maxPhotos: Math.max(0, Number(editingPlan.maxPhotos) || 0),
         maxVideos: Math.max(0, Math.min(4, Number(editingPlan.maxVideos) || 0)),
         order: !isNaN(parsedOrder) && parsedOrder > 0 ? parsedOrder : 0,
         features: featuresList,
@@ -1156,23 +1186,26 @@ export default function MasterAdminPage() {
     return found ? `📂 Segmento: ${found.name}` : `📂 Segmento: ${placement}`;
   };
 
-  // Opções dinâmicas de Fotos e Vídeos baseadas nos planos cadastrados
+  // Planos ativos (usados na moderação de empresas; planos ocultos não aparecem para seleção)
+  const activePlans = plans.filter((p) => p.active !== false);
+
+  // Opções dinâmicas de Fotos e Vídeos lendo exclusivamente dos planos ativos (sem chumbado 6)
   const dynamicPhotoOptions = (() => {
     const map = new Map<number, string>();
-    plans.forEach((p) => {
-      const qty = Number(p.maxPhotos) || 6;
+    activePlans.forEach((p) => {
+      const qty = Math.max(0, Number(p.maxPhotos) || 0);
+      if (qty === 0) return; // Planos só-banner (0 fotos) não entram no dropdown de galeria
       const existing = map.get(qty);
       map.set(qty, existing ? `${existing} / ${p.name}` : `${qty} (${p.name})`);
     });
-    if (!map.has(6)) map.set(6, "6 (Grátis)");
     if (!map.has(30)) map.set(30, "30 fotos (Extra)");
     return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
   })();
 
   const dynamicVideoOptions = (() => {
     const map = new Map<number, string>();
-    plans.forEach((p) => {
-      const qty = Number(p.maxVideos) || 0;
+    activePlans.forEach((p) => {
+      const qty = Math.max(0, Number(p.maxVideos) || 0);
       const existing = map.get(qty);
       map.set(qty, existing ? `${existing} / ${p.name}` : `${qty} (${p.name})`);
     });
@@ -1378,12 +1411,16 @@ export default function MasterAdminPage() {
                   const isBusy = updatingId === biz.id;
                   const isVerified = biz.isVerified !== false;
 
+                  const freePlanDefaultPhotos =
+                    plans.find((p) => p.id === "gratis")?.maxPhotos ?? 6;
+                  const currentBizPhotos = biz.maxPhotos ?? freePlanDefaultPhotos;
+
                   // Detecta o plano vinculado (ou infere pelos limites atuais se ainda não tiver planId)
                   const matchedPlan =
                     plans.find((p) => p.id === biz.planId) ||
                     plans.find(
                       (p) =>
-                        p.maxPhotos === (biz.maxPhotos ?? 6) &&
+                        p.maxPhotos === currentBizPhotos &&
                         p.maxVideos === (biz.maxVideos ?? 0)
                     );
                   const currentPlanId = biz.planId || matchedPlan?.id || "";
@@ -1396,7 +1433,7 @@ export default function MasterAdminPage() {
                     (biz.planId &&
                       biz.planId !== "gratis" &&
                       biz.planId !== "free") ||
-                    (biz.maxPhotos ?? 6) > 6 ||
+                    currentBizPhotos > freePlanDefaultPhotos ||
                     (biz.maxVideos ?? 0) > 0 ||
                     Boolean(biz.isFeatured);
                   const isCouponAllowedOnCard =
@@ -1407,7 +1444,7 @@ export default function MasterAdminPage() {
                   const photoSelectValues = Array.from(
                     new Set([
                       ...dynamicPhotoOptions.map(([val]) => val),
-                      biz.maxPhotos ?? 6,
+                      currentBizPhotos,
                     ])
                   ).sort((a, b) => a - b);
 
@@ -1528,7 +1565,7 @@ export default function MasterAdminPage() {
                               className="rounded-lg border border-indigo-300 px-2.5 py-1 text-xs bg-white font-extrabold text-indigo-950"
                             >
                               <option value="">Personalizado</option>
-                              {plans.map((p) => (
+                              {activePlans.map((p) => (
                                 <option key={p.id} value={p.id}>
                                   {p.name} ({p.maxPhotos}F / {p.maxVideos}V)
                                 </option>
@@ -1540,7 +1577,7 @@ export default function MasterAdminPage() {
                             <ImageIcon className="w-3.5 h-3.5 text-[#0A4D9C]" />
                             Fotos:
                             <select
-                              value={biz.maxPhotos ?? 6}
+                              value={currentBizPhotos}
                               disabled={isBusy}
                               onChange={(e) =>
                                 handleUpdatePlan(biz, {
@@ -1555,7 +1592,7 @@ export default function MasterAdminPage() {
                                 )?.[1];
                                 return (
                                   <option key={qty} value={qty}>
-                                    {foundLabel || `${qty} fotos`}
+                                    {foundLabel || `${qty} fotos (Atual)`}
                                   </option>
                                 );
                               })}
@@ -1697,13 +1734,13 @@ export default function MasterAdminPage() {
         {/* ABA 2: PLANOS & PREÇOS */}
         {activeTab === "plans" && (
           <div className="space-y-5">
-            <div className="bg-gradient-to-r from-[#0A4D9C] to-[#062F63] text-white rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="bg-gradient-to-r from-[#0A4D9C] to-[#062F63] text-white rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-sm">
               <div>
                 <h2 className="text-lg font-black">
-                  Catálogo de Planos (Grátis, Vitrine, Destaque e Master)
+                  Catálogo de Planos (Grátis, Vitrine, Destaque, Master e Banners)
                 </h2>
                 <p className="text-xs text-blue-100 mt-0.5">
-                  Edite valores, quantidade de fotos, vídeos e benefícios abaixo. Ordem <strong>0</strong> (ou vazio) mistura a cada acesso; <strong>1, 2, 3</strong> fixa na posição.
+                  Planos marcados como <strong>Oculto</strong> ficam desativados na página pública <code>/planos</code> e na moderação. Ordem <strong>0</strong> mistura; <strong>1, 2, 3</strong> fixa.
                 </p>
               </div>
 
@@ -1737,6 +1774,15 @@ export default function MasterAdminPage() {
 
                 <button
                   type="button"
+                  onClick={handleOpenNewBannerOnlyPlanModal}
+                  className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl inline-flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                >
+                  <Megaphone className="w-4 h-4" />
+                  + Plano Só Banner
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleOpenNewPlanModal}
                   className="bg-white text-slate-950 hover:bg-slate-100 font-extrabold text-xs px-4 py-2.5 rounded-xl inline-flex items-center gap-1.5 transition cursor-pointer"
                 >
@@ -1747,98 +1793,123 @@ export default function MasterAdminPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {plans.map((plan) => (
-                <div
-                  key={plan.id}
-                  className={`bg-white rounded-2xl p-5 border-2 flex flex-col justify-between space-y-4 ${
-                    plan.highlight
-                      ? "border-[#FF7A00] shadow-md"
-                      : "border-slate-200/80 shadow-sm"
-                  }`}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="text-[10px] font-black uppercase text-slate-400">
-                          {!plan.order || plan.order <= 0
-                            ? "🎲 Aleatório (0)"
-                            : `📌 Fixo #${plan.order}`}
-                        </span>
-                        <h3 className="text-lg font-black text-slate-900">
-                          {plan.name}
-                        </h3>
-                        <p className="text-xs text-slate-500">{plan.subtitle}</p>
-                      </div>
+              {plans.map((plan) => {
+                const isInactive = plan.active === false;
+                const isBannerOnly =
+                  (plan.maxPhotos ?? 0) === 0 && (plan.maxVideos ?? 0) === 0;
 
-                      {plan.badgeText && (
-                        <span className="text-[10px] font-black uppercase bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full shrink-0">
-                          {plan.badgeText}
-                        </span>
-                      )}
-                    </div>
+                return (
+                  <div
+                    key={plan.id}
+                    className={`rounded-2xl p-5 border-2 flex flex-col justify-between space-y-4 transition ${
+                      isInactive
+                        ? "bg-slate-100/80 border-slate-300 opacity-65"
+                        : plan.highlight
+                        ? "bg-white border-[#FF7A00] shadow-md"
+                        : "bg-white border-slate-200/80 shadow-sm"
+                    }`}
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] font-black uppercase text-slate-400">
+                            {isInactive
+                              ? "🙈 DESATIVADO / OCULTO"
+                              : !plan.order || plan.order <= 0
+                              ? "🎲 Aleatório (0)"
+                              : `📌 Fixo #${plan.order}`}
+                          </span>
+                          <h3 className="text-lg font-black text-slate-900">
+                            {plan.name}
+                          </h3>
+                          <p className="text-xs text-slate-500">{plan.subtitle}</p>
+                        </div>
 
-                    <div className="pt-2 border-t border-slate-100">
-                      <p className="text-2xl font-black text-[#0A4D9C]">
-                        {!plan.price || plan.price <= 0
-                          ? "Grátis"
-                          : plan.price.toLocaleString("pt-BR", {
-                              style: "currency",
-                              currency: "BRL",
-                            })}
-                        {plan.price > 0 && (
-                          <span className="text-xs font-bold text-slate-500 ml-1">
-                            {plan.billingPeriod || "/mês"}
+                        {plan.badgeText && (
+                          <span
+                            className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full shrink-0 shadow-xs ${
+                              plan.highlight
+                                ? "bg-[#FF7A00] text-slate-950"
+                                : "bg-gradient-to-r from-purple-600 to-indigo-600 text-white"
+                            }`}
+                          >
+                            {plan.badgeText}
                           </span>
                         )}
-                      </p>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100">
+                        <p className="text-2xl font-black text-[#0A4D9C]">
+                          {!plan.price || plan.price <= 0
+                            ? "Grátis"
+                            : plan.price.toLocaleString("pt-BR", {
+                                style: "currency",
+                                currency: "BRL",
+                              })}
+                          {plan.price > 0 && (
+                            <span className="text-xs font-bold text-slate-500 ml-1">
+                              {plan.billingPeriod || "/mês"}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5 text-xs text-slate-700 bg-slate-50 p-3 rounded-xl">
+                        {isBannerOnly ? (
+                          <p className="font-extrabold text-purple-800">
+                            📢 Exclusivo Banner (Sem página interna)
+                          </p>
+                        ) : (
+                          <>
+                            <p className="font-bold">
+                              📸 Até <strong>{plan.maxPhotos} fotos</strong>
+                            </p>
+                            <p className="font-bold">
+                              🎬 Até <strong>{plan.maxVideos} vídeo(s)</strong>
+                            </p>
+                          </>
+                        )}
+                        <p>
+                          ⭐ Destaque na Home:{" "}
+                          <strong>{plan.hasFeaturedHome ? "Sim" : "Não"}</strong>
+                        </p>
+                        <p>
+                          🖼️ Full Banner Home:{" "}
+                          <strong>{plan.hasBannerHome ? "Sim" : "Não"}</strong>
+                        </p>
+                        <p>
+                          📂 Banner Segmento:{" "}
+                          <strong>{plan.hasBannerSegment ? "Sim" : "Não"}</strong>
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="space-y-1.5 text-xs text-slate-700 bg-slate-50 p-3 rounded-xl">
-                      <p className="font-bold">
-                        📸 Até <strong>{plan.maxPhotos} fotos</strong>
-                      </p>
-                      <p className="font-bold">
-                        🎬 Até <strong>{plan.maxVideos} vídeo(s)</strong>
-                      </p>
-                      <p>
-                        ⭐ Destaque na Home:{" "}
-                        <strong>{plan.hasFeaturedHome ? "Sim" : "Não"}</strong>
-                      </p>
-                      <p>
-                        🖼️ Full Banner Home:{" "}
-                        <strong>{plan.hasBannerHome ? "Sim" : "Não"}</strong>
-                      </p>
-                      <p>
-                        📂 Banner Segmento:{" "}
-                        <strong>{plan.hasBannerSegment ? "Sim" : "Não"}</strong>
-                      </p>
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEditPlanModal(plan)}
+                        className="flex-1 bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-xs py-2.5 px-3 rounded-xl inline-flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        Editar Plano
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePlanActive(plan)}
+                        title="Clique para ativar ou ocultar este plano no site"
+                        className={`px-3 py-2.5 rounded-xl text-[11px] font-extrabold cursor-pointer transition ${
+                          !isInactive
+                            ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                            : "bg-slate-800 text-white hover:bg-slate-700"
+                        }`}
+                      >
+                        {!isInactive ? "Ativo" : "Oculto"}
+                      </button>
                     </div>
                   </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openEditPlanModal(plan)}
-                      className="flex-1 bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-xs py-2.5 px-3 rounded-xl inline-flex items-center justify-center gap-1.5 transition cursor-pointer"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      Editar Plano
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleTogglePlanActive(plan)}
-                      className={`px-3 py-2.5 rounded-xl text-[11px] font-extrabold cursor-pointer ${
-                        plan.active !== false
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-slate-200 text-slate-600"
-                      }`}
-                    >
-                      {plan.active !== false ? "Ativo" : "Oculto"}
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -3011,11 +3082,11 @@ export default function MasterAdminPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Quantidade de Fotos *
+                  Quantidade de Fotos (0 = Plano Só Banner) *
                 </label>
                 <input
                   type="number"
-                  min={1}
+                  min={0}
                   max={60}
                   required
                   value={editingPlan.maxPhotos}
@@ -3062,7 +3133,7 @@ export default function MasterAdminPage() {
                       badgeText: e.target.value,
                     })
                   }
-                  placeholder="Ex: Mais Escolhido"
+                  placeholder="Ex: Mais Escolhido / Vagas Limitadas"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
               </div>
