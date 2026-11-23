@@ -10,6 +10,8 @@ type PageProps = {
 interface FirestoreValue {
   stringValue?: string;
   booleanValue?: boolean;
+  integerValue?: string;
+  doubleValue?: number;
 }
 
 interface FirestoreDocument {
@@ -22,6 +24,13 @@ interface BusinessSeoData {
   subcategory: string;
   description: string;
   neighborhood: string;
+  address: string;
+  cep: string;
+  whatsapp: string;
+  instagram: string;
+  website: string;
+  lat: number | null;
+  lng: number | null;
   showcaseUrl: string;
   logoUrl: string;
   coverUrl: string;
@@ -32,6 +41,16 @@ const SITE_URL = "https://caldasnovasonline.com.br";
 const DEFAULT_OG_IMAGE =
   "https://ldsite.com.br/wp-content/uploads/2026/11/logo-site.jpg";
 
+function extractNumber(val?: FirestoreValue): number | null {
+  if (!val) return null;
+  if (typeof val.doubleValue === "number") return val.doubleValue;
+  if (val.integerValue) {
+    const parsed = Number(val.integerValue);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 function extractFields(doc?: FirestoreDocument): BusinessSeoData | null {
   if (!doc?.fields) return null;
   const f = doc.fields;
@@ -41,6 +60,13 @@ function extractFields(doc?: FirestoreDocument): BusinessSeoData | null {
     subcategory: f.subcategory?.stringValue || "",
     description: f.description?.stringValue || "",
     neighborhood: f.neighborhood?.stringValue || "",
+    address: f.address?.stringValue || "",
+    cep: f.cep?.stringValue || "",
+    whatsapp: f.whatsapp?.stringValue || "",
+    instagram: f.instagram?.stringValue || "",
+    website: f.website?.stringValue || "",
+    lat: extractNumber(f.lat),
+    lng: extractNumber(f.lng),
     showcaseUrl: f.showcaseUrl?.stringValue || "",
     logoUrl: f.logoUrl?.stringValue || "",
     coverUrl: f.coverUrl?.stringValue || "",
@@ -59,7 +85,7 @@ function optimizeSocialImage(url: string): string {
   return url;
 }
 
-async function fetchBusinessForMetadata(
+async function fetchBusinessForSeo(
   slug: string
 ): Promise<BusinessSeoData | null> {
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
@@ -72,7 +98,6 @@ async function fetchBusinessForMetadata(
   const timeout = setTimeout(() => controller.abort(), 2500);
 
   try {
-    // 1. Busca direta pelo ID do documento
     const directUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/businesses/${encodeURIComponent(
       slug
     )}${keyParam}`;
@@ -88,7 +113,6 @@ async function fetchBusinessForMetadata(
       if (parsed?.name) return parsed;
     }
 
-    // 2. Fallback: consulta pelo campo slug
     const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery${keyParam}`;
 
     const queryRes = await fetch(queryUrl, {
@@ -131,7 +155,7 @@ export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const biz = await fetchBusinessForMetadata(slug);
+  const biz = await fetchBusinessForSeo(slug);
 
   if (!biz || !biz.name) {
     return {
@@ -221,7 +245,98 @@ export async function generateMetadata({
   };
 }
 
+function buildLocalBusinessJsonLd(slug: string, biz: BusinessSeoData) {
+  const pageUrl = `${SITE_URL}/empresa/${slug}`;
+  const cleanPhone = biz.whatsapp.replace(/\D/g, "");
+  const formattedPhone = cleanPhone
+    ? cleanPhone.startsWith("55")
+      ? `+${cleanPhone}`
+      : `+55${cleanPhone}`
+    : undefined;
+
+  const images = [biz.showcaseUrl, biz.logoUrl, biz.coverUrl].filter(Boolean);
+
+  const sameAs: string[] = [];
+  if (biz.instagram) {
+    sameAs.push(
+      biz.instagram.startsWith("http")
+        ? biz.instagram
+        : `https://instagram.com/${biz.instagram.replace("@", "")}`
+    );
+  }
+  if (biz.website) {
+    sameAs.push(
+      biz.website.startsWith("http") ? biz.website : `https://${biz.website}`
+    );
+  }
+
+  const jsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "@id": `${pageUrl}#business`,
+    name: biz.name,
+    url: pageUrl,
+    description:
+      biz.description.replace(/\s+/g, " ").trim() ||
+      `${biz.name} em Caldas Novas - GO`,
+    image: images.length > 0 ? images : [DEFAULT_OG_IMAGE],
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: [biz.address, biz.neighborhood]
+        .filter(Boolean)
+        .join(" - "),
+      addressLocality: "Caldas Novas",
+      addressRegion: "GO",
+      postalCode: biz.cep || undefined,
+      addressCountry: "BR",
+    },
+    areaServed: {
+      "@type": "City",
+      name: "Caldas Novas",
+    },
+  };
+
+  if (biz.logoUrl) {
+    jsonLd.logo = biz.logoUrl;
+  }
+  if (formattedPhone) {
+    jsonLd.telephone = formattedPhone;
+  }
+  if (biz.subcategory) {
+    jsonLd.knowsAbout = biz.subcategory;
+  }
+  if (sameAs.length > 0) {
+    jsonLd.sameAs = sameAs;
+  }
+  if (typeof biz.lat === "number" && typeof biz.lng === "number") {
+    jsonLd.geo = {
+      "@type": "GeoCoordinates",
+      latitude: biz.lat,
+      longitude: biz.lng,
+    };
+  }
+
+  return jsonLd;
+}
+
 export default async function BusinessPublicPage({ params }: PageProps) {
   const { slug } = await params;
-  return <BusinessProfileClient initialSlug={slug} />;
+  const biz = await fetchBusinessForSeo(slug);
+
+  const jsonLd =
+    biz && biz.name && biz.isApproved
+      ? buildLocalBusinessJsonLd(slug, biz)
+      : null;
+
+  return (
+    <>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
+      <BusinessProfileClient initialSlug={slug} />
+    </>
+  );
 }
