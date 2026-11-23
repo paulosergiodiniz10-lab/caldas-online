@@ -21,9 +21,20 @@ import {
   ExternalLink,
 } from "lucide-react";
 
-function formatBRL(value: number): string {
-  if (!value || value <= 0) return "Grátis";
-  return value.toLocaleString("pt-BR", {
+type ExtendedPlanDoc = PlanDoc & {
+  priceDisplay?: string;
+};
+
+function formatPlanPrice(plan: ExtendedPlanDoc): string {
+  if (!plan.price || plan.price <= 0) return "Grátis";
+  if (plan.priceDisplay && plan.priceDisplay.trim()) {
+    const raw = plan.priceDisplay.trim();
+    return raw.startsWith("R$") ? raw : `R$ ${raw}`;
+  }
+  if (Number.isInteger(plan.price)) {
+    return `R$ ${plan.price.toLocaleString("pt-BR")}`;
+  }
+  return plan.price.toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
   });
@@ -53,7 +64,7 @@ function sortHybrid<T extends { order?: number }>(items: T[]): T[] {
 }
 
 export default function PublicPlansPage() {
-  const [plans, setPlans] = useState<PlanDoc[]>(() =>
+  const [plans, setPlans] = useState<ExtendedPlanDoc[]>(() =>
     sortHybrid(DEFAULT_PLANS.filter((p) => p.active !== false))
   );
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
@@ -63,16 +74,16 @@ export default function PublicPlansPage() {
     async function loadPlansAndSettings() {
       try {
         const snapPlans = await getDocs(collection(db, "plans"));
-        const firestoreMap = new Map<string, PlanDoc>();
+        const firestoreMap = new Map<string, ExtendedPlanDoc>();
         snapPlans.docs.forEach((d) => {
           firestoreMap.set(d.id, {
             id: d.id,
-            ...(d.data() as Omit<PlanDoc, "id">),
+            ...(d.data() as Omit<ExtendedPlanDoc, "id">),
           });
         });
 
         // Mescla os planos padrão com os editados/criados no Firestore
-        const mergedMap = new Map<string, PlanDoc>();
+        const mergedMap = new Map<string, ExtendedPlanDoc>();
         DEFAULT_PLANS.forEach((def) => {
           mergedMap.set(def.id, firestoreMap.get(def.id) || def);
         });
@@ -153,10 +164,9 @@ export default function PublicPlansPage() {
               const isFree = !plan.price || plan.price <= 0;
               const isBannerOnlyPlan =
                 (plan.maxPhotos ?? 0) === 0 && (plan.maxVideos ?? 0) === 0;
+              const formattedPrice = formatPlanPrice(plan);
 
-              const waMessage = `Olá! Vi os planos no portal *Caldas Novas Online* e tenho interesse no plano *${plan.name}* (${formatBRL(
-                plan.price
-              )}). Gostaria de saber como ativar!`;
+              const waMessage = `Olá! Vi os planos no portal *Caldas Novas Online* e tenho interesse no plano *${plan.name}* (${formattedPrice}). Gostaria de saber como ativar!`;
               const waUrl = `https://wa.me/${cleanMasterPhone}?text=${encodeURIComponent(
                 waMessage
               )}`;
@@ -194,8 +204,8 @@ export default function PublicPlansPage() {
 
                     <div className="pt-2 pb-3 border-b border-slate-100">
                       <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-black text-slate-950">
-                          {formatBRL(plan.price)}
+                        <span className="text-3xl font-black text-[#0A4D9C]">
+                          {formattedPrice}
                         </span>
                         {!isFree && (
                           <span className="text-xs font-bold text-slate-500">
