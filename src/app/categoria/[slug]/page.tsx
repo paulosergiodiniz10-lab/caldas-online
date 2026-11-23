@@ -10,6 +10,7 @@ import {
   Search,
   Loader2,
   Clock,
+  X,
 } from "lucide-react";
 import { collection, getDocs, query, where, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -162,6 +163,13 @@ export default function CategoryPage() {
     );
   };
 
+  // Temas rápidos cadastrados no Master para este segmento (ignora vazios)
+  const validQuickTags = useMemo(() => {
+    return (category?.quickTags || [])
+      .map((t) => (t || "").trim())
+      .filter((t) => t.length > 0);
+  }, [category?.quickTags]);
+
   const filteredList = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return businesses
@@ -251,75 +259,124 @@ export default function CategoryPage() {
         {/* Slide de Banners Exclusivos do Segmento */}
         <BannerSlider banners={banners} categoryName={category?.name} />
 
-        {/* Barra de Filtros do Segmento */}
-        <div className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 bg-slate-100 rounded-xl px-3 py-2 flex-1">
-            <Search className="w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={`Buscar em ${category?.name || "categoria"}...`}
-              className="bg-transparent text-sm w-full focus:outline-none text-slate-800"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setOnlyOpenNow(!onlyOpenNow)}
-              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition cursor-pointer ${
-                onlyOpenNow
-                  ? "bg-emerald-600 text-white"
-                  : "bg-slate-100 hover:bg-slate-200 text-slate-800"
-              }`}
-            >
-              <Clock
-                className={`w-3.5 h-3.5 ${
-                  onlyOpenNow ? "text-white" : "text-emerald-600"
-                }`}
+        {/* Barra de Filtros do Segmento + Temas Rápidos */}
+        <div className="space-y-3">
+          <div className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 bg-slate-100 rounded-xl px-3 py-2 flex-1">
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={`Buscar em ${category?.name || "categoria"}...`}
+                className="bg-transparent text-sm w-full focus:outline-none text-slate-800"
               />
-              Abertas agora
-            </button>
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  title="Limpar busca"
+                  className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
 
-            <button
-              type="button"
-              onClick={handleActivateLocation}
-              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition cursor-pointer ${
-                userCoords
-                  ? "bg-emerald-600 text-white"
-                  : "bg-slate-100 hover:bg-slate-200 text-slate-800"
-              }`}
-            >
-              {locating ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Navigation
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setOnlyOpenNow(!onlyOpenNow)}
+                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition cursor-pointer ${
+                  onlyOpenNow
+                    ? "bg-emerald-600 text-white"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-800"
+                }`}
+              >
+                <Clock
                   className={`w-3.5 h-3.5 ${
-                    userCoords ? "text-white" : "text-orange-500"
+                    onlyOpenNow ? "text-white" : "text-emerald-600"
                   }`}
                 />
-              )}
-              {userCoords ? "Mais perto (Ativo)" : "Ordenar por mais perto"}
-            </button>
+                Abertas agora
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setOnlyCoupons(!onlyCoupons)}
-              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition cursor-pointer ${
-                onlyCoupons
-                  ? "bg-[#FF7A00] text-white"
-                  : "bg-slate-100 hover:bg-slate-200 text-slate-800"
-              }`}
-            >
-              <Ticket
-                className={`w-3.5 h-3.5 ${
-                  onlyCoupons ? "text-white" : "text-orange-500"
+              <button
+                type="button"
+                onClick={handleActivateLocation}
+                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition cursor-pointer ${
+                  userCoords
+                    ? "bg-emerald-600 text-white"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-800"
                 }`}
-              />
-              Com Cupom
-            </button>
+              >
+                {locating ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Navigation
+                    className={`w-3.5 h-3.5 ${
+                      userCoords ? "text-white" : "text-orange-500"
+                    }`}
+                  />
+                )}
+                {userCoords ? "Mais perto (Ativo)" : "Ordenar por mais perto"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setOnlyCoupons(!onlyCoupons)}
+                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition cursor-pointer ${
+                  onlyCoupons
+                    ? "bg-[#FF7A00] text-white"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-800"
+                }`}
+              >
+                <Ticket
+                  className={`w-3.5 h-3.5 ${
+                    onlyCoupons ? "text-white" : "text-orange-500"
+                  }`}
+                />
+                Com Cupom
+              </button>
+            </div>
           </div>
+
+          {/* PÍLULAS DE TEMAS RÁPIDOS (EXIBE SOMENTE SE CADASTRADO NO MASTER PARA ESTE SEGMENTO) */}
+          {validQuickTags.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className={`text-xs font-extrabold px-4 py-2 rounded-full border transition whitespace-nowrap cursor-pointer ${
+                  searchTerm.trim() === ""
+                    ? "bg-[#0A4D9C] text-white border-[#0A4D9C] shadow-xs"
+                    : "bg-white hover:bg-blue-50 text-slate-700 border-slate-200"
+                }`}
+              >
+                Todos
+              </button>
+
+              {validQuickTags.map((tag, idx) => {
+                const isSelected =
+                  searchTerm.trim().toLowerCase() === tag.toLowerCase();
+
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setSearchTerm(isSelected ? "" : tag)}
+                    className={`text-xs font-extrabold px-4 py-2 rounded-full border transition whitespace-nowrap cursor-pointer ${
+                      isSelected
+                        ? "bg-[#0A4D9C] text-white border-[#0A4D9C] shadow-xs"
+                        : "bg-white hover:bg-blue-50 text-[#0A4D9C] border-slate-200"
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Listagem das Empresas */}
