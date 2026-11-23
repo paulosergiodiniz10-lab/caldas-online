@@ -18,6 +18,7 @@ import {
   Sparkles,
   Loader2,
   ArrowRight,
+  ExternalLink,
 } from "lucide-react";
 
 function formatBRL(value: number): string {
@@ -52,7 +53,9 @@ function sortHybrid<T extends { order?: number }>(items: T[]): T[] {
 }
 
 export default function PublicPlansPage() {
-  const [plans, setPlans] = useState<PlanDoc[]>(() => sortHybrid(DEFAULT_PLANS));
+  const [plans, setPlans] = useState<PlanDoc[]>(() =>
+    sortHybrid(DEFAULT_PLANS.filter((p) => p.active !== false))
+  );
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [loading, setLoading] = useState(true);
 
@@ -60,31 +63,30 @@ export default function PublicPlansPage() {
     async function loadPlansAndSettings() {
       try {
         const snapPlans = await getDocs(collection(db, "plans"));
-        if (!snapPlans.empty) {
-          const firestoreMap = new Map<string, PlanDoc>();
-          snapPlans.docs.forEach((d) => {
-            firestoreMap.set(d.id, {
-              id: d.id,
-              ...(d.data() as Omit<PlanDoc, "id">),
-            });
+        const firestoreMap = new Map<string, PlanDoc>();
+        snapPlans.docs.forEach((d) => {
+          firestoreMap.set(d.id, {
+            id: d.id,
+            ...(d.data() as Omit<PlanDoc, "id">),
           });
+        });
 
-          // Mescla os planos padrão com os editados no Firestore para nenhum plano sumir
-          const mergedMap = new Map<string, PlanDoc>();
-          DEFAULT_PLANS.forEach((def) => {
-            mergedMap.set(def.id, firestoreMap.get(def.id) || def);
-          });
-          firestoreMap.forEach((val, key) => {
-            if (!mergedMap.has(key)) {
-              mergedMap.set(key, val);
-            }
-          });
+        // Mescla os planos padrão com os editados/criados no Firestore
+        const mergedMap = new Map<string, PlanDoc>();
+        DEFAULT_PLANS.forEach((def) => {
+          mergedMap.set(def.id, firestoreMap.get(def.id) || def);
+        });
+        firestoreMap.forEach((val, key) => {
+          if (!mergedMap.has(key)) {
+            mergedMap.set(key, val);
+          }
+        });
 
-          const activeList = Array.from(mergedMap.values()).filter(
-            (p) => p.active !== false
-          );
-          setPlans(sortHybrid(activeList));
-        }
+        // Exibe SOMENTE planos ativos (ocultos/desativados no Master não aparecem aqui)
+        const activeList = Array.from(mergedMap.values()).filter(
+          (p) => p.active !== false
+        );
+        setPlans(sortHybrid(activeList));
 
         const snapSet = await getDoc(doc(db, "settings", "global"));
         if (snapSet.exists()) {
@@ -108,6 +110,15 @@ export default function PublicPlansPage() {
     ""
   );
 
+  const gridColsClass =
+    plans.length >= 4
+      ? "lg:grid-cols-4"
+      : plans.length === 3
+      ? "lg:grid-cols-3"
+      : plans.length === 2
+      ? "lg:grid-cols-2 max-w-4xl mx-auto"
+      : "max-w-md mx-auto";
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Navbar
@@ -126,7 +137,7 @@ export default function PublicPlansPage() {
             <span className="text-[#FFB800]">moradores e turistas</span>
           </h1>
           <p className="text-sm sm:text-base text-blue-100 max-w-2xl mx-auto">
-            Comece gratuitamente ou escolha um plano de visibilidade para exibir mais fotos, vídeos e aparecer no topo do guia comercial de Caldas Novas.
+            Comece gratuitamente, escolha um plano completo de visibilidade ou anuncie diretamente nos Full Banners do portal.
           </p>
         </div>
       </section>
@@ -137,12 +148,15 @@ export default function PublicPlansPage() {
             <Loader2 className="w-8 h-8 animate-spin text-[#0A4D9C]" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch">
+          <div className={`grid grid-cols-1 md:grid-cols-2 ${gridColsClass} gap-5 items-stretch`}>
             {plans.map((plan) => {
               const isFree = !plan.price || plan.price <= 0;
+              const isBannerOnlyPlan =
+                (plan.maxPhotos ?? 0) === 0 && (plan.maxVideos ?? 0) === 0;
+
               const waMessage = `Olá! Vi os planos no portal *Caldas Novas Online* e tenho interesse no plano *${plan.name}* (${formatBRL(
                 plan.price
-              )}). Gostaria de saber como ativar para minha empresa!`;
+              )}). Gostaria de saber como ativar!`;
               const waUrl = `https://wa.me/${cleanMasterPhone}?text=${encodeURIComponent(
                 waMessage
               )}`;
@@ -158,10 +172,10 @@ export default function PublicPlansPage() {
                 >
                   {plan.badgeText && (
                     <span
-                      className={`absolute -top-3.5 left-1/2 -translate-x-1/2 text-[11px] font-black uppercase tracking-wider px-3.5 py-1 rounded-full shadow-sm whitespace-nowrap ${
+                      className={`absolute -top-3.5 left-1/2 -translate-x-1/2 text-[11px] font-black uppercase tracking-wider px-4 py-1 rounded-full shadow-md whitespace-nowrap ${
                         plan.highlight
-                          ? "bg-[#FF7A00] text-slate-950"
-                          : "bg-slate-900 text-[#FFB800]"
+                          ? "bg-[#FF7A00] text-slate-950 ring-2 ring-white"
+                          : "bg-gradient-to-r from-purple-600 to-indigo-600 text-white ring-2 ring-white/90"
                       }`}
                     >
                       {plan.badgeText}
@@ -198,19 +212,38 @@ export default function PublicPlansPage() {
 
                     {/* Recursos Estruturados do Plano */}
                     <ul className="space-y-2.5 text-xs text-slate-700">
-                      <li className="flex items-start gap-2 font-bold text-slate-900">
-                        <ImageIcon className="w-4 h-4 text-[#0A4D9C] shrink-0 mt-0.5" />
-                        <span>Até {plan.maxPhotos} fotos na galeria</span>
-                      </li>
+                      {isBannerOnlyPlan ? (
+                        <>
+                          <li className="flex items-start gap-2 font-extrabold text-purple-900 bg-purple-50 p-2.5 rounded-xl">
+                            <Megaphone className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                            <span>
+                              Divulgação exclusiva em Full Banner (sem necessidade de página interna)
+                            </span>
+                          </li>
+                          <li className="flex items-start gap-2 font-bold text-slate-900">
+                            <ExternalLink className="w-4 h-4 text-[#0A4D9C] shrink-0 mt-0.5" />
+                            <span>
+                              Clique direto para seu WhatsApp ou Site externo
+                            </span>
+                          </li>
+                        </>
+                      ) : (
+                        <>
+                          <li className="flex items-start gap-2 font-bold text-slate-900">
+                            <ImageIcon className="w-4 h-4 text-[#0A4D9C] shrink-0 mt-0.5" />
+                            <span>Até {plan.maxPhotos} fotos na galeria</span>
+                          </li>
 
-                      <li className="flex items-start gap-2 font-bold text-slate-900">
-                        <Youtube className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                        <span>
-                          {plan.maxVideos > 0
-                            ? `Até ${plan.maxVideos} vídeo(s) do YouTube/Reels`
-                            : "Sem vídeos (apenas fotos)"}
-                        </span>
-                      </li>
+                          <li className="flex items-start gap-2 font-bold text-slate-900">
+                            <Youtube className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                            <span>
+                              {plan.maxVideos > 0
+                                ? `Até ${plan.maxVideos} vídeo(s) do YouTube/Reels`
+                                : "Sem vídeos (apenas fotos)"}
+                            </span>
+                          </li>
+                        </>
+                      )}
 
                       {plan.hasFeaturedHome && (
                         <li className="flex items-start gap-2 font-extrabold text-amber-800 bg-amber-50 p-2 rounded-xl">
