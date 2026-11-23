@@ -129,6 +129,7 @@ export default function MasterAdminPage() {
   const [newCatSubtitle, setNewCatSubtitle] = useState("");
   const [editingCat, setEditingCat] = useState<CategoryDoc | null>(null);
   const [editingCatOrderInput, setEditingCatOrderInput] = useState("1");
+  const [editingCatQuickTagsText, setEditingCatQuickTagsText] = useState("");
   const [uploadingCatIcon, setUploadingCatIcon] = useState(false);
   const [savingCat, setSavingCat] = useState(false);
   const [syncingCategories, setSyncingCategories] = useState(false);
@@ -482,7 +483,7 @@ export default function MasterAdminPage() {
     setTimeout(() => setCopiedPlansLink(false), 3000);
   };
 
-  // CATEGORIAS
+  // CATEGORIAS + TEMAS RÁPIDOS DO SEGMENTO
   const handleResetCategoriesToDefault = async () => {
     const confirmed = window.confirm(
       "🔄 ATUALIZAR PARA AS 10 CATEGORIAS NOVAS?\n\nIsso vai substituir as categorias antigas no banco pelas 10 novas (Onde Comer, Onde Ficar, Turismo & Parques, Imóveis, Saúde & Bem-estar, Casa & Reforma, Energia Solar, Ar Condicionado, Automotivo & Mobilidade e Profissionais & Serviços).\n\nDeseja aplicar agora?"
@@ -529,6 +530,7 @@ export default function MasterAdminPage() {
       subtitle: newCatSubtitle.trim() || "Empresas e serviços locais",
       iconName: "Store",
       bgColor: "bg-blue-600",
+      quickTags: [],
       order: categories.length + 1,
       active: true,
     } as CategoryDoc;
@@ -547,6 +549,7 @@ export default function MasterAdminPage() {
   const openEditCategoryModal = (cat: CategoryDoc) => {
     setEditingCat(cat);
     setEditingCatOrderInput(String(cat.order || 1));
+    setEditingCatQuickTagsText((cat.quickTags || []).join(", "));
   };
 
   const handleUploadCategoryImage = async (
@@ -573,10 +576,16 @@ export default function MasterAdminPage() {
     try {
       const docId = editingCat.slug || editingCat.id;
       const parsedOrder = parseInt(editingCatOrderInput.replace(/\D/g, ""), 10);
+      const parsedQuickTags = editingCatQuickTagsText
+        .split(",")
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+
       const updated: CategoryDoc = {
         ...editingCat,
         id: docId,
         slug: docId,
+        quickTags: parsedQuickTags,
         order: !isNaN(parsedOrder) && parsedOrder > 0 ? parsedOrder : 1,
       };
       await setDoc(doc(db, "categories", docId), updated, { merge: true });
@@ -586,7 +595,7 @@ export default function MasterAdminPage() {
           .sort((a, b) => (a.order || 0) - (b.order || 0))
       );
       setEditingCat(null);
-      alert("✅ Categoria atualizada com sucesso!");
+      alert("✅ Categoria e temas rápidos salvos com sucesso!");
     } catch (err) {
       console.error(err);
       alert("Erro ao salvar categoria.");
@@ -1919,7 +1928,7 @@ export default function MasterAdminPage() {
                   Gerenciar Categorias do Guia
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Clique em <strong>Editar</strong> em qualquer categoria para alterar o texto, subtítulo, cor ou enviar uma foto/ícone personalizado.
+                  Clique em <strong>Editar</strong> em qualquer categoria para alterar o texto, subtítulo, cor, foto/ícone ou cadastrar <strong>Temas Rápidos</strong> (atalhos de filtro dentro do segmento).
                 </p>
               </div>
 
@@ -1990,6 +1999,11 @@ export default function MasterAdminPage() {
                       <p className="text-[11px] text-slate-500 truncate">
                         {cat.subtitle || `Slug: ${cat.slug}`}
                       </p>
+                      {Array.isArray(cat.quickTags) && cat.quickTags.length > 0 && (
+                        <p className="text-[10px] font-bold text-[#0A4D9C] truncate mt-0.5">
+                          ⚡ {cat.quickTags.join(" • ")}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -1998,7 +2012,7 @@ export default function MasterAdminPage() {
                       type="button"
                       onClick={() => openEditCategoryModal(cat)}
                       className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#0A4D9C] transition cursor-pointer"
-                      title="Editar texto, cor e foto"
+                      title="Editar texto, cor, foto e temas rápidos"
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
@@ -2867,12 +2881,12 @@ export default function MasterAdminPage() {
       {editingCat && (
         <div
           onClick={() => setEditingCat(null)}
-          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
         >
           <form
             onClick={(e) => e.stopPropagation()}
             onSubmit={handleSaveEditedCategory}
-            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4 relative"
+            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4 relative my-auto"
           >
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <h3 className="text-lg font-black text-slate-900">
@@ -2932,6 +2946,22 @@ export default function MasterAdminPage() {
                   placeholder="Ex: Restaurantes, pizzarias, lanchonetes..."
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Temas Rápidos do Segmento (separados por vírgula — opcional)
+                </label>
+                <input
+                  type="text"
+                  value={editingCatQuickTagsText}
+                  onChange={(e) => setEditingCatQuickTagsText(e.target.value)}
+                  placeholder="Ex: Pizzarias, Hambúrguer, Restaurantes, Sushi"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Aparecem como botões de atalho abaixo da busca dentro deste segmento. Deixe vazio se não quiser atalhos.
+                </p>
               </div>
 
               <div className="sm:col-span-2">
