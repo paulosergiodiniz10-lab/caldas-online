@@ -1,55 +1,29 @@
 import type { Metadata } from "next";
+import {
+  doc,
+  getDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+  limit,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { Business } from "@/types";
 import { BusinessProfileClient } from "./BusinessProfileClient";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
-interface FirestoreValue {
-  stringValue?: string;
-  booleanValue?: boolean;
-  integerValue?: string;
-  doubleValue?: number;
-}
-
-interface FirestoreDocument {
-  name: string;
-  fields?: Record<string, FirestoreValue>;
-}
-
-interface BusinessSeoData {
-  name: string;
-  subcategory: string;
-  description: string;
-  neighborhood: string;
-  address: string;
-  showcaseUrl: string;
-  logoUrl: string;
-  coverUrl: string;
-  isApproved: boolean;
-}
-
 const SITE_URL = "https://caldasnovasonline.com.br";
-const DEFAULT_OG_IMAGE = `${SITE_URL}/og-default.png`;
+const DEFAULT_OG_IMAGE =
+  "https://ldsite.com.br/wp-content/uploads/2026/11/logo-site.jpg";
 
-function extractFields(doc?: FirestoreDocument): BusinessSeoData | null {
-  if (!doc?.fields) return null;
-  const f = doc.fields;
-
-  return {
-    name: f.name?.stringValue || "",
-    subcategory: f.subcategory?.stringValue || "",
-    description: f.description?.stringValue || "",
-    neighborhood: f.neighborhood?.stringValue || "",
-    address: f.address?.stringValue || "",
-    showcaseUrl: f.showcaseUrl?.stringValue || "",
-    logoUrl: f.logoUrl?.stringValue || "",
-    coverUrl: f.coverUrl?.stringValue || "",
-    isApproved: f.isApproved?.booleanValue !== false,
-  };
-}
-
-function optimizeSocialImage(url: string): string {
+function optimizeSocialImage(url?: string): string {
   if (!url) return "";
   if (url.includes("res.cloudinary.com") && url.includes("/upload/")) {
     return url.replace(
@@ -60,64 +34,35 @@ function optimizeSocialImage(url: string): string {
   return url;
 }
 
-async function fetchBusinessForMetadata(
-  slug: string
-): Promise<BusinessSeoData | null> {
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-
-  if (!projectId || !slug) return null;
-
-  const keyParam = apiKey ? `?key=${encodeURIComponent(apiKey)}` : "";
+async function getBusinessBySlug(slug: string): Promise<Business | null> {
+  if (!slug) return null;
 
   try {
-    // 1. Tentativa direta pelo ID do documento (slug)
-    const directUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/businesses/${encodeURIComponent(
-      slug
-    )}${keyParam}`;
-
-    const directRes = await fetch(directUrl, {
-      next: { revalidate: 60 },
-    });
-
-    if (directRes.ok) {
-      const docData = (await directRes.json()) as FirestoreDocument;
-      const parsed = extractFields(docData);
-      if (parsed?.name) return parsed;
+    // 1. Busca direta pelo ID do documento (slug)
+    const directSnap = await getDoc(doc(db, "businesses", slug));
+    if (directSnap.exists()) {
+      return {
+        ...(directSnap.data() as Omit<Business, "id">),
+        id: directSnap.id,
+      };
     }
 
-    // 2. Fallback: consulta estruturada onde slug == params.slug
-    const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery${keyParam}`;
-
-    const queryRes = await fetch(queryUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        structuredQuery: {
-          from: [{ collectionId: "businesses" }],
-          where: {
-            fieldFilter: {
-              field: { fieldPath: "slug" },
-              op: "EQUAL",
-              value: { stringValue: slug },
-            },
-          },
-          limit: 1,
-        },
-      }),
-      next: { revalidate: 60 },
-    });
-
-    if (queryRes.ok) {
-      const results = (await queryRes.json()) as Array<{
-        document?: FirestoreDocument;
-      }>;
-      const firstDoc = results?.[0]?.document;
-      const parsed = extractFields(firstDoc);
-      if (parsed?.name) return parsed;
+    // 2. Fallback: busca pelo campo slug
+    const q = query(
+      collection(db, "businesses"),
+      where("slug", "==", slug),
+      limit(1)
+    );
+    const qSnap = await getDocs(q);
+    if (!qSnap.empty) {
+      const first = qSnap.docs[0];
+      return {
+        ...(first.data() as Omit<Business, "id">),
+        id: first.id,
+      };
     }
   } catch (err) {
-    console.error("Erro ao gerar metadata dinâmica da empresa:", err);
+    console.error("Erro ao buscar empresa para SEO:", err);
   }
 
   return null;
@@ -127,7 +72,7 @@ export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const biz = await fetchBusinessForMetadata(slug);
+  const biz = await getBusinessBySlug(slug);
 
   if (!biz || !biz.name) {
     return {
@@ -143,9 +88,9 @@ export async function generateMetadata({
 
   const title = biz.subcategory
     ? `${biz.name} • ${biz.subcategory} em Caldas Novas - GO`
-    : `${biz.name} em Caldas Novas - GO | Caldas Novas Online`;
+    : `${biz.name} em Caldas Novas - GO`;
 
-  const rawDesc = biz.description.replace(/\s+/g, " ").trim();
+  const rawDesc = (biz.description || "").replace(/\s+/g, " ").trim();
   const baseDesc = rawDesc
     ? rawDesc.slice(0, 145)
     : `Confira contatos, WhatsApp, localização e ofertas de ${biz.name} em ${locationLabel}.`;
@@ -168,9 +113,10 @@ export async function generateMetadata({
     alternates: {
       canonical: pageUrl,
     },
-    robots: biz.isApproved
-      ? { index: true, follow: true }
-      : { index: false, follow: false },
+    robots:
+      biz.isApproved !== false
+        ? { index: true, follow: true }
+        : { index: false, follow: false },
     openGraph: {
       type: "website",
       locale: "pt_BR",
