@@ -77,10 +77,28 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
   const categoryLabel =
     categoryObj?.name || business.subcategory || business.category || "";
 
-  const hasCoupon = Boolean(
+  const hasActiveCoupon = Boolean(
     business.coupon?.active &&
       (business.coupon?.title || business.coupon?.code)
   );
+
+  // Regra do Cupom no Card:
+  // 1) Se o moderador definiu explicitamente (true/false), obedece à escolha dele.
+  // 2) Caso contrário, plano Grátis (<=6 fotos, 0 vídeos e sem destaque) oculta do card (fica só na página interna).
+  const isPaidTierFallback =
+    (business.planId &&
+      business.planId !== "gratis" &&
+      business.planId !== "free") ||
+    (business.maxPhotos ?? 6) > 6 ||
+    (business.maxVideos ?? 0) > 0 ||
+    Boolean(business.isFeatured);
+
+  const isCouponAllowedOnCard =
+    typeof business.showCouponOnCard === "boolean"
+      ? business.showCouponOnCard
+      : isPaidTierFallback;
+
+  const hasCoupon = hasActiveCoupon && isCouponAllowedOnCard;
 
   const openStatus = getBusinessOpenStatus(business.businessHours);
   const isClosedNow = openStatus.hasSchedule && !openStatus.isOpen;
