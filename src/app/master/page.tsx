@@ -70,6 +70,8 @@ import {
   GripVertical,
   ChevronLeft,
   ChevronRight,
+  Ticket,
+  Layers,
 } from "lucide-react";
 
 const MASTER_EMAIL = "caldasonline10@gmail.com";
@@ -386,6 +388,34 @@ export default function MasterAdminPage() {
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  // Vincular plano completo do Catálogo à empresa (altera fotos, vídeos, destaque e regra padrão de cupom no card)
+  const handleSelectBusinessPlan = async (biz: Business, selectedPlanId: string) => {
+    if (!selectedPlanId) {
+      await handleUpdatePlan(biz, {
+        planId: "",
+        planName: "",
+      });
+      return;
+    }
+
+    const chosenPlan = plans.find((p) => p.id === selectedPlanId);
+    if (!chosenPlan) return;
+
+    const isFreePlan =
+      chosenPlan.id === "gratis" ||
+      chosenPlan.id === "free" ||
+      (chosenPlan.price ?? 0) <= 0;
+
+    await handleUpdatePlan(biz, {
+      planId: chosenPlan.id,
+      planName: chosenPlan.name,
+      maxPhotos: chosenPlan.maxPhotos,
+      maxVideos: chosenPlan.maxVideos,
+      isFeatured: Boolean(chosenPlan.hasFeaturedHome),
+      showCouponOnCard: !isFreePlan,
+    });
   };
 
   // GERENCIAMENTO DE PLANOS (GRÁTIS, VITRINE, DESTAQUE, MASTER)
@@ -1126,6 +1156,40 @@ export default function MasterAdminPage() {
     return found ? `📂 Segmento: ${found.name}` : `📂 Segmento: ${placement}`;
   };
 
+  // Opções dinâmicas de Fotos e Vídeos baseadas nos planos cadastrados
+  const dynamicPhotoOptions = (() => {
+    const map = new Map<number, string>();
+    plans.forEach((p) => {
+      const qty = Number(p.maxPhotos) || 6;
+      const existing = map.get(qty);
+      map.set(qty, existing ? `${existing} / ${p.name}` : `${qty} (${p.name})`);
+    });
+    if (!map.has(6)) map.set(6, "6 (Grátis)");
+    if (!map.has(30)) map.set(30, "30 fotos (Extra)");
+    return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
+  })();
+
+  const dynamicVideoOptions = (() => {
+    const map = new Map<number, string>();
+    plans.forEach((p) => {
+      const qty = Number(p.maxVideos) || 0;
+      const existing = map.get(qty);
+      map.set(qty, existing ? `${existing} / ${p.name}` : `${qty} (${p.name})`);
+    });
+    [0, 1, 2, 3, 4].forEach((n) => {
+      if (!map.has(n)) {
+        const defaultLabel =
+          n === 0
+            ? "0 (Sem vídeo)"
+            : n === 1
+            ? "1 (Horizontal)"
+            : `${n} (1H + ${n - 1}V)`;
+        map.set(n, defaultLabel);
+      }
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
+  })();
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Navbar
@@ -1314,6 +1378,46 @@ export default function MasterAdminPage() {
                   const isBusy = updatingId === biz.id;
                   const isVerified = biz.isVerified !== false;
 
+                  // Detecta o plano vinculado (ou infere pelos limites atuais se ainda não tiver planId)
+                  const matchedPlan =
+                    plans.find((p) => p.id === biz.planId) ||
+                    plans.find(
+                      (p) =>
+                        p.maxPhotos === (biz.maxPhotos ?? 6) &&
+                        p.maxVideos === (biz.maxVideos ?? 0)
+                    );
+                  const currentPlanId = biz.planId || matchedPlan?.id || "";
+
+                  const hasRegisteredCoupon = Boolean(
+                    biz.coupon?.active &&
+                      (biz.coupon?.title || biz.coupon?.code)
+                  );
+                  const isPaidFallback =
+                    (biz.planId &&
+                      biz.planId !== "gratis" &&
+                      biz.planId !== "free") ||
+                    (biz.maxPhotos ?? 6) > 6 ||
+                    (biz.maxVideos ?? 0) > 0 ||
+                    Boolean(biz.isFeatured);
+                  const isCouponAllowedOnCard =
+                    typeof biz.showCouponOnCard === "boolean"
+                      ? biz.showCouponOnCard
+                      : isPaidFallback;
+
+                  const photoSelectValues = Array.from(
+                    new Set([
+                      ...dynamicPhotoOptions.map(([val]) => val),
+                      biz.maxPhotos ?? 6,
+                    ])
+                  ).sort((a, b) => a - b);
+
+                  const videoSelectValues = Array.from(
+                    new Set([
+                      ...dynamicVideoOptions.map(([val]) => val),
+                      biz.maxVideos ?? 0,
+                    ])
+                  ).sort((a, b) => a - b);
+
                   return (
                     <div
                       key={biz.id}
@@ -1337,6 +1441,13 @@ export default function MasterAdminPage() {
                             </span>
                           )}
 
+                          {(biz.planName || matchedPlan?.name) && (
+                            <span className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-900 text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-full">
+                              <Layers className="w-3 h-3" /> Plano:{" "}
+                              {biz.planName || matchedPlan?.name}
+                            </span>
+                          )}
+
                           {isVerified && (
                             <span className="inline-flex items-center gap-1 bg-sky-100 text-[#0A4D9C] text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-full">
                               <BadgeCheck className="w-3.5 h-3.5" /> Verificada
@@ -1346,6 +1457,21 @@ export default function MasterAdminPage() {
                           {biz.isFeatured && (
                             <span className="inline-flex items-center gap-1 bg-blue-100 text-[#0A4D9C] text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-full">
                               <Star className="w-3 h-3 fill-[#0A4D9C]" /> Patrocinada
+                            </span>
+                          )}
+
+                          {hasRegisteredCoupon && (
+                            <span
+                              className={`inline-flex items-center gap-1 text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-full ${
+                                isCouponAllowedOnCard
+                                  ? "bg-orange-100 text-orange-800"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              <Ticket className="w-3 h-3" />{" "}
+                              {isCouponAllowedOnCard
+                                ? "Cupom Liberado no Card"
+                                : "Cupom Só Página Interna"}
                             </span>
                           )}
                         </div>
@@ -1360,7 +1486,7 @@ export default function MasterAdminPage() {
                         </Link>
                       </div>
 
-                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                         <div className="flex items-start gap-3.5">
                           {biz.logoUrl ? (
                             <img
@@ -1391,6 +1517,26 @@ export default function MasterAdminPage() {
 
                         <div className="flex flex-wrap items-center gap-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200/70">
                           <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                            <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                            Plano:
+                            <select
+                              value={currentPlanId}
+                              disabled={isBusy}
+                              onChange={(e) =>
+                                handleSelectBusinessPlan(biz, e.target.value)
+                              }
+                              className="rounded-lg border border-indigo-300 px-2.5 py-1 text-xs bg-white font-extrabold text-indigo-950"
+                            >
+                              <option value="">Personalizado</option>
+                              {plans.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} ({p.maxPhotos}F / {p.maxVideos}V)
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                             <ImageIcon className="w-3.5 h-3.5 text-[#0A4D9C]" />
                             Fotos:
                             <select
@@ -1403,10 +1549,16 @@ export default function MasterAdminPage() {
                               }
                               className="rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white font-extrabold"
                             >
-                              <option value={6}>6 (Grátis)</option>
-                              <option value={12}>12 fotos</option>
-                              <option value={20}>20 fotos</option>
-                              <option value={30}>30 fotos</option>
+                              {photoSelectValues.map((qty) => {
+                                const foundLabel = dynamicPhotoOptions.find(
+                                  ([v]) => v === qty
+                                )?.[1];
+                                return (
+                                  <option key={qty} value={qty}>
+                                    {foundLabel || `${qty} fotos`}
+                                  </option>
+                                );
+                              })}
                             </select>
                           </label>
 
@@ -1423,13 +1575,39 @@ export default function MasterAdminPage() {
                               }
                               className="rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white font-extrabold"
                             >
-                              <option value={0}>0 (Grátis)</option>
-                              <option value={1}>1 (Horizontal)</option>
-                              <option value={2}>2 (1H + 1V)</option>
-                              <option value={3}>3 (1H + 2V)</option>
-                              <option value={4}>4 (1H + 3V)</option>
+                              {videoSelectValues.map((qty) => {
+                                const foundLabel = dynamicVideoOptions.find(
+                                  ([v]) => v === qty
+                                )?.[1];
+                                return (
+                                  <option key={qty} value={qty}>
+                                    {foundLabel || `${qty} vídeo(s)`}
+                                  </option>
+                                );
+                              })}
                             </select>
                           </label>
+
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() =>
+                              handleUpdatePlan(biz, {
+                                showCouponOnCard: !isCouponAllowedOnCard,
+                              })
+                            }
+                            title="Define se o cupom aparece no card da Home/Categorias (na página interna sempre aparece quando ativo)"
+                            className={`px-3 py-1.5 rounded-lg text-xs font-extrabold inline-flex items-center gap-1 transition cursor-pointer ${
+                              isCouponAllowedOnCard
+                                ? "bg-[#FF7A00] text-white"
+                                : "bg-white border border-slate-300 text-slate-600 hover:bg-slate-100"
+                            }`}
+                          >
+                            <Ticket className="w-3.5 h-3.5" />
+                            {isCouponAllowedOnCard
+                              ? "Cupom no Card"
+                              : "Sem Cupom Card"}
+                          </button>
 
                           <button
                             type="button"
