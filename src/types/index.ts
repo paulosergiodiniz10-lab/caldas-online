@@ -46,8 +46,10 @@ export interface Business {
   youtubeHorizontal?: string; // 1 vídeo horizontal (exibe primeiro)
   youtubeVerticals?: string[]; // Até 3 vídeos verticais (Shorts/YouTube)
   coupon?: Coupon;
+  showCouponOnCard?: boolean; // Moderador libera ou bloqueia exibição do cupom no card da Home/Categorias
   businessHours?: BusinessHours; // Horário de funcionamento semanal
-  planId?: string; // Identificador do plano contratado (opcional)
+  planId?: string; // Identificador do plano contratado (ex: gratis, vitrine, destaque, master)
+  planName?: string; // Nome do plano vinculado pelo moderador
   isVerified?: boolean; // Selo Empresa Verificada (controlado no Master)
   isFeatured: boolean;
   isApproved: boolean;
