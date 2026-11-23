@@ -83,6 +83,25 @@ type ExtendedBanner = PromoBanner & {
   buttonText?: string;
 };
 
+type ExtendedPlanDoc = PlanDoc & {
+  priceDisplay?: string;
+};
+
+function formatPlanPrice(plan: ExtendedPlanDoc): string {
+  if (!plan.price || plan.price <= 0) return "Grátis";
+  if (plan.priceDisplay && plan.priceDisplay.trim()) {
+    const raw = plan.priceDisplay.trim();
+    return raw.startsWith("R$") ? raw : `R$ ${raw}`;
+  }
+  if (Number.isInteger(plan.price)) {
+    return `R$ ${plan.price.toLocaleString("pt-BR")}`;
+  }
+  return plan.price.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
 const COLOR_PRESETS = [
   { label: "Laranja", value: "bg-orange-500" },
   { label: "Vermelho", value: "bg-red-500" },
@@ -121,8 +140,9 @@ export default function MasterAdminPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   // Planos
-  const [plans, setPlans] = useState<PlanDoc[]>(DEFAULT_PLANS);
-  const [editingPlan, setEditingPlan] = useState<PlanDoc | null>(null);
+  const [plans, setPlans] = useState<ExtendedPlanDoc[]>(DEFAULT_PLANS);
+  const [editingPlan, setEditingPlan] = useState<ExtendedPlanDoc | null>(null);
+  const [editingPlanPriceInput, setEditingPlanPriceInput] = useState("");
   const [editingPlanOrderInput, setEditingPlanOrderInput] = useState("0");
   const [editingPlanFeaturesText, setEditingPlanFeaturesText] = useState("");
   const [savingPlan, setSavingPlan] = useState(false);
@@ -211,17 +231,17 @@ export default function MasterAdminPage() {
       });
       setBusinesses(bizList);
 
-      // 2. Planos (mescla os 4 padrões com os salvos no Firestore para nenhum plano desaparecer)
+      // 2. Planos (mescla os padrões com os salvos no Firestore para nenhum plano desaparecer)
       const snapPlans = await getDocs(collection(db, "plans"));
-      const firestorePlansMap = new Map<string, PlanDoc>();
+      const firestorePlansMap = new Map<string, ExtendedPlanDoc>();
       snapPlans.docs.forEach((d) => {
         firestorePlansMap.set(d.id, {
-          ...(d.data() as Omit<PlanDoc, "id">),
+          ...(d.data() as Omit<ExtendedPlanDoc, "id">),
           id: d.id,
         });
       });
 
-      const mergedPlansMap = new Map<string, PlanDoc>();
+      const mergedPlansMap = new Map<string, ExtendedPlanDoc>();
       DEFAULT_PLANS.forEach((def) => {
         mergedPlansMap.set(def.id, firestorePlansMap.get(def.id) || def);
       });
@@ -419,8 +439,17 @@ export default function MasterAdminPage() {
   };
 
   // GERENCIAMENTO DE PLANOS (GRÁTIS, VITRINE, DESTAQUE, MASTER, SÓ BANNER)
-  const openEditPlanModal = (plan: PlanDoc) => {
+  const openEditPlanModal = (plan: ExtendedPlanDoc) => {
     setEditingPlan({ ...plan });
+    if (plan.priceDisplay && plan.priceDisplay.trim()) {
+      setEditingPlanPriceInput(plan.priceDisplay.trim().replace(/^R\$\s*/i, ""));
+    } else if (!plan.price || plan.price <= 0) {
+      setEditingPlanPriceInput("0");
+    } else if (Number.isInteger(plan.price)) {
+      setEditingPlanPriceInput(String(plan.price));
+    } else {
+      setEditingPlanPriceInput(plan.price.toFixed(2).replace(".", ","));
+    }
     setEditingPlanOrderInput(plan.order && plan.order > 0 ? String(plan.order) : "");
     setEditingPlanFeaturesText((plan.features || []).join("\n"));
   };
@@ -431,7 +460,8 @@ export default function MasterAdminPage() {
       id: newId,
       name: "",
       subtitle: "",
-      price: 99.9,
+      price: 97,
+      priceDisplay: "97",
       billingPeriod: "/mês",
       maxPhotos: 20,
       maxVideos: 2,
@@ -445,6 +475,7 @@ export default function MasterAdminPage() {
       order: 0,
       active: true,
     });
+    setEditingPlanPriceInput("97");
     setEditingPlanOrderInput("");
     setEditingPlanFeaturesText("Página completa no guia\nBotão direto para WhatsApp");
   };
@@ -455,7 +486,8 @@ export default function MasterAdminPage() {
       id: newId,
       name: "Full Banner",
       subtitle: "Anúncio exclusivo sem página",
-      price: 127,
+      price: 157,
+      priceDisplay: "157",
       billingPeriod: "/mês",
       maxPhotos: 0,
       maxVideos: 0,
@@ -473,6 +505,7 @@ export default function MasterAdminPage() {
       order: 0,
       active: true,
     });
+    setEditingPlanPriceInput("157");
     setEditingPlanOrderInput("");
     setEditingPlanFeaturesText(
       "Arte horizontal 1200x300px no topo do portal\nBotão direto para WhatsApp ou Site externo\nNão precisa criar página ou cadastro de loja"
@@ -492,11 +525,19 @@ export default function MasterAdminPage() {
 
       const parsedOrder = parseInt(editingPlanOrderInput.replace(/\D/g, ""), 10);
 
-      const updated: PlanDoc = {
+      // Interpreta exatamente o texto digitado no preço (ex: "157" -> mostra 157; "157,00" -> mostra 157,00)
+      const cleanedDisplay = editingPlanPriceInput
+        .trim()
+        .replace(/^R\$\s*/i, "");
+      const numericPrice =
+        parseFloat(cleanedDisplay.replace(/\./g, "").replace(",", ".")) || 0;
+
+      const updated: ExtendedPlanDoc = {
         ...editingPlan,
         name: editingPlan.name.trim(),
         subtitle: editingPlan.subtitle.trim(),
-        price: Number(editingPlan.price) || 0,
+        price: numericPrice,
+        priceDisplay: numericPrice > 0 ? cleanedDisplay : "",
         maxPhotos: Math.max(0, Number(editingPlan.maxPhotos) || 0),
         maxVideos: Math.max(0, Math.min(4, Number(editingPlan.maxVideos) || 0)),
         order: !isNaN(parsedOrder) && parsedOrder > 0 ? parsedOrder : 0,
@@ -523,7 +564,7 @@ export default function MasterAdminPage() {
     }
   };
 
-  const handleTogglePlanActive = async (plan: PlanDoc) => {
+  const handleTogglePlanActive = async (plan: ExtendedPlanDoc) => {
     const nextActive = plan.active === false;
     try {
       await setDoc(
@@ -1189,12 +1230,12 @@ export default function MasterAdminPage() {
   // Planos ativos (usados na moderação de empresas; planos ocultos não aparecem para seleção)
   const activePlans = plans.filter((p) => p.active !== false);
 
-  // Opções dinâmicas de Fotos e Vídeos lendo exclusivamente dos planos ativos (sem chumbado 6)
+  // Opções dinâmicas de Fotos e Vídeos lendo exclusivamente dos planos ativos
   const dynamicPhotoOptions = (() => {
     const map = new Map<number, string>();
     activePlans.forEach((p) => {
       const qty = Math.max(0, Number(p.maxPhotos) || 0);
-      if (qty === 0) return; // Planos só-banner (0 fotos) não entram no dropdown de galeria
+      if (qty === 0) return;
       const existing = map.get(qty);
       map.set(qty, existing ? `${existing} / ${p.name}` : `${qty} (${p.name})`);
     });
@@ -1412,7 +1453,7 @@ export default function MasterAdminPage() {
                   const isVerified = biz.isVerified !== false;
 
                   const freePlanDefaultPhotos =
-                    plans.find((p) => p.id === "gratis")?.maxPhotos ?? 6;
+                    plans.find((p) => p.id === "gratis")?.maxPhotos ?? 7;
                   const currentBizPhotos = biz.maxPhotos ?? freePlanDefaultPhotos;
 
                   // Detecta o plano vinculado (ou infere pelos limites atuais se ainda não tiver planId)
@@ -1840,12 +1881,7 @@ export default function MasterAdminPage() {
 
                       <div className="pt-2 border-t border-slate-100">
                         <p className="text-2xl font-black text-[#0A4D9C]">
-                          {!plan.price || plan.price <= 0
-                            ? "Grátis"
-                            : plan.price.toLocaleString("pt-BR", {
-                                style: "currency",
-                                currency: "BRL",
-                              })}
+                          {formatPlanPrice(plan)}
                           {plan.price > 0 && (
                             <span className="text-xs font-bold text-slate-500 ml-1">
                               {plan.billingPeriod || "/mês"}
@@ -3045,20 +3081,19 @@ export default function MasterAdminPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Valor (R$) — 0 para Grátis
+                  Valor (R$) — Ex: 157 ou 157,00 (0 = Grátis)
                 </label>
                 <input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={editingPlan.price}
+                  type="text"
+                  inputMode="decimal"
+                  value={editingPlanPriceInput}
                   onChange={(e) =>
-                    setEditingPlan({
-                      ...editingPlan,
-                      price: Number(e.target.value),
-                    })
+                    setEditingPlanPriceInput(
+                      e.target.value.replace(/[^0-9.,]/g, "")
+                    )
                   }
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  placeholder="Ex: 157 ou 157,00"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-bold text-[#0A4D9C]"
                 />
               </div>
 
