@@ -38,7 +38,7 @@ export interface Business {
   instagram?: string;
   facebook?: string;
   logoUrl: string;
-  showcaseUrl?: string; // Foto Vitrine (Card da Home/Categorias - 800x600px)
+  showcaseUrl?: string; // Foto Vitrine (Card da Home/Categorias - 1536x1024px)
   coverUrl: string;     // Banner Capa (Topo da página interna - 1200x400px)
   gallery: string[];
   maxPhotos?: number; // Master pode aumentar por cliente
@@ -97,6 +97,7 @@ export interface CategoryDoc {
   iconName: string;
   customIconUrl?: string;
   bgColor: string;
+  quickTags?: string[]; // Temas rápidos do segmento (Ex: ["Pizzarias", "Hambúrguer", "Restaurantes"])
   order: number;
   active: boolean;
 }
