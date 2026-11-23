@@ -18,11 +18,16 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
+  verification: {
+    google: "a_09nMcOYQpCaIH2qsYlog0nkyWED0D4qE_pOLz1JOY",
+  },
   manifest: "/manifest.json",
   icons: {
     icon: "https://ldsite.com.br/wp-content/uploads/2026/11/icone_insta.fw_.png",
-    shortcut: "https://ldsite.com.br/wp-content/uploads/2026/11/icone_insta.fw_.png",
-    apple: "https://ldsite.com.br/wp-content/uploads/2026/11/icone_insta.fw_.png",
+    shortcut:
+      "https://ldsite.com.br/wp-content/uploads/2026/11/icone_insta.fw_.png",
+    apple:
+      "https://ldsite.com.br/wp-content/uploads/2026/11/icone_insta.fw_.png",
   },
   openGraph: {
     type: "website",
@@ -63,7 +68,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body className={`${jakarta.className} antialiased min-h-screen flex flex-col`}>
+      <body
+        className={`${jakarta.className} antialiased min-h-screen flex flex-col`}
+      >
         {children}
       </body>
     </html>
