@@ -65,7 +65,19 @@ import {
   Megaphone,
   FileEdit,
   Copy,
+  Plus,
 } from "lucide-react";
+
+type ExtendedBusinessDoc = Business & {
+  id: string;
+  cep?: string;
+  googleMapsUrl?: string;
+  acceptedTerms?: boolean;
+};
+
+type ExtendedPlanDoc = PlanDoc & {
+  priceDisplay?: string;
+};
 
 function createSlug(text: string) {
   return text
@@ -89,9 +101,16 @@ function isValidYoutubeUrl(url: string): boolean {
   return /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/i.test(url.trim());
 }
 
-function formatBRL(value: number): string {
-  if (!value || value <= 0) return "Grátis";
-  return value.toLocaleString("pt-BR", {
+function formatPlanPrice(plan: ExtendedPlanDoc): string {
+  if (!plan.price || plan.price <= 0) return "Grátis";
+  if (plan.priceDisplay && plan.priceDisplay.trim()) {
+    const raw = plan.priceDisplay.trim();
+    return raw.startsWith("R$") ? raw : `R$ ${raw}`;
+  }
+  if (Number.isInteger(plan.price)) {
+    return `R$ ${plan.price.toLocaleString("pt-BR")}`;
+  }
+  return plan.price.toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
   });
@@ -115,8 +134,13 @@ export default function BusinessDashboardPage() {
   const [panelTab, setPanelTab] = useState<"edit" | "plans">("edit");
 
   const [categories, setCategories] = useState<CategoryDoc[]>(DEFAULT_CATEGORIES);
-  const [plans, setPlans] = useState<PlanDoc[]>(DEFAULT_PLANS);
+  const [plans, setPlans] = useState<ExtendedPlanDoc[]>(DEFAULT_PLANS);
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+
+  // Lista de todas as empresas/anúncios vinculados a esta conta
+  const [userBusinesses, setUserBusinesses] = useState<ExtendedBusinessDoc[]>([]);
+  const [isCreatingNewAd, setIsCreatingNewAd] = useState(false);
+
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
@@ -128,7 +152,7 @@ export default function BusinessDashboardPage() {
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [fastTrackClicked, setFastTrackClicked] = useState(false);
 
-  // Campos da Empresa
+  // Campos da Empresa / Anúncio ativo
   const [name, setName] = useState("");
   const [category, setCategory] = useState("onde-comer");
   const [subcategory, setSubcategory] = useState("");
@@ -150,8 +174,10 @@ export default function BusinessDashboardPage() {
     DEFAULT_BUSINESS_HOURS
   );
 
-  // Limites controlados pelo Master (Plano Grátis: 6 fotos e 0 vídeos)
-  const [maxPhotos, setMaxPhotos] = useState(6);
+  // Limites controlados pelo Master
+  const [maxPhotos, setMaxPhotos] = useState(
+    DEFAULT_PLANS.find((p) => p.id === "gratis")?.maxPhotos ?? 6
+  );
   const [maxVideos, setMaxVideos] = useState(0);
   const [viewsCount, setViewsCount] = useState(0);
   const [whatsappClicks, setWhatsappClicks] = useState(0);
@@ -173,6 +199,98 @@ export default function BusinessDashboardPage() {
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
 
+  const freePlanMaxPhotos =
+    plans.find((p) => p.id === "gratis")?.maxPhotos ?? 6;
+
+  function applyBusinessToForm(data: ExtendedBusinessDoc) {
+    setIsCreatingNewAd(false);
+    setBusinessId(data.id);
+    setName(data.name || "");
+    setCategory(data.category || "onde-comer");
+    setSubcategory(data.subcategory || "");
+    setDescription(data.description || "");
+    setCep(formatCep(data.cep || ""));
+    setNeighborhood(data.neighborhood || "");
+    setAddress(data.address || "");
+    setGoogleMapsUrl(data.googleMapsUrl || "");
+    setWhatsapp(data.whatsapp || "");
+    setInstagram(data.instagram || "");
+    setWebsite(data.website || "");
+    setLogoUrl(data.logoUrl || "");
+    setShowcaseUrl(data.showcaseUrl || "");
+    setCoverUrl(data.coverUrl || "");
+    setGallery(data.gallery || []);
+    setMaxPhotos(data.maxPhotos ?? freePlanMaxPhotos);
+    setMaxVideos(data.maxVideos ?? 0);
+    setIsApproved(Boolean(data.isApproved));
+    setIsFeatured(Boolean(data.isFeatured));
+    setAcceptedTerms(Boolean(data.acceptedTerms ?? data.isApproved));
+    setViewsCount(data.viewsCount || 0);
+    setWhatsappClicks(data.whatsappClicks || 0);
+
+    if (data.businessHours) {
+      setBusinessHours({
+        enabled: Boolean(data.businessHours.enabled),
+        is24h: Boolean(data.businessHours.is24h),
+        days: {
+          ...DEFAULT_BUSINESS_HOURS.days,
+          ...(data.businessHours.days || {}),
+        },
+      });
+    } else {
+      setBusinessHours(DEFAULT_BUSINESS_HOURS);
+    }
+
+    setYoutubeHorizontal(data.youtubeHorizontal || "");
+    const verts = data.youtubeVerticals || [];
+    setYoutubeVertical1(verts[0] || "");
+    setYoutubeVertical2(verts[1] || "");
+    setYoutubeVertical3(verts[2] || "");
+
+    setCouponActive(Boolean(data.coupon?.active));
+    setCouponTitle(data.coupon?.title || "");
+    setCouponCode(data.coupon?.code || "");
+    setCouponRules(data.coupon?.rules || "");
+  }
+
+  function handleStartNewAd() {
+    const defaultCat = categories[0]?.slug || categories[0]?.id || "onde-comer";
+    setIsCreatingNewAd(true);
+    setPanelTab("edit");
+    setBusinessId(null);
+    setName("");
+    setCategory(defaultCat);
+    setSubcategory("");
+    setDescription("");
+    setCep("");
+    setNeighborhood("");
+    setAddress("");
+    setGoogleMapsUrl("");
+    setWhatsapp("");
+    setInstagram("");
+    setWebsite("");
+    setLogoUrl("");
+    setShowcaseUrl("");
+    setCoverUrl("");
+    setGallery([]);
+    setBusinessHours(DEFAULT_BUSINESS_HOURS);
+    setMaxPhotos(freePlanMaxPhotos);
+    setMaxVideos(0);
+    setIsApproved(false);
+    setIsFeatured(false);
+    setAcceptedTerms(false);
+    setViewsCount(0);
+    setWhatsappClicks(0);
+    setYoutubeHorizontal("");
+    setYoutubeVertical1("");
+    setYoutubeVertical2("");
+    setYoutubeVertical3("");
+    setCouponActive(false);
+    setCouponTitle("");
+    setCouponCode("");
+    setCouponRules("");
+  }
+
   useEffect(() => {
     async function loadShared() {
       try {
@@ -187,15 +305,15 @@ export default function BusinessDashboardPage() {
 
         const snapPlans = await getDocs(collection(db, "plans"));
         if (!snapPlans.empty) {
-          const firestorePlansMap = new Map<string, PlanDoc>();
+          const firestorePlansMap = new Map<string, ExtendedPlanDoc>();
           snapPlans.docs.forEach((d) => {
             firestorePlansMap.set(d.id, {
               id: d.id,
-              ...(d.data() as Omit<PlanDoc, "id">),
+              ...(d.data() as Omit<ExtendedPlanDoc, "id">),
             });
           });
 
-          const mergedPlansMap = new Map<string, PlanDoc>();
+          const mergedPlansMap = new Map<string, ExtendedPlanDoc>();
           DEFAULT_PLANS.forEach((def) => {
             mergedPlansMap.set(def.id, firestorePlansMap.get(def.id) || def);
           });
@@ -227,72 +345,40 @@ export default function BusinessDashboardPage() {
     const unsub = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        await loadUserBusiness(currentUser.uid);
+        await loadUserBusinesses(currentUser.uid);
+      } else {
+        setUserBusinesses([]);
+        setBusinessId(null);
       }
       setLoadingAuth(false);
     });
     return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function loadUserBusiness(uid: string) {
+  async function loadUserBusinesses(uid: string, preferredSelectId?: string) {
     try {
       const q = query(collection(db, "businesses"), where("ownerId", "==", uid));
       const snap = await getDocs(q);
-      if (!snap.empty) {
-        const docSnap = snap.docs[0];
-        const data = docSnap.data() as Business & {
-          cep?: string;
-          googleMapsUrl?: string;
-          acceptedTerms?: boolean;
-        };
-        setBusinessId(docSnap.id);
-        setName(data.name || "");
-        setCategory(data.category || "onde-comer");
-        setSubcategory(data.subcategory || "");
-        setDescription(data.description || "");
-        setCep(formatCep(data.cep || ""));
-        setNeighborhood(data.neighborhood || "");
-        setAddress(data.address || "");
-        setGoogleMapsUrl(data.googleMapsUrl || "");
-        setWhatsapp(data.whatsapp || "");
-        setInstagram(data.instagram || "");
-        setWebsite(data.website || "");
-        setLogoUrl(data.logoUrl || "");
-        setShowcaseUrl(data.showcaseUrl || "");
-        setCoverUrl(data.coverUrl || "");
-        setGallery(data.gallery || []);
-        setMaxPhotos(Math.max(6, data.maxPhotos ?? 6));
-        setMaxVideos(data.maxVideos ?? 0);
-        setIsApproved(Boolean(data.isApproved));
-        setIsFeatured(Boolean(data.isFeatured));
-        setAcceptedTerms(Boolean(data.acceptedTerms ?? data.isApproved));
-        setViewsCount(data.viewsCount || 0);
-        setWhatsappClicks(data.whatsappClicks || 0);
+      const list: ExtendedBusinessDoc[] = snap.docs
+        .map((d) => ({
+          ...(d.data() as Omit<ExtendedBusinessDoc, "id">),
+          id: d.id,
+        }))
+        .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 
-        if (data.businessHours) {
-          setBusinessHours({
-            enabled: Boolean(data.businessHours.enabled),
-            is24h: Boolean(data.businessHours.is24h),
-            days: {
-              ...DEFAULT_BUSINESS_HOURS.days,
-              ...(data.businessHours.days || {}),
-            },
-          });
-        }
+      setUserBusinesses(list);
 
-        setYoutubeHorizontal(data.youtubeHorizontal || "");
-        const verts = data.youtubeVerticals || [];
-        setYoutubeVertical1(verts[0] || "");
-        setYoutubeVertical2(verts[1] || "");
-        setYoutubeVertical3(verts[2] || "");
-
-        setCouponActive(Boolean(data.coupon?.active));
-        setCouponTitle(data.coupon?.title || "");
-        setCouponCode(data.coupon?.code || "");
-        setCouponRules(data.coupon?.rules || "");
+      if (list.length > 0) {
+        const selected =
+          (preferredSelectId && list.find((item) => item.id === preferredSelectId)) ||
+          list[0];
+        applyBusinessToForm(selected);
+      } else {
+        handleStartNewAd();
       }
     } catch (err) {
-      console.error("Erro ao carregar empresa:", err);
+      console.error("Erro ao carregar empresas da conta:", err);
     }
   }
 
@@ -370,7 +456,8 @@ export default function BusinessDashboardPage() {
         const defaultCat = categories[0]?.slug || categories[0]?.id || "onde-comer";
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const slug = `${createSlug(registerCompanyName)}-${cred.user.uid.slice(0, 5)}`;
-        const initialPayload = {
+        const initialPayload: ExtendedBusinessDoc = {
+          id: slug,
           ownerId: cred.user.uid,
           name: registerCompanyName.trim(),
           slug,
@@ -389,7 +476,7 @@ export default function BusinessDashboardPage() {
           coverUrl: "",
           gallery: [],
           businessHours: DEFAULT_BUSINESS_HOURS,
-          maxPhotos: 6,
+          maxPhotos: freePlanMaxPhotos,
           maxVideos: 0,
           youtubeHorizontal: "",
           youtubeVerticals: [],
@@ -403,10 +490,8 @@ export default function BusinessDashboardPage() {
           createdAt: Date.now(),
         };
         await setDoc(doc(db, "businesses", slug), initialPayload);
-        setName(registerCompanyName.trim());
-        setCategory(defaultCat);
-        setBusinessId(slug);
-        setIsApproved(false);
+        setUserBusinesses([initialPayload]);
+        applyBusinessToForm(initialPayload);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
@@ -511,7 +596,7 @@ export default function BusinessDashboardPage() {
         .filter(Boolean)
         .slice(0, allowedVerticalCount);
 
-      const finalMaxPhotos = Math.max(6, maxPhotos);
+      const finalMaxPhotos = Math.max(1, maxPhotos || freePlanMaxPhotos);
 
       const payload = {
         ownerId: user.uid,
@@ -545,10 +630,13 @@ export default function BusinessDashboardPage() {
         },
       };
 
-      if (businessId) {
+      let savedDocId = businessId;
+
+      if (businessId && !isCreatingNewAd) {
         await updateDoc(doc(db, "businesses", businessId), payload);
       } else {
-        const newSlug = `${createSlug(name)}-${user.uid.slice(0, 5)}`;
+        const uniqueSuffix = `${user.uid.slice(0, 4)}-${Date.now().toString(36).slice(-4)}`;
+        const newSlug = `${createSlug(name)}-${uniqueSuffix}`;
         await setDoc(doc(db, "businesses", newSlug), {
           ...payload,
           slug: newSlug,
@@ -559,8 +647,14 @@ export default function BusinessDashboardPage() {
           whatsappClicks: 0,
           createdAt: Date.now(),
         });
+        savedDocId = newSlug;
         setBusinessId(newSlug);
+        setIsCreatingNewAd(false);
         setIsApproved(false);
+      }
+
+      if (savedDocId) {
+        await loadUserBusinesses(user.uid, savedDocId);
       }
 
       if (!isApproved) {
@@ -569,9 +663,10 @@ export default function BusinessDashboardPage() {
       } else {
         alert("✅ Alterações salvas e atualizadas na sua página!");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert("Erro ao salvar dados da empresa: " + (err?.message || "verifique sua conexão."));
+      const errMsg = err instanceof Error ? err.message : "verifique sua conexão.";
+      alert("Erro ao salvar dados da empresa: " + errMsg);
     } finally {
       setSaving(false);
     }
@@ -611,15 +706,15 @@ export default function BusinessDashboardPage() {
               {isForgotMode
                 ? "Digite seu e-mail cadastrado para receber o link de redefinição."
                 : isRegisterMode
-                ? "Informe o nome da sua empresa, e-mail e senha para começar."
-                : "Acesse sua conta para gerenciar seu anúncio no Caldas Novas Online."}
+                ? "Crie sua conta e gerencie uma ou várias empresas/anúncios no mesmo acesso."
+                : "Acesse sua conta para gerenciar seus anúncios no Caldas Novas Online."}
             </p>
 
             <form onSubmit={handleAuthSubmit} className="mt-6 space-y-4">
               {isRegisterMode && (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Nome da Empresa *
+                    Nome da Primeira Empresa *
                   </label>
                   <input
                     type="text"
@@ -763,7 +858,54 @@ export default function BusinessDashboardPage() {
       <Navbar vipGroupUrl={settings.vipGroupUrl} masterWhatsApp={settings.masterWhatsApp} />
 
       <main className="max-w-5xl w-full mx-auto px-4 py-6 space-y-6 flex-1">
-        {/* Topo do Painel com Nome da Empresa Logada e Status de Publicação */}
+        {/* SELETOR MULTI-ANÚNCIOS / MULTI-EMPRESAS DA MESMA CONTA */}
+        <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {userBusinesses.map((item, idx) => {
+              const isSelected = !isCreatingNewAd && item.id === businessId;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => applyBusinessToForm(item)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer ${
+                    isSelected
+                      ? "bg-[#0A4D9C] text-white shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      item.isApproved ? "bg-emerald-400" : "bg-amber-400"
+                    }`}
+                  />
+                  <span className="truncate max-w-[170px]">
+                    {item.name || `Anúncio ${idx + 1}`}
+                  </span>
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={handleStartNewAd}
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 transition cursor-pointer ${
+                isCreatingNewAd
+                  ? "bg-[#FF7A00] text-slate-950 shadow-xs"
+                  : "bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200"
+              }`}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Novo Anúncio
+            </button>
+          </div>
+
+          <span className="text-[11px] font-semibold text-slate-400 px-1">
+            {userBusinesses.length} {userBusinesses.length === 1 ? "empresa vinculada" : "empresas vinculadas"}
+          </span>
+        </div>
+
+        {/* Topo do Painel com Nome da Empresa Selecionada e Status de Publicação */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-blue-50 text-[#0A4D9C] flex items-center justify-center shrink-0">
@@ -772,9 +914,13 @@ export default function BusinessDashboardPage() {
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
-                  Empresa Conectada
+                  {isCreatingNewAd ? "Cadastrando Novo Anúncio" : "Empresa Selecionada"}
                 </p>
-                {isApproved ? (
+                {isCreatingNewAd ? (
+                  <span className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full">
+                    <Plus className="w-3 h-3" /> Novo Cadastro
+                  </span>
+                ) : isApproved ? (
                   <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full">
                     <CheckCircle2 className="w-3 h-3" /> Publicada no Guia
                   </span>
@@ -783,14 +929,14 @@ export default function BusinessDashboardPage() {
                     <Clock className="w-3 h-3" /> Em Análise (Aguardando Liberação)
                   </span>
                 )}
-                {isFeatured && (
+                {isFeatured && !isCreatingNewAd && (
                   <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-900 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full">
                     <Star className="w-3 h-3 fill-[#FFB800] text-[#FFB800]" /> Destaque VIP
                   </span>
                 )}
               </div>
               <h1 className="text-xl font-black text-slate-900">
-                {name || "Minha Empresa"}
+                {name || (isCreatingNewAd ? "Nova Empresa / Filial" : "Minha Empresa")}
               </h1>
               <p className="text-xs text-slate-500">
                 Pacote atual: <strong>{maxPhotos} fotos</strong> e{" "}
@@ -800,7 +946,7 @@ export default function BusinessDashboardPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {businessId && isApproved && (
+            {businessId && isApproved && !isCreatingNewAd && (
               <Link
                 href={`/empresa/${businessId}`}
                 target="_blank"
@@ -819,7 +965,7 @@ export default function BusinessDashboardPage() {
         </div>
 
         {/* Aviso caso esteja pendente de aprovação */}
-        {!isApproved && (
+        {!isApproved && !isCreatingNewAd && (
           <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start gap-3">
               <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
@@ -845,7 +991,7 @@ export default function BusinessDashboardPage() {
         )}
 
         {/* Métricas + Chamada Discreta para Planos */}
-        {businessId && (
+        {businessId && !isCreatingNewAd && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0A4D9C] flex items-center justify-center">
@@ -917,7 +1063,7 @@ export default function BusinessDashboardPage() {
           <form onSubmit={handleSaveBusiness} noValidate className="space-y-6">
             {/* 1. DADOS PRINCIPAIS */}
             <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
-              <h2 className="font-extrabold text-slate-900">1. Informações da Empresa</h2>
+              <h2 className="font-extrabold text-slate-900">1. Informações da Empresa / Anúncio</h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -1628,7 +1774,11 @@ export default function BusinessDashboardPage() {
               className="w-full sm:w-auto bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-sm px-8 py-4 rounded-2xl shadow-lg inline-flex items-center justify-center gap-2 transition cursor-pointer"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {saving ? "SALVANDO E ENVIANDO..." : "SALVAR E ENVIAR PARA APROVAÇÃO"}
+              {saving
+                ? "SALVANDO E ENVIANDO..."
+                : isCreatingNewAd
+                ? "CADASTRAR NOVO ANÚNCIO"
+                : "SALVAR E ENVIAR PARA APROVAÇÃO"}
             </button>
           </form>
         )}
@@ -1642,7 +1792,7 @@ export default function BusinessDashboardPage() {
                   Aumente a visibilidade da {name || "sua empresa"}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Seu limite atual é de <strong>{maxPhotos} fotos</strong> e{" "}
+                  Seu limite atual neste anúncio é de <strong>{maxPhotos} fotos</strong> e{" "}
                   <strong>{maxVideos} vídeo(s)</strong>. Escolha um pacote abaixo para liberar mais mídia e destaque na Primeira Página.
                 </p>
               </div>
@@ -1659,11 +1809,21 @@ export default function BusinessDashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
               {plans.map((plan) => {
                 const isFree = !plan.price || plan.price <= 0;
+                const isBannerOnlyPlan =
+                  (plan.maxPhotos ?? 0) === 0 && (plan.maxVideos ?? 0) === 0;
+                const isMasterOrPurple =
+                  plan.id === "master" ||
+                  plan.id.includes("banner") ||
+                  isBannerOnlyPlan;
+                const isOrangeHighlight =
+                  Boolean(plan.highlight) && !isMasterOrPurple;
+                const formattedPrice = formatPlanPrice(plan);
+
                 const waMessage = `Olá! Sou da empresa *${
                   name || "cadastrada"
                 }* no Caldas Novas Online e quero contratar o plano *${
                   plan.name
-                }* (${formatBRL(plan.price)}).`;
+                }* (${formattedPrice}).`;
                 const waUrl = `https://wa.me/${cleanMasterPhone}?text=${encodeURIComponent(
                   waMessage
                 )}`;
@@ -1672,17 +1832,19 @@ export default function BusinessDashboardPage() {
                   <div
                     key={plan.id}
                     className={`rounded-3xl bg-white flex flex-col justify-between p-5 transition relative ${
-                      plan.highlight
+                      isOrangeHighlight
                         ? "border-2 border-[#FF7A00] shadow-lg"
+                        : isMasterOrPurple
+                        ? "border-2 border-purple-500/80 shadow-md"
                         : "border border-slate-200/90 shadow-sm"
                     }`}
                   >
                     {plan.badgeText && (
                       <span
                         className={`absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full shadow-xs whitespace-nowrap ${
-                          plan.highlight
+                          isOrangeHighlight
                             ? "bg-[#FF7A00] text-slate-950"
-                            : "bg-slate-900 text-[#FFB800]"
+                            : "bg-gradient-to-r from-purple-600 to-indigo-600 text-white"
                         }`}
                       >
                         {plan.badgeText}
@@ -1701,8 +1863,8 @@ export default function BusinessDashboardPage() {
 
                       <div className="pt-2 pb-2.5 border-b border-slate-100">
                         <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-black text-slate-950">
-                            {formatBRL(plan.price)}
+                          <span className="text-2xl font-black text-[#0A4D9C]">
+                            {formattedPrice}
                           </span>
                           {!isFree && (
                             <span className="text-[11px] font-bold text-slate-500">
@@ -1713,19 +1875,28 @@ export default function BusinessDashboardPage() {
                       </div>
 
                       <ul className="space-y-2 text-xs text-slate-700">
-                        <li className="flex items-start gap-1.5 font-bold text-slate-900">
-                          <ImageIcon className="w-3.5 h-3.5 text-[#0A4D9C] shrink-0 mt-0.5" />
-                          <span>Até {plan.maxPhotos} fotos</span>
-                        </li>
+                        {isBannerOnlyPlan ? (
+                          <li className="flex items-start gap-1.5 font-extrabold text-purple-900 bg-purple-50 p-2 rounded-lg">
+                            <Megaphone className="w-3.5 h-3.5 text-purple-600 shrink-0 mt-0.5" />
+                            <span>Exclusivo Full Banner (sem página interna)</span>
+                          </li>
+                        ) : (
+                          <>
+                            <li className="flex items-start gap-1.5 font-bold text-slate-900">
+                              <ImageIcon className="w-3.5 h-3.5 text-[#0A4D9C] shrink-0 mt-0.5" />
+                              <span>Até {plan.maxPhotos} fotos</span>
+                            </li>
 
-                        <li className="flex items-start gap-1.5 font-bold text-slate-900">
-                          <Youtube className="w-3.5 h-3.5 text-red-600 shrink-0 mt-0.5" />
-                          <span>
-                            {plan.maxVideos > 0
-                              ? `Até ${plan.maxVideos} vídeo(s)`
-                              : "Sem vídeos"}
-                          </span>
-                        </li>
+                            <li className="flex items-start gap-1.5 font-bold text-slate-900">
+                              <Youtube className="w-3.5 h-3.5 text-red-600 shrink-0 mt-0.5" />
+                              <span>
+                                {plan.maxVideos > 0
+                                  ? `Até ${plan.maxVideos} vídeo(s)`
+                                  : "Sem vídeos"}
+                              </span>
+                            </li>
+                          </>
+                        )}
 
                         {plan.hasFeaturedHome && (
                           <li className="flex items-start gap-1.5 font-extrabold text-amber-800 bg-amber-50 p-1.5 rounded-lg">
@@ -1768,8 +1939,10 @@ export default function BusinessDashboardPage() {
                           target="_blank"
                           rel="noopener noreferrer"
                           className={`w-full font-extrabold text-xs py-3 px-3 rounded-xl inline-flex items-center justify-center gap-1.5 shadow-sm transition ${
-                            plan.highlight
+                            isOrangeHighlight
                               ? "bg-[#1DB954] hover:bg-[#18a349] text-white"
+                              : isMasterOrPurple
+                              ? "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white"
                               : "bg-[#0A4D9C] hover:bg-[#062F63] text-white"
                           }`}
                         >
