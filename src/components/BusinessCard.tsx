@@ -7,8 +7,10 @@ import { optimizeCloudinaryUrl } from "@/lib/cloudinary";
 import { DEFAULT_CATEGORIES, getBusinessOpenStatus } from "@/lib/constants";
 import { Business } from "@/types";
 import {
+  Ticket,
   MessageCircle,
   Building2,
+  Star,
   MapPin,
   Check,
 } from "lucide-react";
@@ -83,6 +85,7 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
       : isPaidTierFallback;
 
   const hasCoupon = hasActiveCoupon && isCouponAllowedOnCard;
+  const hasAnyTopBadge = Boolean(business.isFeatured || hasCoupon);
 
   const openStatus = getBusinessOpenStatus(business.businessHours);
   const isClosedNow = openStatus.hasSchedule && !openStatus.isOpen;
@@ -136,8 +139,27 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
       </Link>
 
       {/* CORPO ORGANIZADO DO CARD */}
-      <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-        <div className="space-y-1">
+      <div className="p-4 pt-3 flex-1 flex flex-col justify-between space-y-3">
+        <div className="space-y-1.5">
+          {/* SELOS DESTAQUE E CUPOM ABAIXO DA IMAGEM (PRESERVA 100% DA ARTE) */}
+          {hasAnyTopBadge && (
+            <div className="flex items-center justify-between gap-2 pb-0.5">
+              {business.isFeatured ? (
+                <span className="inline-flex items-center gap-1 bg-[#FFB800] text-slate-950 text-[10px] font-black uppercase tracking-wide px-2.5 py-0.5 rounded-md shadow-2xs">
+                  <Star className="w-3 h-3 fill-slate-950" /> Destaque
+                </span>
+              ) : (
+                <span />
+              )}
+
+              {hasCoupon && (
+                <span className="inline-flex items-center gap-1 bg-[#FF7A00] text-white text-[10px] font-black uppercase tracking-wide px-2.5 py-0.5 rounded-md shadow-2xs">
+                  <Ticket className="w-3 h-3" /> Cupom
+                </span>
+              )}
+            </div>
+          )}
+
           {/* NOME DA EMPRESA + SELO VERIFICADA ESTILO META */}
           <Link href={detailsHref} className="block group/title">
             <h3 className="text-[15px] sm:text-base font-black text-slate-900 group-hover/title:text-[#0A4D9C] leading-snug line-clamp-2">
