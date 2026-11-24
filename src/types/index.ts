@@ -31,6 +31,7 @@ export interface Business {
   address: string;
   cep?: string;
   googleMapsUrl?: string;
+  showAddressOnSite?: boolean; // Define se exibe endereço e localização publicamente no site
   lat: number | null;
   lng: number | null;
   whatsapp: string;
