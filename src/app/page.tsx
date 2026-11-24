@@ -159,7 +159,12 @@ export default function HomePage() {
     return businesses
       .map((biz) => {
         let distanceKm: number | null = null;
-        if (userCoords && typeof biz.lat === "number" && typeof biz.lng === "number") {
+        if (
+          userCoords &&
+          biz.showAddressOnSite !== false &&
+          typeof biz.lat === "number" &&
+          typeof biz.lng === "number"
+        ) {
           distanceKm = calculateDistanceKm(userCoords.lat, userCoords.lng, biz.lat, biz.lng);
         }
         const status = getBusinessOpenStatus(biz.businessHours);
@@ -173,7 +178,8 @@ export default function HomePage() {
         return (
           biz.name.toLowerCase().includes(term) ||
           biz.subcategory?.toLowerCase().includes(term) ||
-          biz.neighborhood?.toLowerCase().includes(term) ||
+          (biz.showAddressOnSite !== false &&
+            biz.neighborhood?.toLowerCase().includes(term)) ||
           biz.description?.toLowerCase().includes(term)
         );
       })
@@ -252,12 +258,14 @@ export default function HomePage() {
       {/* HERO COM BUSCA RÁPIDA E FILTROS NA MÃO */}
       <section className="bg-gradient-to-b from-[#0A4D9C] via-[#0d5bb8] to-[#f4f6f9] pt-6 pb-8 px-4">
         <div className="max-w-5xl mx-auto text-center">
-          <p className="text-blue-100 text-xs sm:text-sm font-semibold uppercase tracking-wider mb-1">
+          <p className="text-blue-100 text-[11px] sm:text-sm font-semibold uppercase tracking-wider mb-1.5">
             {settings.heroBadge}
           </p>
-          <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
-            {settings.heroTitlePrefix}{" "}
-            <span className="text-[#FFB800]">{settings.heroTitleHighlight}</span>
+          <h1 className="text-[23px] sm:text-4xl font-black text-white tracking-tight leading-snug">
+            <span>{settings.heroTitlePrefix}</span>{" "}
+            <span className="text-[#FFB800] whitespace-nowrap">
+              {settings.heroTitleHighlight}
+            </span>
           </h1>
 
           {/* Barra de Busca Principal */}
