@@ -506,11 +506,39 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
         </div>
       )}
 
-      {/* BANNER CAPA EM PROPORÇÃO EXATA 3:1 (1200x400px) */}
-      <div className="max-w-5xl w-full mx-auto px-4 pt-4">
+      {/* BARRA DE AÇÕES ACIMA DO BANNER + BANNER CAPA 100% LIVRE (3:1) */}
+      <div className="max-w-5xl w-full mx-auto px-4 pt-4 space-y-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200/90 text-xs font-extrabold px-3.5 py-2 rounded-full shadow-2xs transition"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-[#0A4D9C]" /> Voltar ao Guia
+          </Link>
+
+          <button
+            type="button"
+            onClick={handleSharePage}
+            className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200/90 text-xs font-extrabold px-3.5 py-2 rounded-full shadow-2xs transition cursor-pointer"
+            title="Compartilhar página da empresa"
+          >
+            {sharedCopied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                Link Copiado!
+              </>
+            ) : (
+              <>
+                <Share2 className="w-3.5 h-3.5 text-[#0A4D9C]" />
+                Compartilhar
+              </>
+            )}
+          </button>
+        </div>
+
         <div
           className={`w-full rounded-3xl bg-gradient-to-r from-[#0A4D9C] to-[#062F63] relative overflow-hidden shadow-sm border border-slate-200/80 ${
-            optimizedCover ? "aspect-[3/1]" : "h-36 sm:h-44"
+            optimizedCover ? "aspect-[3/1]" : "h-32 sm:h-40"
           }`}
         >
           {optimizedCover && (
@@ -521,33 +549,6 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
               className="w-full h-full object-cover"
             />
           )}
-          <div className="absolute top-3 left-3 right-3 z-10 flex items-center justify-between gap-2">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1.5 bg-slate-950/65 hover:bg-slate-950/85 text-white text-xs font-bold px-3.5 py-2 rounded-full backdrop-blur-sm transition"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> Voltar ao Guia
-            </Link>
-
-            <button
-              type="button"
-              onClick={handleSharePage}
-              className="inline-flex items-center gap-1.5 bg-slate-950/65 hover:bg-slate-950/85 text-white text-xs font-bold px-3.5 py-2 rounded-full backdrop-blur-sm transition cursor-pointer"
-              title="Compartilhar página da empresa"
-            >
-              {sharedCopied ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  Link Copiado!
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-3.5 h-3.5" />
-                  Compartilhar
-                </>
-              )}
-            </button>
-          </div>
         </div>
       </div>
 
