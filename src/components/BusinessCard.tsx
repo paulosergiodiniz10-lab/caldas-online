@@ -18,6 +18,7 @@ import {
 type BusinessWithMaps = Business & {
   cep?: string;
   googleMapsUrl?: string;
+  showAddressOnSite?: boolean;
 };
 
 interface BusinessCardProps {
@@ -48,28 +49,13 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
     ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waMessage)}`
     : "#";
 
+  const isAddressVisible = business.showAddressOnSite !== false;
   const hasGoogleMapsLink = Boolean(
     business.googleMapsUrl && business.googleMapsUrl.trim()
   );
-  const hasCoordinates =
-    typeof business.lat === "number" && typeof business.lng === "number";
-  const hasStreetAddress = Boolean(business.address && business.address.trim());
-  const hasLocation = hasGoogleMapsLink || hasCoordinates || hasStreetAddress;
-
-  const fullAddressParts = [
-    business.address,
-    business.neighborhood ? `Bairro ${business.neighborhood}` : "",
-    business.cep ? `CEP ${business.cep}` : "",
-    "Caldas Novas - GO",
-  ].filter(Boolean);
-
-  const mapsUrl = hasGoogleMapsLink
-    ? business.googleMapsUrl!.trim()
-    : hasCoordinates
-    ? `https://www.google.com/maps/search/?api=1&query=${business.lat},${business.lng}`
-    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-        `${business.name} ${fullAddressParts.join(", ")}`
-      )}`;
+  // Só exibe o botão Localização se a empresa permitir mostrar endereço no site E tiver colado o link do Google Maps
+  const showLocationButton = isAddressVisible && hasGoogleMapsLink;
+  const mapsUrl = hasGoogleMapsLink ? business.googleMapsUrl!.trim() : "#";
 
   const categoryObj = DEFAULT_CATEGORIES.find(
     (c) => (c.slug || c.id) === business.category
@@ -191,10 +177,10 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
           </Link>
 
           {/* NOME DA CATEGORIA (E DISTÂNCIA APENAS QUANDO GPS ESTIVER ATIVO) */}
-          {(categoryLabel || typeof distanceKm === "number") && (
+          {(categoryLabel || (isAddressVisible && typeof distanceKm === "number")) && (
             <p className="text-xs font-semibold text-slate-500 line-clamp-1">
               {categoryLabel}
-              {typeof distanceKm === "number"
+              {isAddressVisible && typeof distanceKm === "number"
                 ? `${categoryLabel ? " • " : ""}${distanceKm
                     .toFixed(1)
                     .replace(".", ",")} km`
@@ -233,7 +219,7 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
           )}
         </div>
 
-        {/* BOTÕES NA BASE: VER PERFIL + WHATSAPP (E LOCALIZAÇÃO SE CADASTRADA) */}
+        {/* BOTÕES NA BASE: VER PERFIL + WHATSAPP (E LOCALIZAÇÃO SE ATIVA E COM LINK GOOGLE MAPS) */}
         <div className="pt-1 space-y-2">
           <Link
             href={detailsHref}
@@ -242,10 +228,10 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
             Ver perfil
           </Link>
 
-          {(cleanPhone || hasLocation) && (
+          {(cleanPhone || showLocationButton) && (
             <div
               className={`grid gap-2 ${
-                cleanPhone && hasLocation ? "grid-cols-2" : "grid-cols-1"
+                cleanPhone && showLocationButton ? "grid-cols-2" : "grid-cols-1"
               }`}
             >
               {cleanPhone && (
@@ -269,7 +255,7 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
                 </a>
               )}
 
-              {hasLocation && (
+              {showLocationButton && (
                 <a
                   href={mapsUrl}
                   target="_blank"
