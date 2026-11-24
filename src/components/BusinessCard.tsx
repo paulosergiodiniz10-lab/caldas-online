@@ -7,10 +7,8 @@ import { optimizeCloudinaryUrl } from "@/lib/cloudinary";
 import { DEFAULT_CATEGORIES, getBusinessOpenStatus } from "@/lib/constants";
 import { Business } from "@/types";
 import {
-  Ticket,
   MessageCircle,
   Building2,
-  Star,
   MapPin,
   Check,
 } from "lucide-react";
@@ -115,7 +113,7 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
           : "bg-white border-slate-300/90 hover:border-[#0A4D9C]/60"
       }`}
     >
-      {/* FOTO VITRINE PROPORÇÃO EXATA 3:2 (1536x1024px DO GPT) */}
+      {/* FOTO VITRINE 100% LIMPA SEM SELOS SOBRE A ARTE (PROPORÇÃO 3:2) */}
       <Link
         href={detailsHref}
         className="relative w-full aspect-[3/2] bg-slate-100 overflow-hidden block"
@@ -135,30 +133,6 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
             <Building2 className="w-12 h-12" />
           </div>
         )}
-
-        {/* BADGES SUPERIORES LIMPOS */}
-        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-2 pointer-events-none">
-          {business.isFeatured ? (
-            <span className="inline-flex items-center gap-1 bg-[#FFB800] text-slate-950 text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-lg shadow-sm">
-              <Star className="w-3 h-3 fill-slate-950" /> Destaque
-            </span>
-          ) : hasCoupon ? (
-            <span className="inline-flex items-center gap-1 bg-[#FF7A00] text-white text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-lg shadow-sm">
-              <Ticket className="w-3 h-3" /> Cupom
-            </span>
-          ) : (
-            <span />
-          )}
-
-          {hasCoupon && business.isFeatured && (
-            <span
-              title="Cupom de Desconto Ativo"
-              className="inline-flex items-center gap-1 bg-[#FF7A00] text-white text-[10px] font-black uppercase px-2 py-1 rounded-lg shadow-sm"
-            >
-              <Ticket className="w-3 h-3" /> Cupom
-            </span>
-          )}
-        </div>
       </Link>
 
       {/* CORPO ORGANIZADO DO CARD */}
