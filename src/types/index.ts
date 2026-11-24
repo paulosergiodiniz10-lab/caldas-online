@@ -48,11 +48,14 @@ export interface Business {
   coupon?: Coupon;
   showCouponOnCard?: boolean; // Moderador libera ou bloqueia exibição do cupom no card da Home/Categorias
   businessHours?: BusinessHours; // Horário de funcionamento semanal
-  planId?: string; // Identificador do plano contratado (ex: gratis, vitrine, destaque, master)
+  planId?: string; // Identificador do plano contratado (ex: gratis, vitrine, destaque, master, full-banner)
   planName?: string; // Nome do plano vinculado pelo moderador
   isVerified?: boolean; // Selo Empresa Verificada (controlado no Master)
   isFeatured: boolean;
   isApproved: boolean;
+  acceptedTerms?: boolean;
+  acceptedTermsAt?: number;
+  approvedAt?: number;
   viewsCount: number;
   whatsappClicks: number;
   createdAt: number;
@@ -63,6 +66,7 @@ export interface PlanDoc {
   name: string;
   subtitle: string;
   price: number;
+  priceDisplay?: string; // Exibição exata digitada no Master (ex: "157" ou "157,00")
   billingPeriod: string;
   maxPhotos: number;
   maxVideos: number;
