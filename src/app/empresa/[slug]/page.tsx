@@ -26,6 +26,7 @@ interface BusinessSeoData {
   neighborhood: string;
   address: string;
   cep: string;
+  showAddressOnSite: boolean;
   whatsapp: string;
   instagram: string;
   website: string;
@@ -62,6 +63,7 @@ function extractFields(doc?: FirestoreDocument): BusinessSeoData | null {
     neighborhood: f.neighborhood?.stringValue || "",
     address: f.address?.stringValue || "",
     cep: f.cep?.stringValue || "",
+    showAddressOnSite: f.showAddressOnSite?.booleanValue !== false,
     whatsapp: f.whatsapp?.stringValue || "",
     instagram: f.instagram?.stringValue || "",
     website: f.website?.stringValue || "",
@@ -184,9 +186,10 @@ export async function generateMetadata({
     };
   }
 
-  const locationLabel = biz.neighborhood
-    ? `${biz.neighborhood}, Caldas Novas - GO`
-    : "Caldas Novas - GO";
+  const locationLabel =
+    biz.showAddressOnSite && biz.neighborhood
+      ? `${biz.neighborhood}, Caldas Novas - GO`
+      : "Caldas Novas - GO";
 
   const title = biz.subcategory
     ? `${biz.name} • ${biz.subcategory} em Caldas Novas - GO`
@@ -195,7 +198,7 @@ export async function generateMetadata({
   const rawDesc = (biz.description || "").replace(/\s+/g, " ").trim();
   const baseDesc = rawDesc
     ? rawDesc.slice(0, 145)
-    : `Confira contatos, WhatsApp, localização e ofertas de ${biz.name} em ${locationLabel}.`;
+    : `Confira contatos, WhatsApp e ofertas de ${biz.name} em ${locationLabel}.`;
 
   const description =
     baseDesc.length >= 145
@@ -280,16 +283,23 @@ function buildLocalBusinessJsonLd(slug: string, biz: BusinessSeoData) {
       biz.description.replace(/\s+/g, " ").trim() ||
       `${biz.name} em Caldas Novas - GO`,
     image: images.length > 0 ? images : [DEFAULT_OG_IMAGE],
-    address: {
-      "@type": "PostalAddress",
-      streetAddress: [biz.address, biz.neighborhood]
-        .filter(Boolean)
-        .join(" - "),
-      addressLocality: "Caldas Novas",
-      addressRegion: "GO",
-      postalCode: biz.cep || undefined,
-      addressCountry: "BR",
-    },
+    address: biz.showAddressOnSite
+      ? {
+          "@type": "PostalAddress",
+          streetAddress: [biz.address, biz.neighborhood]
+            .filter(Boolean)
+            .join(" - "),
+          addressLocality: "Caldas Novas",
+          addressRegion: "GO",
+          postalCode: biz.cep || undefined,
+          addressCountry: "BR",
+        }
+      : {
+          "@type": "PostalAddress",
+          addressLocality: "Caldas Novas",
+          addressRegion: "GO",
+          addressCountry: "BR",
+        },
     areaServed: {
       "@type": "City",
       name: "Caldas Novas",
@@ -308,7 +318,11 @@ function buildLocalBusinessJsonLd(slug: string, biz: BusinessSeoData) {
   if (sameAs.length > 0) {
     jsonLd.sameAs = sameAs;
   }
-  if (typeof biz.lat === "number" && typeof biz.lng === "number") {
+  if (
+    biz.showAddressOnSite &&
+    typeof biz.lat === "number" &&
+    typeof biz.lng === "number"
+  ) {
     jsonLd.geo = {
       "@type": "GeoCoordinates",
       latitude: biz.lat,
