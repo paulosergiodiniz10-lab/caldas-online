@@ -50,6 +50,7 @@ const JS_DAY_TO_KEY: DayKey[] = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"
 type BusinessWithExtra = Business & {
   cep?: string;
   googleMapsUrl?: string;
+  showAddressOnSite?: boolean;
 };
 
 function getYoutubeEmbedUrl(url: string): string | null {
@@ -438,14 +439,17 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
     link.click();
   };
 
+  // Regras de privacidade de endereço e localização
+  const isAddressVisible = business.showAddressOnSite !== false;
   const hasGoogleMapsLink = Boolean(
     business.googleMapsUrl && business.googleMapsUrl.trim()
   );
-  const hasCoordinates =
-    typeof business.lat === "number" && typeof business.lng === "number";
-  const hasStreetAddress = Boolean(business.address && business.address.trim());
-  const hasLocation = hasGoogleMapsLink || hasCoordinates || hasStreetAddress;
+  const showLocationAction = isAddressVisible && hasGoogleMapsLink;
+  const mapsDestinationUrl = hasGoogleMapsLink
+    ? business.googleMapsUrl!.trim()
+    : "#";
 
+  const hasStreetAddress = Boolean(business.address && business.address.trim());
   const fullAddressParts = [
     business.address,
     business.neighborhood ? `Bairro ${business.neighborhood}` : "",
@@ -453,14 +457,6 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
     "Caldas Novas - GO",
   ].filter(Boolean);
   const fullAddressText = hasStreetAddress ? fullAddressParts.join(" • ") : "";
-
-  const mapsDestinationUrl = hasGoogleMapsLink
-    ? business.googleMapsUrl!.trim()
-    : hasCoordinates
-    ? `https://www.google.com/maps/search/?api=1&query=${business.lat},${business.lng}`
-    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-        `${business.name} ${fullAddressParts.join(", ")}`
-      )}`;
 
   const allowedVideos = business.maxVideos ?? 0;
   const horizontalEmbed =
@@ -721,7 +717,7 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
             {business.description}
           </p>
 
-          {hasLocation && (
+          {isAddressVisible && (fullAddressText || showLocationAction) && (
             <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 rounded-xl bg-orange-100 text-[#FF7A00] flex items-center justify-center shrink-0 mt-0.5">
@@ -737,19 +733,21 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
                 </div>
               </div>
 
-              <a
-                href={mapsDestinationUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl inline-flex items-center justify-center gap-1.5 transition shrink-0"
-              >
-                <Navigation className="w-3.5 h-3.5" />
-                Ver Localização no Mapa
-              </a>
+              {showLocationAction && (
+                <a
+                  href={mapsDestinationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl inline-flex items-center justify-center gap-1.5 transition shrink-0"
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  Ver Localização no Mapa
+                </a>
+              )}
             </div>
           )}
 
-          {(business.instagram || business.website || hasLocation) && (
+          {(business.instagram || business.website || showLocationAction) && (
             <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2.5">
               {business.instagram && (
                 <a
@@ -783,7 +781,7 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
                 </a>
               )}
 
-              {hasLocation && (
+              {showLocationAction && (
                 <a
                   href={mapsDestinationUrl}
                   target="_blank"
