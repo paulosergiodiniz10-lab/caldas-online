@@ -122,7 +122,9 @@ export default function PublicPlansPage() {
   );
 
   const gridColsClass =
-    plans.length >= 4
+    plans.length >= 5
+      ? "lg:grid-cols-5"
+      : plans.length === 4
       ? "lg:grid-cols-4"
       : plans.length === 3
       ? "lg:grid-cols-3"
@@ -153,7 +155,7 @@ export default function PublicPlansPage() {
         </div>
       </section>
 
-      <main className="max-w-6xl w-full mx-auto px-4 -mt-6 pb-14 flex-1 space-y-10">
+      <main className="max-w-7xl w-full mx-auto px-4 -mt-6 pb-14 flex-1 space-y-10">
         {loading ? (
           <div className="py-16 flex justify-center">
             <Loader2 className="w-8 h-8 animate-spin text-[#0A4D9C]" />
@@ -164,6 +166,12 @@ export default function PublicPlansPage() {
               const isFree = !plan.price || plan.price <= 0;
               const isBannerOnlyPlan =
                 (plan.maxPhotos ?? 0) === 0 && (plan.maxVideos ?? 0) === 0;
+              const isMasterOrPurple =
+                plan.id === "master" ||
+                plan.id.includes("banner") ||
+                isBannerOnlyPlan;
+              const isOrangeHighlight =
+                Boolean(plan.highlight) && !isMasterOrPurple;
               const formattedPrice = formatPlanPrice(plan);
 
               const waMessage = `Olá! Vi os planos no portal *Caldas Novas Online* e tenho interesse no plano *${plan.name}* (${formattedPrice}). Gostaria de saber como ativar!`;
@@ -175,15 +183,17 @@ export default function PublicPlansPage() {
                 <div
                   key={plan.id}
                   className={`rounded-3xl bg-white flex flex-col justify-between p-6 transition relative ${
-                    plan.highlight
+                    isOrangeHighlight
                       ? "border-2 border-[#FF7A00] shadow-xl lg:-translate-y-2"
+                      : isMasterOrPurple
+                      ? "border-2 border-purple-500/80 shadow-md"
                       : "border border-slate-200/90 shadow-sm"
                   }`}
                 >
                   {plan.badgeText && (
                     <span
                       className={`absolute -top-3.5 left-1/2 -translate-x-1/2 text-[11px] font-black uppercase tracking-wider px-4 py-1 rounded-full shadow-md whitespace-nowrap ${
-                        plan.highlight
+                        isOrangeHighlight
                           ? "bg-[#FF7A00] text-slate-950 ring-2 ring-white"
                           : "bg-gradient-to-r from-purple-600 to-indigo-600 text-white ring-2 ring-white/90"
                       }`}
@@ -300,8 +310,10 @@ export default function PublicPlansPage() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className={`w-full font-extrabold text-xs py-3.5 px-4 rounded-xl inline-flex items-center justify-center gap-1.5 shadow-sm transition ${
-                          plan.highlight
+                          isOrangeHighlight
                             ? "bg-[#1DB954] hover:bg-[#18a349] text-white"
+                            : isMasterOrPurple
+                            ? "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white"
                             : "bg-[#0A4D9C] hover:bg-[#062F63] text-white"
                         }`}
                       >
