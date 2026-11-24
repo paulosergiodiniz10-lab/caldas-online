@@ -22,17 +22,17 @@ export function Navbar({
 
   return (
     <header className="sticky top-0 z-40 w-full bg-[#0A4D9C] text-white shadow-md border-b border-white/10">
-      <div className="max-w-6xl mx-auto px-3 sm:px-4 h-[72px] sm:h-[88px] flex items-center justify-between gap-2">
-        {/* LOGO OFICIAL PNG FUNDO TRANSPARENTE (VALORIZADA NO CELULAR E PC, SEM DISTORÇÃO) */}
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 h-[72px] sm:h-[86px] flex items-center justify-between gap-2">
+        {/* LOGO OFICIAL PNG (ÍCONE COMPACTO E PROPORÇÃO HORIZONTAL VALORIZADA) */}
         <Link
           href="/"
           onClick={() => setMenuOpen(false)}
           className="flex items-center shrink-0"
         >
           <img
-            src="https://ldsite.com.br/wp-content/uploads/2026/11/Logo-Caldas-Novas-Online-com-Icone-de-Pin.png"
+            src="https://ldsite.com.br/wp-content/uploads/2026/11/logo-oficial-site.fw_.png"
             alt="Caldas Novas Online • Guia Comercial de Caldas Novas"
-            className="h-16 sm:h-[82px] w-auto object-contain shrink-0 select-none"
+            className="h-12 sm:h-16 w-auto max-w-[195px] sm:max-w-none object-contain shrink-0 select-none"
           />
         </Link>
 
