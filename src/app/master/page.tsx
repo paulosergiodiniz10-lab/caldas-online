@@ -231,7 +231,7 @@ export default function MasterAdminPage() {
       });
       setBusinesses(bizList);
 
-      // 2. Planos (mescla os padrões com os salvos no Firestore para nenhum plano desaparecer)
+      // 2. Planos (mescla os padrões com os salvos no Firestore)
       const snapPlans = await getDocs(collection(db, "plans"));
       const firestorePlansMap = new Map<string, ExtendedPlanDoc>();
       snapPlans.docs.forEach((d) => {
@@ -438,7 +438,7 @@ export default function MasterAdminPage() {
     });
   };
 
-  // GERENCIAMENTO DE PLANOS (GRÁTIS, VITRINE, DESTAQUE, MASTER, SÓ BANNER)
+  // GERENCIAMENTO DE PLANOS (GRÁTIS, VITRINE, DESTAQUE, MASTER, FULL BANNER)
   const openEditPlanModal = (plan: ExtendedPlanDoc) => {
     setEditingPlan({ ...plan });
     if (plan.priceDisplay && plan.priceDisplay.trim()) {
@@ -525,7 +525,6 @@ export default function MasterAdminPage() {
 
       const parsedOrder = parseInt(editingPlanOrderInput.replace(/\D/g, ""), 10);
 
-      // Interpreta exatamente o texto digitado no preço (ex: "157" -> mostra 157; "157,00" -> mostra 157,00)
       const cleanedDisplay = editingPlanPriceInput
         .trim()
         .replace(/^R\$\s*/i, "");
@@ -1227,39 +1226,24 @@ export default function MasterAdminPage() {
     return found ? `📂 Segmento: ${found.name}` : `📂 Segmento: ${placement}`;
   };
 
-  // Planos ativos (usados na moderação de empresas; planos ocultos não aparecem para seleção)
-  const activePlans = plans.filter((p) => p.active !== false);
-
-  // Opções dinâmicas de Fotos e Vídeos lendo exclusivamente dos planos ativos
+  // Opções dinâmicas de Fotos e Vídeos espelhadas EXCLUSIVAMENTE nos planos do catálogo
   const dynamicPhotoOptions = (() => {
     const map = new Map<number, string>();
-    activePlans.forEach((p) => {
+    plans.forEach((p) => {
       const qty = Math.max(0, Number(p.maxPhotos) || 0);
       if (qty === 0) return;
       const existing = map.get(qty);
       map.set(qty, existing ? `${existing} / ${p.name}` : `${qty} (${p.name})`);
     });
-    if (!map.has(30)) map.set(30, "30 fotos (Extra)");
     return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
   })();
 
   const dynamicVideoOptions = (() => {
     const map = new Map<number, string>();
-    activePlans.forEach((p) => {
+    plans.forEach((p) => {
       const qty = Math.max(0, Number(p.maxVideos) || 0);
       const existing = map.get(qty);
       map.set(qty, existing ? `${existing} / ${p.name}` : `${qty} (${p.name})`);
-    });
-    [0, 1, 2, 3, 4].forEach((n) => {
-      if (!map.has(n)) {
-        const defaultLabel =
-          n === 0
-            ? "0 (Sem vídeo)"
-            : n === 1
-            ? "1 (Horizontal)"
-            : `${n} (1H + ${n - 1}V)`;
-        map.set(n, defaultLabel);
-      }
     });
     return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
   })();
@@ -1453,18 +1437,40 @@ export default function MasterAdminPage() {
                   const isVerified = biz.isVerified !== false;
 
                   const freePlanDefaultPhotos =
-                    plans.find((p) => p.id === "gratis")?.maxPhotos ?? 7;
-                  const currentBizPhotos = biz.maxPhotos ?? freePlanDefaultPhotos;
+                    plans.find((p) => p.id === "gratis")?.maxPhotos ?? 5;
+                  const rawBizPhotos = biz.maxPhotos ?? freePlanDefaultPhotos;
 
-                  // Detecta o plano vinculado (ou infere pelos limites atuais se ainda não tiver planId)
+                  // Detecta o plano vinculado (ou infere pelos limites atuais)
                   const matchedPlan =
                     plans.find((p) => p.id === biz.planId) ||
                     plans.find(
                       (p) =>
-                        p.maxPhotos === currentBizPhotos &&
+                        p.maxPhotos === rawBizPhotos &&
                         p.maxVideos === (biz.maxVideos ?? 0)
                     );
                   const currentPlanId = biz.planId || matchedPlan?.id || "";
+
+                  // Se o valor atual da empresa ainda for um resquício antigo (ex: 6), alinha ao valor mais próximo dos planos
+                  const photoValues = dynamicPhotoOptions.map(([v]) => v);
+                  const currentBizPhotos =
+                    photoValues.includes(rawBizPhotos) || photoValues.length === 0
+                      ? rawBizPhotos
+                      : photoValues.reduce((prev, curr) =>
+                          Math.abs(curr - rawBizPhotos) < Math.abs(prev - rawBizPhotos)
+                            ? curr
+                            : prev
+                        );
+
+                  const videoValues = dynamicVideoOptions.map(([v]) => v);
+                  const rawBizVideos = biz.maxVideos ?? 0;
+                  const currentBizVideos =
+                    videoValues.includes(rawBizVideos) || videoValues.length === 0
+                      ? rawBizVideos
+                      : videoValues.reduce((prev, curr) =>
+                          Math.abs(curr - rawBizVideos) < Math.abs(prev - rawBizVideos)
+                            ? curr
+                            : prev
+                        );
 
                   const hasRegisteredCoupon = Boolean(
                     biz.coupon?.active &&
@@ -1475,26 +1481,12 @@ export default function MasterAdminPage() {
                       biz.planId !== "gratis" &&
                       biz.planId !== "free") ||
                     currentBizPhotos > freePlanDefaultPhotos ||
-                    (biz.maxVideos ?? 0) > 0 ||
+                    currentBizVideos > 0 ||
                     Boolean(biz.isFeatured);
                   const isCouponAllowedOnCard =
                     typeof biz.showCouponOnCard === "boolean"
                       ? biz.showCouponOnCard
                       : isPaidFallback;
-
-                  const photoSelectValues = Array.from(
-                    new Set([
-                      ...dynamicPhotoOptions.map(([val]) => val),
-                      currentBizPhotos,
-                    ])
-                  ).sort((a, b) => a - b);
-
-                  const videoSelectValues = Array.from(
-                    new Set([
-                      ...dynamicVideoOptions.map(([val]) => val),
-                      biz.maxVideos ?? 0,
-                    ])
-                  ).sort((a, b) => a - b);
 
                   return (
                     <div
@@ -1605,10 +1597,11 @@ export default function MasterAdminPage() {
                               }
                               className="rounded-lg border border-indigo-300 px-2.5 py-1 text-xs bg-white font-extrabold text-indigo-950"
                             >
-                              <option value="">Personalizado</option>
-                              {activePlans.map((p) => (
+                              <option value="">Escolher</option>
+                              {plans.map((p) => (
                                 <option key={p.id} value={p.id}>
-                                  {p.name} ({p.maxPhotos}F / {p.maxVideos}V)
+                                  {p.name}
+                                  {p.active === false ? " (Oculto)" : ""}
                                 </option>
                               ))}
                             </select>
@@ -1627,16 +1620,11 @@ export default function MasterAdminPage() {
                               }
                               className="rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white font-extrabold"
                             >
-                              {photoSelectValues.map((qty) => {
-                                const foundLabel = dynamicPhotoOptions.find(
-                                  ([v]) => v === qty
-                                )?.[1];
-                                return (
-                                  <option key={qty} value={qty}>
-                                    {foundLabel || `${qty} fotos (Atual)`}
-                                  </option>
-                                );
-                              })}
+                              {dynamicPhotoOptions.map(([qty, label]) => (
+                                <option key={qty} value={qty}>
+                                  {label}
+                                </option>
+                              ))}
                             </select>
                           </label>
 
@@ -1644,7 +1632,7 @@ export default function MasterAdminPage() {
                             <Youtube className="w-3.5 h-3.5 text-red-600" />
                             Vídeos:
                             <select
-                              value={biz.maxVideos ?? 0}
+                              value={currentBizVideos}
                               disabled={isBusy}
                               onChange={(e) =>
                                 handleUpdatePlan(biz, {
@@ -1653,16 +1641,11 @@ export default function MasterAdminPage() {
                               }
                               className="rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white font-extrabold"
                             >
-                              {videoSelectValues.map((qty) => {
-                                const foundLabel = dynamicVideoOptions.find(
-                                  ([v]) => v === qty
-                                )?.[1];
-                                return (
-                                  <option key={qty} value={qty}>
-                                    {foundLabel || `${qty} vídeo(s)`}
-                                  </option>
-                                );
-                              })}
+                              {dynamicVideoOptions.map(([qty, label]) => (
+                                <option key={qty} value={qty}>
+                                  {label}
+                                </option>
+                              ))}
                             </select>
                           </label>
 
@@ -1778,10 +1761,10 @@ export default function MasterAdminPage() {
             <div className="bg-gradient-to-r from-[#0A4D9C] to-[#062F63] text-white rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-sm">
               <div>
                 <h2 className="text-lg font-black">
-                  Catálogo de Planos (Grátis, Vitrine, Destaque, Master e Banners)
+                  Catálogo de Planos (Grátis, Vitrine, Destaque, Master e Full Banner)
                 </h2>
                 <p className="text-xs text-blue-100 mt-0.5">
-                  Planos marcados como <strong>Oculto</strong> ficam desativados na página pública <code>/planos</code> e na moderação. Ordem <strong>0</strong> mistura; <strong>1, 2, 3</strong> fixa.
+                  Planos marcados como <strong>Oculto</strong> ficam desativados na página pública <code>/planos</code>. Ordem <strong>0</strong> mistura; <strong>1, 2, 3</strong> fixa.
                 </p>
               </div>
 
@@ -1833,11 +1816,16 @@ export default function MasterAdminPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               {plans.map((plan) => {
                 const isInactive = plan.active === false;
                 const isBannerOnly =
                   (plan.maxPhotos ?? 0) === 0 && (plan.maxVideos ?? 0) === 0;
+                const isMasterOrPurple =
+                  plan.id === "master" ||
+                  plan.id.includes("banner") ||
+                  isBannerOnly;
+                const isOrangeHighlight = Boolean(plan.highlight) && !isMasterOrPurple;
 
                 return (
                   <div
@@ -1845,8 +1833,10 @@ export default function MasterAdminPage() {
                     className={`rounded-2xl p-5 border-2 flex flex-col justify-between space-y-4 transition ${
                       isInactive
                         ? "bg-slate-100/80 border-slate-300 opacity-65"
-                        : plan.highlight
+                        : isOrangeHighlight
                         ? "bg-white border-[#FF7A00] shadow-md"
+                        : isMasterOrPurple
+                        ? "bg-white border-purple-500/70 shadow-sm"
                         : "bg-white border-slate-200/80 shadow-sm"
                     }`}
                   >
@@ -1869,7 +1859,7 @@ export default function MasterAdminPage() {
                         {plan.badgeText && (
                           <span
                             className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full shrink-0 shadow-xs ${
-                              plan.highlight
+                              isOrangeHighlight
                                 ? "bg-[#FF7A00] text-slate-950"
                                 : "bg-gradient-to-r from-purple-600 to-indigo-600 text-white"
                             }`}
