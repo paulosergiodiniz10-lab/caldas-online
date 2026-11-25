@@ -67,6 +67,7 @@ import {
   Copy,
   Plus,
   FolderKanban,
+  Edit3,
 } from "lucide-react";
 
 type ExtendedBusinessDoc = Business & {
@@ -158,6 +159,8 @@ export default function BusinessDashboardPage() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("onde-comer");
   const [extraCategories, setExtraCategories] = useState<string[]>([]);
+  const [isEditingExtraCategories, setIsEditingExtraCategories] = useState(false);
+  const [hasUnsavedCategoryChanges, setHasUnsavedCategoryChanges] = useState(false);
   const [subcategory, setSubcategory] = useState("");
   const [description, setDescription] = useState("");
   const [cep, setCep] = useState("");
@@ -215,12 +218,14 @@ export default function BusinessDashboardPage() {
     const primaryCat = data.category || "onde-comer";
     const allowedCats = Math.max(1, data.maxCategories ?? 1);
     const savedExtras = Array.isArray(data.categories)
-      ? data.categories.filter((c) => c && c !== primaryCat)
+      ? Array.from(new Set(data.categories.filter((c) => c && c !== primaryCat)))
       : [];
 
     setCategory(primaryCat);
     setMaxCategories(allowedCats);
     setExtraCategories(savedExtras.slice(0, Math.max(0, allowedCats - 1)));
+    setIsEditingExtraCategories(false);
+    setHasUnsavedCategoryChanges(false);
 
     setSubcategory(data.subcategory || "");
     setDescription(data.description || "");
@@ -277,6 +282,8 @@ export default function BusinessDashboardPage() {
     setName("");
     setCategory(defaultCat);
     setExtraCategories([]);
+    setIsEditingExtraCategories(false);
+    setHasUnsavedCategoryChanges(false);
     setMaxCategories(1);
     setSubcategory("");
     setDescription("");
@@ -316,7 +323,11 @@ export default function BusinessDashboardPage() {
         const snapCats = await getDocs(collection(db, "categories"));
         if (!snapCats.empty) {
           const list = snapCats.docs
-            .map((d) => ({ id: d.id, ...(d.data() as Omit<CategoryDoc, "id">) }))
+            .map((d) => ({
+              ...(d.data() as Omit<CategoryDoc, "id">),
+              id: d.id,
+              slug: (d.data() as CategoryDoc).slug || d.id,
+            }))
             .filter((c) => c.active !== false && (c.slug || c.id) !== "utilidades")
             .sort((a, b) => (a.order || 0) - (b.order || 0));
           if (list.length > 0) setCategories(list);
@@ -404,6 +415,7 @@ export default function BusinessDashboardPage() {
   const handlePrimaryCategoryChange = (newPrimarySlug: string) => {
     setCategory(newPrimarySlug);
     setExtraCategories((prev) => prev.filter((c) => c !== newPrimarySlug));
+    setHasUnsavedCategoryChanges(true);
   };
 
   const handleToggleExtraCategory = (catSlug: string) => {
@@ -412,6 +424,7 @@ export default function BusinessDashboardPage() {
 
     setExtraCategories((prev) => {
       if (prev.includes(catSlug)) {
+        setHasUnsavedCategoryChanges(true);
         return prev.filter((c) => c !== catSlug);
       }
       if (prev.length >= maxExtrasAllowed) {
@@ -422,8 +435,16 @@ export default function BusinessDashboardPage() {
         );
         return prev;
       }
+      setHasUnsavedCategoryChanges(true);
       return [...prev, catSlug];
     });
+  };
+
+  const getCategoryNameBySlug = (slugOrId: string) => {
+    const found = categories.find(
+      (c) => (c.slug || c.id) === slugOrId || c.id === slugOrId
+    );
+    return found?.name || slugOrId;
   };
 
   const handleCepChange = async (rawValue: string) => {
@@ -714,6 +735,9 @@ export default function BusinessDashboardPage() {
         setIsApproved(false);
       }
 
+      setHasUnsavedCategoryChanges(false);
+      setIsEditingExtraCategories(false);
+
       if (savedDocId) {
         await loadUserBusinesses(user.uid, savedDocId);
       }
@@ -921,6 +945,8 @@ export default function BusinessDashboardPage() {
   const availableExtraCategories = categories.filter(
     (c) => (c.slug || c.id) !== category
   );
+  const shouldShowCategorySelector =
+    isEditingExtraCategories || extraCategories.length === 0;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -1171,82 +1197,148 @@ export default function BusinessDashboardPage() {
                   </select>
                 </div>
 
-                {/* CATEGORIAS EXTRAS (MULTI-CATEGORIAS CONFORME PLANO) */}
+                {/* CATEGORIAS EXTRAS (RESUMO ATIVO + BOTÃO ALTERAR CATEGORIA) */}
                 <div className="sm:col-span-2 rounded-2xl bg-slate-50 border border-slate-200/90 p-4 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div className="space-y-0.5">
                       <p className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
                         <FolderKanban className="w-4 h-4 text-purple-600" />
-                        Categorias Extras (Aparecer em mais de um segmento)
+                        Categorias Ativas no Guia ({1 + extraCategories.length} de {maxCategories} liberadas)
                       </p>
                       <p className="text-[11px] text-slate-500">
                         {maxExtrasAllowed > 0
-                          ? `Seu plano permite escolher até ${maxExtrasAllowed} categoria${
+                          ? `Você pode exibir sua empresa na categoria principal e em até ${maxExtrasAllowed} categoria${
                               maxExtrasAllowed > 1 ? "s" : ""
-                            } extra${
-                              maxExtrasAllowed > 1 ? "s" : ""
-                            } além da principal (${extraCategories.length}/${maxExtrasAllowed} selecionadas).`
+                            } extra${maxExtrasAllowed > 1 ? "s" : ""}.`
                           : "No plano Grátis sua empresa aparece em 1 categoria. Quer aparecer em 2 ou mais segmentos (ex: Onde Comer + Sorveteria)?"}
                       </p>
                     </div>
 
-                    {maxCategories < 3 && (
-                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {maxExtrasAllowed > 0 && extraCategories.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => setPanelTab("plans")}
-                          className="inline-flex items-center gap-1 bg-[#FF7A00] hover:bg-orange-500 text-slate-950 font-extrabold text-[11px] px-3 py-2 rounded-xl shadow-2xs transition cursor-pointer"
+                          onClick={() =>
+                            setIsEditingExtraCategories(!isEditingExtraCategories)
+                          }
+                          className={`inline-flex items-center gap-1.5 font-extrabold text-[11px] px-3.5 py-2 rounded-xl transition cursor-pointer ${
+                            isEditingExtraCategories
+                              ? "bg-slate-900 text-white"
+                              : "bg-purple-100 hover:bg-purple-200 text-purple-900"
+                          }`}
                         >
-                          <Sparkles className="w-3.5 h-3.5" />
-                          Ver Planos
+                          <Edit3 className="w-3.5 h-3.5" />
+                          {isEditingExtraCategories
+                            ? "Concluir Seleção"
+                            : "Alterar Categorias"}
                         </button>
+                      )}
 
-                        <a
-                          href={multiCategoryWaUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-[11px] px-3 py-2 rounded-xl shadow-2xs transition"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5 fill-white" />
-                          Falar no WhatsApp
-                        </a>
-                      </div>
+                      {maxCategories < 3 && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setPanelTab("plans")}
+                            className="inline-flex items-center gap-1 bg-[#FF7A00] hover:bg-orange-500 text-slate-950 font-extrabold text-[11px] px-3 py-2 rounded-xl shadow-2xs transition cursor-pointer"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            Ver Planos
+                          </button>
+
+                          <a
+                            href={multiCategoryWaUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-[11px] px-3 py-2 rounded-xl shadow-2xs transition"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 fill-white" />
+                            Falar no WhatsApp
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* RESUMO VISUAL DAS CATEGORIAS MARCADAS */}
+                  <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200/80 rounded-xl p-2.5">
+                    <span className="inline-flex items-center gap-1.5 bg-[#0A4D9C] text-white text-xs font-extrabold px-3 py-1.5 rounded-lg">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Principal: {getCategoryNameBySlug(category)}
+                    </span>
+
+                    {extraCategories.map((extraSlug) => (
+                      <span
+                        key={extraSlug}
+                        className="inline-flex items-center gap-1.5 bg-purple-600 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {getCategoryNameBySlug(extraSlug)}
+                        {isEditingExtraCategories && (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleExtraCategory(extraSlug)}
+                            title="Remover esta categoria"
+                            className="ml-0.5 hover:text-purple-200 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </span>
+                    ))}
+
+                    {maxExtrasAllowed > 0 && extraCategories.length === 0 && (
+                      <span className="text-xs text-slate-400 font-semibold px-1">
+                        Nenhuma categoria extra marcada ainda — selecione abaixo:
+                      </span>
                     )}
                   </div>
 
-                  {maxExtrasAllowed > 0 ? (
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {availableExtraCategories.map((cat) => {
-                        const catSlug = cat.slug || cat.id;
-                        const isChecked = extraCategories.includes(catSlug);
-                        const isDisabled =
-                          !isChecked &&
-                          extraCategories.length >= maxExtrasAllowed;
-
-                        return (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            disabled={isDisabled}
-                            onClick={() => handleToggleExtraCategory(catSlug)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 border transition ${
-                              isChecked
-                                ? "bg-purple-600 text-white border-purple-600 shadow-2xs cursor-pointer"
-                                : isDisabled
-                                ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
-                                : "bg-white hover:bg-purple-50 text-slate-700 border-slate-300 cursor-pointer"
-                            }`}
-                          >
-                            {isChecked ? (
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            ) : (
-                              <Plus className="w-3.5 h-3.5 text-slate-400" />
-                            )}
-                            {cat.name}
-                          </button>
-                        );
-                      })}
+                  {/* ALERTA PARA LEMBRAR DE SALVAR NO RODAPÉ */}
+                  {hasUnsavedCategoryChanges && (
+                    <div className="rounded-xl bg-amber-50 border border-amber-300 px-3.5 py-2 text-xs font-extrabold text-amber-900 flex items-center justify-between gap-2">
+                      <span>
+                        ⚠️ Categorias alteradas! Clique no botão azul{" "}
+                        <strong className="underline">Salvar</strong> no final da página para gravar.
+                      </span>
                     </div>
+                  )}
+
+                  {/* SELETOR DE CATEGORIAS EXTRAS */}
+                  {maxExtrasAllowed > 0 ? (
+                    shouldShowCategorySelector && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {availableExtraCategories.map((cat) => {
+                          const catSlug = cat.slug || cat.id;
+                          const isChecked = extraCategories.includes(catSlug);
+                          const isDisabled =
+                            !isChecked &&
+                            extraCategories.length >= maxExtrasAllowed;
+
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              disabled={isDisabled}
+                              onClick={() => handleToggleExtraCategory(catSlug)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 border transition ${
+                                isChecked
+                                  ? "bg-purple-600 text-white border-purple-600 shadow-2xs cursor-pointer"
+                                  : isDisabled
+                                  ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                                  : "bg-white hover:bg-purple-50 text-slate-700 border-slate-300 cursor-pointer"
+                              }`}
+                            >
+                              {isChecked ? (
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              ) : (
+                                <Plus className="w-3.5 h-3.5 text-slate-400" />
+                              )}
+                              {cat.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )
                   ) : (
                     <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-400 flex items-center gap-1.5">
                       <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -1978,6 +2070,8 @@ export default function BusinessDashboardPage() {
                 ? "SALVANDO E ENVIANDO..."
                 : isCreatingNewAd
                 ? "CADASTRAR NOVO ANÚNCIO"
+                : isApproved
+                ? "SALVAR ALTERAÇÕES"
                 : "SALVAR E ENVIAR PARA APROVAÇÃO"}
             </button>
           </form>
