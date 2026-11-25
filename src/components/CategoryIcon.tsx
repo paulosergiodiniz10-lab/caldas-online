@@ -59,97 +59,99 @@ export function CategoryIcon({
       <img
         src={customIconUrl}
         alt={name}
-        className={`${className} object-contain`}
+        className={`${className} object-contain scale-[1.35] rounded-lg`}
       />
     );
   }
 
+  const iconClass = `${className} scale-[1.18]`;
+
   switch (name) {
     case "Utensils":
-      return <Utensils className={className} />;
+      return <Utensils className={iconClass} />;
     case "Pizza":
-      return <Pizza className={className} />;
+      return <Pizza className={iconClass} />;
     case "Coffee":
-      return <Coffee className={className} />;
+      return <Coffee className={iconClass} />;
     case "ShoppingBag":
-      return <ShoppingBag className={className} />;
+      return <ShoppingBag className={iconClass} />;
     case "Store":
-      return <Store className={className} />;
+      return <Store className={iconClass} />;
     case "Shirt":
-      return <Shirt className={className} />;
+      return <Shirt className={iconClass} />;
     case "BedDouble":
-      return <BedDouble className={className} />;
+      return <BedDouble className={iconClass} />;
     case "Palmtree":
-      return <Palmtree className={className} />;
+      return <Palmtree className={iconClass} />;
     case "Ticket":
-      return <Ticket className={className} />;
+      return <Ticket className={iconClass} />;
     case "Building2":
-      return <Building2 className={className} />;
+      return <Building2 className={iconClass} />;
     case "Cross":
-      return <Cross className={className} />;
+      return <Cross className={iconClass} />;
     case "Pill":
-      return <Pill className={className} />;
+      return <Pill className={iconClass} />;
     case "Stethoscope":
-      return <Stethoscope className={className} />;
+      return <Stethoscope className={iconClass} />;
     case "Car":
-      return <Car className={className} />;
+      return <Car className={iconClass} />;
     case "Bike":
-      return <Bike className={className} />;
+      return <Bike className={iconClass} />;
     case "Wrench":
-      return <Wrench className={className} />;
+      return <Wrench className={iconClass} />;
     case "Fuel":
-      return <Fuel className={className} />;
+      return <Fuel className={iconClass} />;
     case "Home":
-      return <Home className={className} />;
+      return <Home className={iconClass} />;
     case "Hammer":
-      return <Hammer className={className} />;
+      return <Hammer className={iconClass} />;
     case "Sun":
-      return <Sun className={className} />;
+      return <Sun className={iconClass} />;
     case "Snowflake":
-      return <Snowflake className={className} />;
+      return <Snowflake className={iconClass} />;
     case "Settings":
-      return <Settings className={className} />;
+      return <Settings className={iconClass} />;
     case "Briefcase":
-      return <Briefcase className={className} />;
+      return <Briefcase className={iconClass} />;
     case "Laptop":
-      return <Laptop className={className} />;
+      return <Laptop className={iconClass} />;
     case "Sparkles":
-      return <Sparkles className={className} />;
+      return <Sparkles className={iconClass} />;
     case "Scissors":
-      return <Scissors className={className} />;
+      return <Scissors className={iconClass} />;
     case "Dumbbell":
-      return <Dumbbell className={className} />;
+      return <Dumbbell className={iconClass} />;
     case "PartyPopper":
-      return <PartyPopper className={className} />;
+      return <PartyPopper className={iconClass} />;
     case "Music":
-      return <Music className={className} />;
+      return <Music className={iconClass} />;
     case "Camera":
-      return <Camera className={className} />;
+      return <Camera className={iconClass} />;
     case "GraduationCap":
-      return <GraduationCap className={className} />;
+      return <GraduationCap className={iconClass} />;
     case "PawPrint":
-      return <PawPrint className={className} />;
+      return <PawPrint className={iconClass} />;
     case "PhoneCall":
-      return <PhoneCall className={className} />;
+      return <PhoneCall className={iconClass} />;
     case "Shield":
-      return <Shield className={className} />;
+      return <Shield className={iconClass} />;
     case "Flame":
-      return <Flame className={className} />;
+      return <Flame className={iconClass} />;
     case "Ambulance":
-      return <Ambulance className={className} />;
+      return <Ambulance className={iconClass} />;
     case "Hospital":
-      return <Hospital className={className} />;
+      return <Hospital className={iconClass} />;
     case "Landmark":
-      return <Landmark className={className} />;
+      return <Landmark className={iconClass} />;
     case "Zap":
-      return <Zap className={className} />;
+      return <Zap className={iconClass} />;
     case "Droplets":
-      return <Droplets className={className} />;
+      return <Droplets className={iconClass} />;
     case "Bus":
-      return <Bus className={className} />;
+      return <Bus className={iconClass} />;
     case "CarTaxiFront":
-      return <CarTaxiFront className={className} />;
+      return <CarTaxiFront className={iconClass} />;
     default:
-      return <Store className={className} />;
+      return <Store className={iconClass} />;
   }
 }
