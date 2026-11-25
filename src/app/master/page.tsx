@@ -74,6 +74,7 @@ import {
   Layers,
   Eye,
   EyeOff,
+  FolderKanban,
 } from "lucide-react";
 
 const MASTER_EMAIL = "caldasonline10@gmail.com";
@@ -401,9 +402,25 @@ export default function MasterAdminPage() {
   ) => {
     setUpdatingId(biz.id);
     try {
-      await updateDoc(doc(db, "businesses", biz.id), updates);
+      const nextUpdates: Partial<Business> = { ...updates };
+      if (typeof nextUpdates.maxCategories === "number") {
+        const limit = Math.max(1, nextUpdates.maxCategories);
+        const existingList = Array.isArray(biz.categories) && biz.categories.length > 0
+          ? biz.categories
+          : biz.category
+          ? [biz.category]
+          : [];
+        const uniqueOrdered = Array.from(
+          new Set([biz.category, ...existingList].filter(Boolean))
+        );
+        nextUpdates.categories = uniqueOrdered.slice(0, limit);
+      }
+
+      await updateDoc(doc(db, "businesses", biz.id), nextUpdates);
       setBusinesses((prev) =>
-        prev.map((item) => (item.id === biz.id ? { ...item, ...updates } : item))
+        prev.map((item) =>
+          item.id === biz.id ? { ...item, ...nextUpdates } : item
+        )
       );
     } catch (err) {
       console.error(err);
@@ -413,7 +430,7 @@ export default function MasterAdminPage() {
     }
   };
 
-  // Vincular plano completo do Catálogo à empresa (altera fotos, vídeos, destaque e regra padrão de cupom no card)
+  // Vincular plano completo do Catálogo à empresa (altera categorias, fotos, vídeos, destaque e regra padrão de cupom no card)
   const handleSelectBusinessPlan = async (biz: Business, selectedPlanId: string) => {
     if (!selectedPlanId) {
       await handleUpdatePlan(biz, {
@@ -431,9 +448,12 @@ export default function MasterAdminPage() {
       chosenPlan.id === "free" ||
       (chosenPlan.price ?? 0) <= 0;
 
+    const planMaxCats = Math.max(1, Number(chosenPlan.maxCategories) || 1);
+
     await handleUpdatePlan(biz, {
       planId: chosenPlan.id,
       planName: chosenPlan.name,
+      maxCategories: planMaxCats,
       maxPhotos: chosenPlan.maxPhotos,
       maxVideos: chosenPlan.maxVideos,
       isFeatured: Boolean(chosenPlan.hasFeaturedHome),
@@ -443,7 +463,10 @@ export default function MasterAdminPage() {
 
   // GERENCIAMENTO DE PLANOS (GRÁTIS, VITRINE, DESTAQUE, MASTER, FULL BANNER)
   const openEditPlanModal = (plan: ExtendedPlanDoc) => {
-    setEditingPlan({ ...plan });
+    setEditingPlan({
+      ...plan,
+      maxCategories: Math.max(1, Number(plan.maxCategories) || 1),
+    });
     if (plan.priceDisplay && plan.priceDisplay.trim()) {
       setEditingPlanPriceInput(plan.priceDisplay.trim().replace(/^R\$\s*/i, ""));
     } else if (!plan.price || plan.price <= 0) {
@@ -466,6 +489,7 @@ export default function MasterAdminPage() {
       price: 97,
       priceDisplay: "97",
       billingPeriod: "/mês",
+      maxCategories: 2,
       maxPhotos: 20,
       maxVideos: 2,
       hasFeaturedHome: false,
@@ -492,6 +516,7 @@ export default function MasterAdminPage() {
       price: 157,
       priceDisplay: "157",
       billingPeriod: "/mês",
+      maxCategories: 1,
       maxPhotos: 0,
       maxVideos: 0,
       hasFeaturedHome: false,
@@ -540,6 +565,7 @@ export default function MasterAdminPage() {
         subtitle: editingPlan.subtitle.trim(),
         price: numericPrice,
         priceDisplay: numericPrice > 0 ? cleanedDisplay : "",
+        maxCategories: Math.max(1, Math.min(15, Number(editingPlan.maxCategories) || 1)),
         maxPhotos: Math.max(0, Number(editingPlan.maxPhotos) || 0),
         maxVideos: Math.max(0, Math.min(4, Number(editingPlan.maxVideos) || 0)),
         order: !isNaN(parsedOrder) && parsedOrder > 0 ? parsedOrder : 0,
@@ -1243,7 +1269,22 @@ export default function MasterAdminPage() {
     return found ? `📂 Segmento: ${found.name}` : `📂 Segmento: ${placement}`;
   };
 
-  // Opções dinâmicas de Fotos e Vídeos espelhadas EXCLUSIVAMENTE nos planos do catálogo
+  // Opções dinâmicas de Categorias, Fotos e Vídeos espelhadas nos planos do catálogo
+  const dynamicCategoryOptions = (() => {
+    const map = new Map<number, string>();
+    map.set(1, "1 (Grátis)");
+    plans.forEach((p) => {
+      const qty = Math.max(1, Number(p.maxCategories) || 1);
+      const existing = map.get(qty);
+      if (qty === 1) {
+        map.set(1, "1 (Grátis)");
+      } else {
+        map.set(qty, existing ? `${existing} / ${p.name}` : `${qty} (${p.name})`);
+      }
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
+  })();
+
   const dynamicPhotoOptions = (() => {
     const map = new Map<number, string>();
     plans.forEach((p) => {
@@ -1467,7 +1508,11 @@ export default function MasterAdminPage() {
                     );
                   const currentPlanId = biz.planId || matchedPlan?.id || "";
 
-                  // Se o valor atual da empresa ainda for um resquício antigo (ex: 6), alinha ao valor mais próximo dos planos
+                  const currentBizCategories = Math.max(
+                    1,
+                    biz.maxCategories ?? matchedPlan?.maxCategories ?? 1
+                  );
+
                   const photoValues = dynamicPhotoOptions.map(([v]) => v);
                   const currentBizPhotos =
                     photoValues.includes(rawBizPhotos) || photoValues.length === 0
@@ -1505,6 +1550,12 @@ export default function MasterAdminPage() {
                       ? biz.showCouponOnCard
                       : isPaidFallback;
 
+                  const allBizCategories = Array.from(
+                    new Set(
+                      [biz.category, ...(biz.categories || [])].filter(Boolean)
+                    )
+                  );
+
                   return (
                     <div
                       key={biz.id}
@@ -1532,6 +1583,13 @@ export default function MasterAdminPage() {
                             <span className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-900 text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-full">
                               <Layers className="w-3 h-3" /> Plano:{" "}
                               {biz.planName || matchedPlan?.name}
+                            </span>
+                          )}
+
+                          {allBizCategories.length > 1 && (
+                            <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-900 text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-full">
+                              <FolderKanban className="w-3 h-3" />{" "}
+                              {allBizCategories.length} Categorias
                             </span>
                           )}
 
@@ -1591,7 +1649,8 @@ export default function MasterAdminPage() {
                               {biz.name}
                             </h3>
                             <p className="text-xs text-slate-500">
-                              Categoria: <strong>{biz.category}</strong> • Bairro:{" "}
+                              Categorias:{" "}
+                              <strong>{allBizCategories.join(", ")}</strong> • Bairro:{" "}
                               <strong>{biz.neighborhood || "Não informado"}</strong>
                             </p>
                             <p className="text-xs text-slate-500">
@@ -1621,6 +1680,34 @@ export default function MasterAdminPage() {
                                   {p.active === false ? " (Oculto)" : ""}
                                 </option>
                               ))}
+                            </select>
+                          </label>
+
+                          <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                            <FolderKanban className="w-3.5 h-3.5 text-purple-600" />
+                            Categorias:
+                            <select
+                              value={currentBizCategories}
+                              disabled={isBusy}
+                              onChange={(e) =>
+                                handleUpdatePlan(biz, {
+                                  maxCategories: Number(e.target.value),
+                                })
+                              }
+                              className="rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white font-extrabold"
+                            >
+                              {dynamicCategoryOptions.map(([qty, label]) => (
+                                <option key={qty} value={qty}>
+                                  {label}
+                                </option>
+                              ))}
+                              {!dynamicCategoryOptions.some(
+                                ([q]) => q === currentBizCategories
+                              ) && (
+                                <option value={currentBizCategories}>
+                                  {currentBizCategories}
+                                </option>
+                              )}
                             </select>
                           </label>
 
@@ -1843,6 +1930,7 @@ export default function MasterAdminPage() {
                   plan.id.includes("banner") ||
                   isBannerOnly;
                 const isOrangeHighlight = Boolean(plan.highlight) && !isMasterOrPurple;
+                const planCats = Math.max(1, Number(plan.maxCategories) || 1);
 
                 return (
                   <div
@@ -1904,6 +1992,13 @@ export default function MasterAdminPage() {
                           </p>
                         ) : (
                           <>
+                            <p className="font-bold">
+                              📂 Até{" "}
+                              <strong>
+                                {planCats}{" "}
+                                {planCats === 1 ? "categoria" : "categorias"}
+                              </strong>
+                            </p>
                             <p className="font-bold">
                               📸 Até <strong>{plan.maxPhotos} fotos</strong>
                             </p>
@@ -3124,6 +3219,26 @@ export default function MasterAdminPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Quantidade de Categorias (1, 2, 3...) *
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={15}
+                  required
+                  value={editingPlan.maxCategories ?? 1}
+                  onChange={(e) =>
+                    setEditingPlan({
+                      ...editingPlan,
+                      maxCategories: Number(e.target.value),
+                    })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-bold text-purple-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   Quantidade de Fotos (0 = Plano Só Banner) *
                 </label>
                 <input
@@ -3180,7 +3295,7 @@ export default function MasterAdminPage() {
                 />
               </div>
 
-              <div>
+              <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Ordem (Vazio ou 0 = Aleatório • 1, 2, 3 = Fixo)
                 </label>
