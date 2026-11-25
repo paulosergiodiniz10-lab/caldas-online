@@ -24,7 +24,8 @@ export interface Business {
   ownerId: string;
   name: string;
   slug: string;
-  category: string;
+  category: string;      // Categoria principal
+  categories?: string[]; // Todas as categorias em que a empresa aparece (inclui a principal)
   subcategory: string;
   description: string;
   neighborhood: string;
@@ -42,6 +43,7 @@ export interface Business {
   showcaseUrl?: string; // Foto Vitrine (Card da Home/Categorias - 1536x1024px)
   coverUrl: string;     // Banner Capa (Topo da página interna - 1200x400px)
   gallery: string[];
+  maxCategories?: number; // Quantidade de categorias liberadas pelo plano (padrão 1)
   maxPhotos?: number; // Master pode aumentar por cliente
   maxVideos?: number; // Master pode aumentar até 4 por cliente
   youtubeHorizontal?: string; // 1 vídeo horizontal (exibe primeiro)
@@ -69,6 +71,7 @@ export interface PlanDoc {
   price: number;
   priceDisplay?: string; // Exibição exata digitada no Master (ex: "157" ou "157,00")
   billingPeriod: string;
+  maxCategories?: number; // Quantidade de categorias permitidas neste plano (padrão 1)
   maxPhotos: number;
   maxVideos: number;
   hasFeaturedHome: boolean;
