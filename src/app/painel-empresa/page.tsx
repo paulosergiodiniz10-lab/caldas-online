@@ -220,11 +220,13 @@ export default function BusinessDashboardPage() {
     const savedExtras = Array.isArray(data.categories)
       ? Array.from(new Set(data.categories.filter((c) => c && c !== primaryCat)))
       : [];
+    const clippedExtras = savedExtras.slice(0, Math.max(0, allowedCats - 1));
 
     setCategory(primaryCat);
     setMaxCategories(allowedCats);
-    setExtraCategories(savedExtras.slice(0, Math.max(0, allowedCats - 1)));
-    setIsEditingExtraCategories(false);
+    setExtraCategories(clippedExtras);
+    // Inicia aberto apenas se ainda não houver nenhuma categoria extra salva; se já houver, inicia fechado com o botão "Alterar Categorias"
+    setIsEditingExtraCategories(clippedExtras.length === 0);
     setHasUnsavedCategoryChanges(false);
 
     setSubcategory(data.subcategory || "");
@@ -282,7 +284,7 @@ export default function BusinessDashboardPage() {
     setName("");
     setCategory(defaultCat);
     setExtraCategories([]);
-    setIsEditingExtraCategories(false);
+    setIsEditingExtraCategories(true);
     setHasUnsavedCategoryChanges(false);
     setMaxCategories(1);
     setSubcategory("");
@@ -945,8 +947,6 @@ export default function BusinessDashboardPage() {
   const availableExtraCategories = categories.filter(
     (c) => (c.slug || c.id) !== category
   );
-  const shouldShowCategorySelector =
-    isEditingExtraCategories || extraCategories.length === 0;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -1209,13 +1209,15 @@ export default function BusinessDashboardPage() {
                         {maxExtrasAllowed > 0
                           ? `Você pode exibir sua empresa na categoria principal e em até ${maxExtrasAllowed} categoria${
                               maxExtrasAllowed > 1 ? "s" : ""
-                            } extra${maxExtrasAllowed > 1 ? "s" : ""}.`
+                            } extra${
+                              maxExtrasAllowed > 1 ? "s" : ""
+                            } (${extraCategories.length}/${maxExtrasAllowed} extras selecionadas).`
                           : "No plano Grátis sua empresa aparece em 1 categoria. Quer aparecer em 2 ou mais segmentos (ex: Onde Comer + Sorveteria)?"}
                       </p>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      {maxExtrasAllowed > 0 && extraCategories.length > 0 && (
+                      {maxExtrasAllowed > 0 && (
                         <button
                           type="button"
                           onClick={() =>
@@ -1303,9 +1305,9 @@ export default function BusinessDashboardPage() {
                     </div>
                   )}
 
-                  {/* SELETOR DE CATEGORIAS EXTRAS */}
+                  {/* SELETOR DE CATEGORIAS EXTRAS (PERMANECE ABERTO ENQUANTO EDITA) */}
                   {maxExtrasAllowed > 0 ? (
-                    shouldShowCategorySelector && (
+                    isEditingExtraCategories && (
                       <div className="flex flex-wrap gap-2 pt-1">
                         {availableExtraCategories.map((cat) => {
                           const catSlug = cat.slug || cat.id;
