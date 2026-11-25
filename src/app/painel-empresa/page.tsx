@@ -66,6 +66,7 @@ import {
   FileEdit,
   Copy,
   Plus,
+  FolderKanban,
 } from "lucide-react";
 
 type ExtendedBusinessDoc = Business & {
@@ -156,6 +157,7 @@ export default function BusinessDashboardPage() {
   // Campos da Empresa / Anúncio ativo
   const [name, setName] = useState("");
   const [category, setCategory] = useState("onde-comer");
+  const [extraCategories, setExtraCategories] = useState<string[]>([]);
   const [subcategory, setSubcategory] = useState("");
   const [description, setDescription] = useState("");
   const [cep, setCep] = useState("");
@@ -177,6 +179,7 @@ export default function BusinessDashboardPage() {
   );
 
   // Limites controlados pelo Master
+  const [maxCategories, setMaxCategories] = useState(1);
   const [maxPhotos, setMaxPhotos] = useState(
     DEFAULT_PLANS.find((p) => p.id === "gratis")?.maxPhotos ?? 6
   );
@@ -208,7 +211,17 @@ export default function BusinessDashboardPage() {
     setIsCreatingNewAd(false);
     setBusinessId(data.id);
     setName(data.name || "");
-    setCategory(data.category || "onde-comer");
+
+    const primaryCat = data.category || "onde-comer";
+    const allowedCats = Math.max(1, data.maxCategories ?? 1);
+    const savedExtras = Array.isArray(data.categories)
+      ? data.categories.filter((c) => c && c !== primaryCat)
+      : [];
+
+    setCategory(primaryCat);
+    setMaxCategories(allowedCats);
+    setExtraCategories(savedExtras.slice(0, Math.max(0, allowedCats - 1)));
+
     setSubcategory(data.subcategory || "");
     setDescription(data.description || "");
     setCep(formatCep(data.cep || ""));
@@ -263,6 +276,8 @@ export default function BusinessDashboardPage() {
     setBusinessId(null);
     setName("");
     setCategory(defaultCat);
+    setExtraCategories([]);
+    setMaxCategories(1);
     setSubcategory("");
     setDescription("");
     setCep("");
@@ -386,6 +401,31 @@ export default function BusinessDashboardPage() {
     }
   }
 
+  const handlePrimaryCategoryChange = (newPrimarySlug: string) => {
+    setCategory(newPrimarySlug);
+    setExtraCategories((prev) => prev.filter((c) => c !== newPrimarySlug));
+  };
+
+  const handleToggleExtraCategory = (catSlug: string) => {
+    const maxExtrasAllowed = Math.max(0, maxCategories - 1);
+    if (maxExtrasAllowed <= 0) return;
+
+    setExtraCategories((prev) => {
+      if (prev.includes(catSlug)) {
+        return prev.filter((c) => c !== catSlug);
+      }
+      if (prev.length >= maxExtrasAllowed) {
+        alert(
+          `Seu plano atual permite escolher até ${maxCategories} categorias no total (1 principal + ${maxExtrasAllowed} extra${
+            maxExtrasAllowed > 1 ? "s" : ""
+          }).`
+        );
+        return prev;
+      }
+      return [...prev, catSlug];
+    });
+  };
+
   const handleCepChange = async (rawValue: string) => {
     const formatted = formatCep(rawValue);
     setCep(formatted);
@@ -466,6 +506,7 @@ export default function BusinessDashboardPage() {
           name: registerCompanyName.trim(),
           slug,
           category: defaultCat,
+          categories: [defaultCat],
           subcategory: "",
           description: "Bem-vindo à nossa empresa no Caldas Novas Online!",
           cep: "",
@@ -481,6 +522,7 @@ export default function BusinessDashboardPage() {
           coverUrl: "",
           gallery: [],
           businessHours: DEFAULT_BUSINESS_HOURS,
+          maxCategories: 1,
           maxPhotos: freePlanMaxPhotos,
           maxVideos: 0,
           youtubeHorizontal: "",
@@ -602,11 +644,21 @@ export default function BusinessDashboardPage() {
         .slice(0, allowedVerticalCount);
 
       const finalMaxPhotos = Math.max(1, maxPhotos || freePlanMaxPhotos);
+      const finalMaxCategories = Math.max(1, maxCategories || 1);
+      const allSelectedCategories = Array.from(
+        new Set([
+          category,
+          ...extraCategories
+            .filter((c) => c && c !== category)
+            .slice(0, Math.max(0, finalMaxCategories - 1)),
+        ])
+      );
 
       const payload = {
         ownerId: user.uid,
         name: name.trim(),
         category,
+        categories: allSelectedCategories,
         subcategory: subcategory.trim(),
         description: description.trim(),
         cep: formatCep(cep),
@@ -622,6 +674,7 @@ export default function BusinessDashboardPage() {
         coverUrl,
         gallery: gallery.slice(0, finalMaxPhotos),
         businessHours,
+        maxCategories: finalMaxCategories,
         maxPhotos: finalMaxPhotos,
         maxVideos,
         youtubeHorizontal: maxVideos >= 1 ? youtubeHorizontal.trim() : "",
@@ -859,7 +912,15 @@ export default function BusinessDashboardPage() {
     `Olá! A empresa "${name || "Nova Empresa"}" acabou de se cadastrar no guia Caldas Novas Online e solicita a verificação e liberação da página.`
   )}`;
 
+  const multiCategoryWaUrl = `https://wa.me/${cleanMasterPhone}?text=${encodeURIComponent(
+    `Olá! Sou da empresa "${name || "cadastrada"}" no Caldas Novas Online e quero anunciar em 2 ou mais categorias ao mesmo tempo.`
+  )}`;
+
   const unlockedVerticalVideos = Math.max(0, maxVideos - 1);
+  const maxExtrasAllowed = Math.max(0, maxCategories - 1);
+  const availableExtraCategories = categories.filter(
+    (c) => (c.slug || c.id) !== category
+  );
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -947,7 +1008,12 @@ export default function BusinessDashboardPage() {
                 {name || (isCreatingNewAd ? "Nova Empresa / Filial" : "Minha Empresa")}
               </h1>
               <p className="text-xs text-slate-500">
-                Pacote atual: <strong>{maxPhotos} fotos</strong> e{" "}
+                Pacote atual:{" "}
+                <strong>
+                  {maxCategories}{" "}
+                  {maxCategories === 1 ? "categoria" : "categorias"}
+                </strong>
+                , <strong>{maxPhotos} fotos</strong> e{" "}
                 <strong>{maxVideos} vídeo(s)</strong> liberados
               </p>
             </div>
@@ -1031,7 +1097,7 @@ export default function BusinessDashboardPage() {
                 Quer mais visibilidade?
               </p>
               <p className="text-xs font-semibold mt-0.5">
-                Veja os planos com + fotos, vídeos e destaque →
+                Veja os planos com + categorias, fotos e vídeos →
               </p>
             </button>
           </div>
@@ -1090,11 +1156,11 @@ export default function BusinessDashboardPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Segmento / Categoria *
+                    Segmento / Categoria Principal *
                   </label>
                   <select
                     value={category}
-                    onChange={(e) => setCategory(e.target.value)}
+                    onChange={(e) => handlePrimaryCategoryChange(e.target.value)}
                     className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white"
                   >
                     {categories.map((cat) => (
@@ -1103,6 +1169,94 @@ export default function BusinessDashboardPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                {/* CATEGORIAS EXTRAS (MULTI-CATEGORIAS CONFORME PLANO) */}
+                <div className="sm:col-span-2 rounded-2xl bg-slate-50 border border-slate-200/90 p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                        <FolderKanban className="w-4 h-4 text-purple-600" />
+                        Categorias Extras (Aparecer em mais de um segmento)
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {maxExtrasAllowed > 0
+                          ? `Seu plano permite escolher até ${maxExtrasAllowed} categoria${
+                              maxExtrasAllowed > 1 ? "s" : ""
+                            } extra${
+                              maxExtrasAllowed > 1 ? "s" : ""
+                            } além da principal (${extraCategories.length}/${maxExtrasAllowed} selecionadas).`
+                          : "No plano Grátis sua empresa aparece em 1 categoria. Quer aparecer em 2 ou mais segmentos (ex: Onde Comer + Sorveteria)?"}
+                      </p>
+                    </div>
+
+                    {maxCategories < 3 && (
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setPanelTab("plans")}
+                          className="inline-flex items-center gap-1 bg-[#FF7A00] hover:bg-orange-500 text-slate-950 font-extrabold text-[11px] px-3 py-2 rounded-xl shadow-2xs transition cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Ver Planos
+                        </button>
+
+                        <a
+                          href={multiCategoryWaUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-[11px] px-3 py-2 rounded-xl shadow-2xs transition"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5 fill-white" />
+                          Falar no WhatsApp
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  {maxExtrasAllowed > 0 ? (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {availableExtraCategories.map((cat) => {
+                        const catSlug = cat.slug || cat.id;
+                        const isChecked = extraCategories.includes(catSlug);
+                        const isDisabled =
+                          !isChecked &&
+                          extraCategories.length >= maxExtrasAllowed;
+
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            disabled={isDisabled}
+                            onClick={() => handleToggleExtraCategory(catSlug)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 border transition ${
+                              isChecked
+                                ? "bg-purple-600 text-white border-purple-600 shadow-2xs cursor-pointer"
+                                : isDisabled
+                                ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                                : "bg-white hover:bg-purple-50 text-slate-700 border-slate-300 cursor-pointer"
+                            }`}
+                          >
+                            {isChecked ? (
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            ) : (
+                              <Plus className="w-3.5 h-3.5 text-slate-400" />
+                            )}
+                            {cat.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-400 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>
+                        Multi-categorias disponível nos planos pagos — clique em{" "}
+                        <strong className="text-slate-600">&quot;Ver Planos&quot;</strong> ou{" "}
+                        <strong className="text-slate-600">&quot;Falar no WhatsApp&quot;</strong> para liberar.
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1838,8 +1992,13 @@ export default function BusinessDashboardPage() {
                   Aumente a visibilidade da {name || "sua empresa"}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Seu limite atual neste anúncio é de <strong>{maxPhotos} fotos</strong> e{" "}
-                  <strong>{maxVideos} vídeo(s)</strong>. Escolha um pacote abaixo para liberar mais mídia e destaque na Primeira Página.
+                  Seu limite atual neste anúncio é de{" "}
+                  <strong>
+                    {maxCategories}{" "}
+                    {maxCategories === 1 ? "categoria" : "categorias"}
+                  </strong>
+                  , <strong>{maxPhotos} fotos</strong> e{" "}
+                  <strong>{maxVideos} vídeo(s)</strong>. Escolha um pacote abaixo para aparecer em mais categorias e liberar mais mídia.
                 </p>
               </div>
 
@@ -1864,6 +2023,7 @@ export default function BusinessDashboardPage() {
                 const isOrangeHighlight =
                   Boolean(plan.highlight) && !isMasterOrPurple;
                 const formattedPrice = formatPlanPrice(plan);
+                const planCats = Math.max(1, Number(plan.maxCategories) || 1);
 
                 const waMessage = `Olá! Sou da empresa *${
                   name || "cadastrada"
@@ -1928,6 +2088,14 @@ export default function BusinessDashboardPage() {
                           </li>
                         ) : (
                           <>
+                            <li className="flex items-start gap-1.5 font-bold text-slate-900">
+                              <FolderKanban className="w-3.5 h-3.5 text-purple-600 shrink-0 mt-0.5" />
+                              <span>
+                                Até {planCats}{" "}
+                                {planCats === 1 ? "categoria" : "categorias"}
+                              </span>
+                            </li>
+
                             <li className="flex items-start gap-1.5 font-bold text-slate-900">
                               <ImageIcon className="w-3.5 h-3.5 text-[#0A4D9C] shrink-0 mt-0.5" />
                               <span>Até {plan.maxPhotos} fotos</span>
