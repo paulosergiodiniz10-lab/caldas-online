@@ -24,6 +24,23 @@ type BusinessWithMaps = Business & {
 interface BusinessCardProps {
   business: BusinessWithMaps;
   distanceKm?: number | null;
+  activeCategorySlug?: string;
+  categoryNamesMap?: Record<string, string>;
+}
+
+const SLUG_TO_DEFAULT_NAME = new Map<string, string>(
+  DEFAULT_CATEGORIES.map((c) => [(c.slug || c.id).toLowerCase(), c.name])
+);
+
+function isExperienceSlug(slugOrId: string): boolean {
+  const clean = (slugOrId || "").toLowerCase().trim();
+  return clean === "experiencias" || clean === "experiencia";
+}
+
+function formatSlugFallback(slug: string): string {
+  return slug
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 // Selo Verificada estilo Meta (círculo azul sólido com check branco)
@@ -38,7 +55,12 @@ function MetaVerifiedBadge({ className = "w-4 h-4" }: { className?: string }) {
   );
 }
 
-export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
+export function BusinessCard({
+  business,
+  distanceKm,
+  activeCategorySlug,
+  categoryNamesMap,
+}: BusinessCardProps) {
   const slugOrId = business.slug || business.id;
   const detailsHref = `/empresa/${slugOrId}`;
 
@@ -57,11 +79,50 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
   const showLocationButton = isAddressVisible && hasGoogleMapsLink;
   const mapsUrl = hasGoogleMapsLink ? business.googleMapsUrl!.trim() : "#";
 
-  const categoryObj = DEFAULT_CATEGORIES.find(
-    (c) => (c.slug || c.id) === business.category
-  );
+  // Monta a lista de categorias válidas e liberadas da empresa (principal + extras)
+  const rawCategorySlugs = Array.from(
+    new Set(
+      [
+        business.category,
+        ...(Array.isArray(business.categories) ? business.categories : []),
+      ]
+        .map((c) => (c || "").trim())
+        .filter(Boolean)
+    )
+  ).filter((catSlug) => {
+    // Oculta "Experiências" do rótulo se ainda não foi liberada pelo Master
+    if (isExperienceSlug(catSlug) && business.isExperienceApproved !== true) {
+      return false;
+    }
+    return true;
+  });
+
+  // Se estiver dentro de uma página de categoria específica, coloca ela primeiro no card
+  const orderedCategorySlugs = activeCategorySlug
+    ? [
+        ...rawCategorySlugs.filter(
+          (s) => s.toLowerCase() === activeCategorySlug.toLowerCase()
+        ),
+        ...rawCategorySlugs.filter(
+          (s) => s.toLowerCase() !== activeCategorySlug.toLowerCase()
+        ),
+      ]
+    : rawCategorySlugs;
+
+  const resolvedCategoryNames = orderedCategorySlugs.map((catSlug) => {
+    const lower = catSlug.toLowerCase();
+    return (
+      categoryNamesMap?.[catSlug] ||
+      categoryNamesMap?.[lower] ||
+      SLUG_TO_DEFAULT_NAME.get(lower) ||
+      formatSlugFallback(catSlug)
+    );
+  });
+
   const categoryLabel =
-    categoryObj?.name || business.subcategory || business.category || "";
+    resolvedCategoryNames.length > 0
+      ? resolvedCategoryNames.join(" • ")
+      : business.subcategory || "";
 
   const hasActiveCoupon = Boolean(
     business.coupon?.active &&
@@ -172,7 +233,7 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
             </h3>
           </Link>
 
-          {/* NOME DA CATEGORIA (E DISTÂNCIA APENAS QUANDO GPS ESTIVER ATIVO) */}
+          {/* TODAS AS CATEGORIAS ATIVAS (E DISTÂNCIA APENAS QUANDO GPS ESTIVER ATIVO) */}
           {(categoryLabel || (isAddressVisible && typeof distanceKm === "number")) && (
             <p className="text-xs font-semibold text-slate-500 line-clamp-1">
               {categoryLabel}
