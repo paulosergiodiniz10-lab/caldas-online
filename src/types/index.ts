@@ -54,6 +54,7 @@ export interface Business {
   planId?: string; // Identificador do plano contratado (ex: gratis, vitrine, destaque, master, full-banner)
   planName?: string; // Nome do plano vinculado pelo moderador
   isVerified?: boolean; // Selo Empresa Verificada (controlado no Master)
+  isExperienceApproved?: boolean; // Liberação exclusiva para categoria Experiências (Rota Além das Águas)
   isFeatured: boolean;
   isApproved: boolean;
   acceptedTerms?: boolean;
