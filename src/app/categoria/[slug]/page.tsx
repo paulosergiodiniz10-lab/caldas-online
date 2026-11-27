@@ -27,6 +27,8 @@ import { BannerSlider } from "@/components/BannerSlider";
 import { BusinessCard } from "@/components/BusinessCard";
 import { CategoryIcon } from "@/components/CategoryIcon";
 
+const HOME_CACHE_KEY = "cno_home_cache_v1";
+
 // Compatibilidade caso existam empresas cadastradas com slugs antigos
 const LEGACY_SLUG_ALIASES: Record<string, string[]> = {
   "onde-comer": ["onde-comer", "alimentacao"],
@@ -50,6 +52,34 @@ function shuffleArray<T>(items: T[]): T[] {
   return arr;
 }
 
+function toLightweightBusiness(id: string, raw: Omit<Business, "id">): Business {
+  const firstGalleryPhoto =
+    Array.isArray(raw.gallery) && raw.gallery.length > 0 ? [raw.gallery[0]] : [];
+
+  return {
+    ...raw,
+    id,
+    gallery: firstGalleryPhoto,
+    youtubeHorizontal: "",
+    youtubeVerticals: [],
+  };
+}
+
+function matchesCategorySlugs(biz: Business, targetSlugs: string[]): boolean {
+  const matchesPrimary = targetSlugs.includes(biz.category);
+  const matchesExtra =
+    Array.isArray(biz.categories) &&
+    biz.categories.some((c) => targetSlugs.includes(c));
+  return matchesPrimary || matchesExtra;
+}
+
+interface CategoryCachePayload {
+  category?: CategoryDoc;
+  businesses: Business[];
+  banners: PromoBanner[];
+  settings: SiteSettings;
+}
+
 export default function CategoryPage() {
   const params = useParams();
   const slug = String(params?.slug || "");
@@ -69,73 +99,141 @@ export default function CategoryPage() {
   const [locating, setLocating] = useState(false);
 
   useEffect(() => {
+    if (!slug) return;
+    let isMounted = true;
+    const targetSlugs = LEGACY_SLUG_ALIASES[slug] || [slug];
+    const catCacheKey = `cno_cat_cache_${slug}`;
+
+    // 1. Hidrata imediatamente do cache local (da própria categoria ou do cache da Home) para 0ms de espera no 4G/5G
+    try {
+      const catCacheRaw = sessionStorage.getItem(catCacheKey);
+      if (catCacheRaw) {
+        const parsed = JSON.parse(catCacheRaw) as CategoryCachePayload;
+        if (parsed.category) setCategory(parsed.category);
+        if (Array.isArray(parsed.businesses)) {
+          setBusinesses(shuffleArray(parsed.businesses));
+          setLoading(false);
+        }
+        if (Array.isArray(parsed.banners)) setBanners(parsed.banners);
+        if (parsed.settings) {
+          setSettings((prev) => ({ ...prev, ...parsed.settings }));
+        }
+      } else {
+        const homeCacheRaw = sessionStorage.getItem(HOME_CACHE_KEY);
+        if (homeCacheRaw) {
+          const parsedHome = JSON.parse(homeCacheRaw) as {
+            businesses?: Business[];
+            categories?: CategoryDoc[];
+            settings?: SiteSettings;
+          };
+          const foundCat = parsedHome.categories?.find(
+            (c) => (c.slug || c.id) === slug
+          );
+          if (foundCat) setCategory(foundCat);
+
+          if (Array.isArray(parsedHome.businesses) && parsedHome.businesses.length > 0) {
+            const preFiltered = parsedHome.businesses.filter((b) =>
+              matchesCategorySlugs(b, targetSlugs)
+            );
+            setBusinesses(shuffleArray(preFiltered));
+            setLoading(false);
+          }
+
+          if (parsedHome.settings) {
+            setSettings((prev) => ({ ...prev, ...parsedHome.settings }));
+          }
+        }
+      }
+    } catch {
+      // Ignora erro de leitura de storage
+    }
+
     async function loadCategoryData() {
-      if (!slug) return;
-      setLoading(true);
       try {
-        // 1. Buscar metadados da categoria no Firestore (com fallback nas padrões)
-        const snapCat = await getDoc(doc(db, "categories", slug));
-        if (snapCat.exists()) {
-          setCategory({
-            id: snapCat.id,
-            ...(snapCat.data() as Omit<CategoryDoc, "id">),
-          });
+        // 2. Executa todas as 4 consultas no Firestore em paralelo
+        const [catRes, bizRes, banRes, setRes] = await Promise.allSettled([
+          getDoc(doc(db, "categories", slug)),
+          getDocs(query(collection(db, "businesses"), where("isApproved", "==", true))),
+          getDocs(
+            query(
+              collection(db, "banners"),
+              where("active", "==", true),
+              where("placement", "==", slug)
+            )
+          ),
+          getDoc(doc(db, "settings", "global")),
+        ]);
+
+        if (!isMounted) return;
+
+        let nextCategory = category;
+        let nextBusinesses = businesses;
+        let nextBanners = banners;
+        let nextSettings = settings;
+
+        if (catRes.status === "fulfilled" && catRes.value.exists()) {
+          nextCategory = {
+            id: catRes.value.id,
+            ...(catRes.value.data() as Omit<CategoryDoc, "id">),
+          };
+          setCategory(nextCategory);
         } else {
-          setCategory(DEFAULT_CATEGORIES.find((c) => (c.slug || c.id) === slug));
+          nextCategory = DEFAULT_CATEGORIES.find((c) => (c.slug || c.id) === slug);
+          if (nextCategory) setCategory(nextCategory);
         }
 
-        // 2. Buscar empresas aprovadas e filtrar por categoria principal OU categorias extras
-        const targetSlugs = LEGACY_SLUG_ALIASES[slug] || [slug];
-        const qBiz = query(
-          collection(db, "businesses"),
-          where("isApproved", "==", true)
-        );
+        if (bizRes.status === "fulfilled") {
+          const listBiz: Business[] = bizRes.value.docs
+            .map((d) => toLightweightBusiness(d.id, d.data() as Omit<Business, "id">))
+            .filter((biz) => matchesCategorySlugs(biz, targetSlugs));
 
-        const snapBiz = await getDocs(qBiz);
-        const listBiz: Business[] = snapBiz.docs
-          .map((d) => ({
-            id: d.id,
-            ...(d.data() as Omit<Business, "id">),
-          }))
-          .filter((biz) => {
-            const matchesPrimary = targetSlugs.includes(biz.category);
-            const matchesExtra =
-              Array.isArray(biz.categories) &&
-              biz.categories.some((c) => targetSlugs.includes(c));
-            return matchesPrimary || matchesExtra;
-          });
+          nextBusinesses = listBiz;
+          setBusinesses(shuffleArray(listBiz));
+        }
 
-        setBusinesses(shuffleArray(listBiz));
+        if (banRes.status === "fulfilled") {
+          const listBan: PromoBanner[] = banRes.value.docs
+            .map((d) => ({
+              id: d.id,
+              ...(d.data() as Omit<PromoBanner, "id">),
+            }))
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
+          nextBanners = listBan;
+          setBanners(listBan);
+        }
 
-        // 3. Banners específicos deste segmento
-        const qBan = query(
-          collection(db, "banners"),
-          where("active", "==", true),
-          where("placement", "==", slug)
-        );
-        const snapBan = await getDocs(qBan);
-        const listBan: PromoBanner[] = snapBan.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<PromoBanner, "id">),
-        }));
-        setBanners(listBan);
+        if (setRes.status === "fulfilled" && setRes.value.exists()) {
+          nextSettings = {
+            ...DEFAULT_SITE_SETTINGS,
+            ...(setRes.value.data() as Partial<SiteSettings>),
+          };
+          setSettings(nextSettings);
+        }
 
-        // 4. Configurações globais
-        const snapSet = await getDoc(doc(db, "settings", "global"));
-        if (snapSet.exists()) {
-          setSettings((prev) => ({
-            ...prev,
-            ...(snapSet.data() as Partial<SiteSettings>),
-          }));
+        try {
+          const payload: CategoryCachePayload = {
+            category: nextCategory,
+            businesses: nextBusinesses,
+            banners: nextBanners,
+            settings: nextSettings,
+          };
+          sessionStorage.setItem(catCacheKey, JSON.stringify(payload));
+        } catch {
+          // Ignora limite de storage
         }
       } catch (err) {
         console.error("Erro ao carregar categoria:", err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     }
 
     loadCategoryData();
+
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   const handleActivateLocation = () => {
@@ -233,7 +331,7 @@ export default function CategoryPage() {
         <div className="max-w-6xl mx-auto">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0A4D9C] hover:underline mb-3"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0A4D9C] hover:underline mb-3 active:scale-95 transition"
           >
             <ArrowLeft className="w-4 h-4" /> Voltar para o início
           </Link>
@@ -294,7 +392,7 @@ export default function CategoryPage() {
               <button
                 type="button"
                 onClick={() => setOnlyOpenNow(!onlyOpenNow)}
-                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition active:scale-95 cursor-pointer ${
                   onlyOpenNow
                     ? "bg-emerald-600 text-white"
                     : "bg-slate-100 hover:bg-slate-200 text-slate-800"
@@ -311,7 +409,7 @@ export default function CategoryPage() {
               <button
                 type="button"
                 onClick={handleActivateLocation}
-                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition active:scale-95 cursor-pointer ${
                   userCoords
                     ? "bg-emerald-600 text-white"
                     : "bg-slate-100 hover:bg-slate-200 text-slate-800"
@@ -332,7 +430,7 @@ export default function CategoryPage() {
               <button
                 type="button"
                 onClick={() => setOnlyCoupons(!onlyCoupons)}
-                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2.5 rounded-xl transition active:scale-95 cursor-pointer ${
                   onlyCoupons
                     ? "bg-[#FF7A00] text-white"
                     : "bg-slate-100 hover:bg-slate-200 text-slate-800"
@@ -354,7 +452,7 @@ export default function CategoryPage() {
               <button
                 type="button"
                 onClick={() => setSearchTerm("")}
-                className={`text-xs font-extrabold px-4 py-2 rounded-full border transition whitespace-nowrap cursor-pointer ${
+                className={`text-xs font-extrabold px-4 py-2 rounded-full border transition active:scale-95 whitespace-nowrap cursor-pointer ${
                   searchTerm.trim() === ""
                     ? "bg-[#0A4D9C] text-white border-[#0A4D9C] shadow-xs"
                     : "bg-white hover:bg-blue-50 text-slate-700 border-slate-200"
@@ -372,7 +470,7 @@ export default function CategoryPage() {
                     key={idx}
                     type="button"
                     onClick={() => setSearchTerm(isSelected ? "" : tag)}
-                    className={`text-xs font-extrabold px-4 py-2 rounded-full border transition whitespace-nowrap cursor-pointer ${
+                    className={`text-xs font-extrabold px-4 py-2 rounded-full border transition active:scale-95 whitespace-nowrap cursor-pointer ${
                       isSelected
                         ? "bg-[#0A4D9C] text-white border-[#0A4D9C] shadow-xs"
                         : "bg-white hover:bg-blue-50 text-[#0A4D9C] border-slate-200"
