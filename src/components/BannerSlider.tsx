@@ -59,10 +59,20 @@ export function BannerSlider({ banners, categoryName }: BannerSliderProps) {
     return () => clearInterval(timer);
   }, [orderedBanners]);
 
+  // Pré-carrega em segundo plano apenas o próximo slide para transição instantânea sem pesar no 4G
+  useEffect(() => {
+    if (orderedBanners.length <= 1 || typeof window === "undefined") return;
+    const nextIdx = (currentIndex + 1) % orderedBanners.length;
+    const nextUrl = optimizeCloudinaryUrl(orderedBanners[nextIdx]?.imageUrl, 1200);
+    if (!nextUrl) return;
+    const img = new window.Image();
+    img.src = nextUrl;
+  }, [currentIndex, orderedBanners]);
+
   if (orderedBanners.length === 0) return null;
 
   const current = orderedBanners[currentIndex % orderedBanners.length];
-  const optimizedBannerImage = optimizeCloudinaryUrl(current.imageUrl);
+  const optimizedBannerImage = optimizeCloudinaryUrl(current.imageUrl, 1200);
 
   const isWhatsapp =
     current.actionType === "whatsapp" ||
@@ -111,6 +121,8 @@ export function BannerSlider({ banners, categoryName }: BannerSliderProps) {
           <img
             src={optimizedBannerImage}
             alt={current.title || "Oferta em Destaque • Caldas Novas Online"}
+            loading="eager"
+            fetchPriority={currentIndex === 0 ? "high" : "auto"}
             decoding="async"
             className="w-full max-h-[240px] sm:max-h-[300px] object-cover transition duration-500"
           />
