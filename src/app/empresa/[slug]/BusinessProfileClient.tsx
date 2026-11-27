@@ -55,6 +55,12 @@ type BusinessWithExtra = Business & {
   showAddressOnSite?: boolean;
 };
 
+interface BusinessProfileClientProps {
+  initialSlug?: string;
+  initialBusiness?: Business | null;
+  initialSettings?: SiteSettings;
+}
+
 function getYoutubeEmbedUrl(url: string): string | null {
   if (!url) return null;
   const match = url.match(
@@ -99,14 +105,24 @@ function formatDateTimePtBr(date: Date): string {
   return `${dd}/${mm}/${yyyy} às ${hh}:${min}`;
 }
 
-export function BusinessProfileClient({ initialSlug }: { initialSlug?: string }) {
+export function BusinessProfileClient({
+  initialSlug,
+  initialBusiness,
+  initialSettings,
+}: BusinessProfileClientProps) {
   const params = useParams();
   const slug =
     initialSlug || (typeof params?.slug === "string" ? params.slug : "");
 
-  const [business, setBusiness] = useState<BusinessWithExtra | null>(null);
-  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
-  const [loading, setLoading] = useState(true);
+  const hasInitialBusiness = initialBusiness !== undefined;
+
+  const [business, setBusiness] = useState<BusinessWithExtra | null>(
+    (initialBusiness as BusinessWithExtra) || null
+  );
+  const [settings, setSettings] = useState<SiteSettings>(
+    initialSettings || DEFAULT_SITE_SETTINGS
+  );
+  const [loading, setLoading] = useState(!hasInitialBusiness);
   const [currentUserUid, setCurrentUserUid] = useState<string | null>(null);
   const [isMasterUser, setIsMasterUser] = useState(false);
 
@@ -116,6 +132,7 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
   const [couponPreviewImage, setCouponPreviewImage] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const touchStartX = useRef<number | null>(null);
+  const viewCountedRef = useRef(false);
   const [issuedAt, setIssuedAt] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -128,7 +145,22 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
   }, []);
 
   useEffect(() => {
-    async function loadData() {
+    // Se já veio pronto do servidor, apenas incrementa a visualização em segundo plano sem bloquear a tela
+    if (hasInitialBusiness) {
+      if (
+        initialBusiness?.id &&
+        initialBusiness.isApproved !== false &&
+        !viewCountedRef.current
+      ) {
+        viewCountedRef.current = true;
+        updateDoc(doc(db, "businesses", initialBusiness.id), {
+          viewsCount: increment(1),
+        }).catch(() => {});
+      }
+      return;
+    }
+
+    async function loadFallbackData() {
       if (!slug) return;
       try {
         const snapSet = await getDoc(doc(db, "settings", "global"));
@@ -149,7 +181,8 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
             id: directSnap.id,
           };
           setBusiness(loaded);
-          if (loaded.isApproved !== false) {
+          if (loaded.isApproved !== false && !viewCountedRef.current) {
+            viewCountedRef.current = true;
             updateDoc(directRef, { viewsCount: increment(1) }).catch(() => {});
           }
         } else {
@@ -166,7 +199,8 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
               id: first.id,
             };
             setBusiness(loaded);
-            if (loaded.isApproved !== false) {
+            if (loaded.isApproved !== false && !viewCountedRef.current) {
+              viewCountedRef.current = true;
               updateDoc(doc(db, "businesses", first.id), {
                 viewsCount: increment(1),
               }).catch(() => {});
@@ -180,8 +214,8 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
       }
     }
 
-    loadData();
-  }, [slug]);
+    loadFallbackData();
+  }, [slug, hasInitialBusiness, initialBusiness]);
 
   const galleryPhotos = Array.isArray(business?.gallery)
     ? business!.gallery
@@ -516,7 +550,6 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
       const isInAppWebView = /Instagram|FBAN|FBAV|WhatsApp/i.test(ua);
       const isIOS = /iPad|iPhone|iPod/i.test(ua);
 
-      // No navegador interno do Instagram/WhatsApp ou iOS, prioriza compartilhar/salvar direto na Galeria
       if (
         (isInAppWebView || isIOS) &&
         typeof navigator !== "undefined" &&
@@ -533,11 +566,10 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
             return;
           }
         } catch {
-          // Se o usuário cancelar ou não suportar, segue para download/visualização
+          // Segue para download/visualização
         }
       }
 
-      // Download padrão via Blob URL (100% compatível com Chrome Android e Desktop)
       const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = blobUrl;
@@ -548,7 +580,6 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
       link.click();
       document.body.removeChild(link);
 
-      // Em WebViews que bloqueiam <a download>, exibe também a imagem pronta para segurar e salvar na galeria
       if (isInAppWebView) {
         setCouponPreviewImage(blobUrl);
       } else {
