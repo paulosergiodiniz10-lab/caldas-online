@@ -91,13 +91,13 @@ export function BusinessCard({ business, distanceKm }: BusinessCardProps) {
   const isClosedNow = openStatus.hasSchedule && !openStatus.isOpen;
   const isVerified = business.isVerified !== false;
 
-  // Prioriza Foto Vitrine (showcaseUrl), depois 1ª foto da galeria, capa ou logo
+  // Prioriza Foto Vitrine (showcaseUrl), depois 1ª foto da galeria, capa ou logo (redimensionado para card 640px)
   const rawCardImage =
     business.showcaseUrl ||
     business.gallery?.[0] ||
     business.coverUrl ||
     business.logoUrl;
-  const optimizedCardImage = optimizeCloudinaryUrl(rawCardImage);
+  const optimizedCardImage = optimizeCloudinaryUrl(rawCardImage, 640);
 
   const handleWhatsappClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.stopPropagation();
