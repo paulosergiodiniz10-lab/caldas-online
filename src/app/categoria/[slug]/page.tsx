@@ -34,6 +34,7 @@ const LEGACY_SLUG_ALIASES: Record<string, string[]> = {
   "onde-comer": ["onde-comer", "alimentacao"],
   "onde-ficar": ["onde-ficar"],
   turismo: ["turismo", "lazer"],
+  experiencias: ["experiencias", "experiencia"],
   imoveis: ["imoveis"],
   saude: ["saude", "beleza"],
   "reforma-construcao": ["reforma-construcao", "construcao"],
@@ -42,6 +43,11 @@ const LEGACY_SLUG_ALIASES: Record<string, string[]> = {
   "automotivo-mobilidade": ["automotivo-mobilidade", "automotivo"],
   "servicos-profissionais": ["servicos-profissionais", "servicos", "comercio"],
 };
+
+function isExperienceSlug(slugValue: string): boolean {
+  const clean = (slugValue || "").toLowerCase().trim();
+  return clean === "experiencias" || clean === "experiencia";
+}
 
 function shuffleArray<T>(items: T[]): T[] {
   const arr = [...items];
@@ -65,7 +71,16 @@ function toLightweightBusiness(id: string, raw: Omit<Business, "id">): Business 
   };
 }
 
-function matchesCategorySlugs(biz: Business, targetSlugs: string[]): boolean {
+function matchesCategorySlugs(
+  biz: Business,
+  targetSlugs: string[],
+  currentSlug: string
+): boolean {
+  // Regra exclusiva Rota Além das Águas: categoria Experiências só exibe empresas explicitamente aprovadas pelo Master
+  if (isExperienceSlug(currentSlug) && biz.isExperienceApproved !== true) {
+    return false;
+  }
+
   const matchesPrimary = targetSlugs.includes(biz.category);
   const matchesExtra =
     Array.isArray(biz.categories) &&
@@ -111,7 +126,10 @@ export default function CategoryPage() {
         const parsed = JSON.parse(catCacheRaw) as CategoryCachePayload;
         if (parsed.category) setCategory(parsed.category);
         if (Array.isArray(parsed.businesses)) {
-          setBusinesses(shuffleArray(parsed.businesses));
+          const validCached = parsed.businesses.filter((b) =>
+            matchesCategorySlugs(b, targetSlugs, slug)
+          );
+          setBusinesses(shuffleArray(validCached));
           setLoading(false);
         }
         if (Array.isArray(parsed.banners)) setBanners(parsed.banners);
@@ -133,7 +151,7 @@ export default function CategoryPage() {
 
           if (Array.isArray(parsedHome.businesses) && parsedHome.businesses.length > 0) {
             const preFiltered = parsedHome.businesses.filter((b) =>
-              matchesCategorySlugs(b, targetSlugs)
+              matchesCategorySlugs(b, targetSlugs, slug)
             );
             setBusinesses(shuffleArray(preFiltered));
             setLoading(false);
@@ -185,7 +203,7 @@ export default function CategoryPage() {
         if (bizRes.status === "fulfilled") {
           const listBiz: Business[] = bizRes.value.docs
             .map((d) => toLightweightBusiness(d.id, d.data() as Omit<Business, "id">))
-            .filter((biz) => matchesCategorySlugs(biz, targetSlugs));
+            .filter((biz) => matchesCategorySlugs(biz, targetSlugs, slug));
 
           nextBusinesses = listBiz;
           setBusinesses(shuffleArray(listBiz));
