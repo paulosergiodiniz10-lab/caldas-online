@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { onAuthStateChanged } from "firebase/auth";
@@ -41,6 +41,8 @@ import {
   ShieldAlert,
   Share2,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 const MASTER_EMAIL = "caldasonline10@gmail.com";
@@ -110,7 +112,8 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
 
   const [copied, setCopied] = useState(false);
   const [sharedCopied, setSharedCopied] = useState(false);
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const touchStartX = useRef<number | null>(null);
   const [issuedAt, setIssuedAt] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -177,6 +180,36 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
 
     loadData();
   }, [slug]);
+
+  const galleryPhotos = Array.isArray(business?.gallery)
+    ? business!.gallery
+        .slice(0, business?.maxPhotos ?? 6)
+        .map((url) => optimizeCloudinaryUrl(url))
+    : [];
+
+  // Navegação por teclado no Lightbox (Esc, Seta Esquerda, Seta Direita)
+  useEffect(() => {
+    if (lightboxIndex === null || galleryPhotos.length === 0) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setLightboxIndex(null);
+      } else if (e.key === "ArrowRight" && galleryPhotos.length > 1) {
+        setLightboxIndex((prev) =>
+          prev === null ? null : (prev + 1) % galleryPhotos.length
+        );
+      } else if (e.key === "ArrowLeft" && galleryPhotos.length > 1) {
+        setLightboxIndex((prev) =>
+          prev === null
+            ? null
+            : (prev - 1 + galleryPhotos.length) % galleryPhotos.length
+        );
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lightboxIndex, galleryPhotos.length]);
 
   const handleTrackWhatsappClick = () => {
     if (!business?.id || business.isApproved === false) return;
@@ -472,14 +505,40 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
           .filter((u): u is string => Boolean(u))
       : [];
 
-  const galleryPhotos = Array.isArray(business.gallery)
-    ? business.gallery
-        .slice(0, business.maxPhotos ?? 6)
-        .map((url) => optimizeCloudinaryUrl(url))
-    : [];
-
   const optimizedCover = optimizeCloudinaryUrl(business.coverUrl);
   const optimizedLogo = optimizeCloudinaryUrl(business.logoUrl);
+
+  const handlePrevPhoto = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (lightboxIndex === null || galleryPhotos.length <= 1) return;
+    setLightboxIndex(
+      (lightboxIndex - 1 + galleryPhotos.length) % galleryPhotos.length
+    );
+  };
+
+  const handleNextPhoto = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (lightboxIndex === null || galleryPhotos.length <= 1) return;
+    setLightboxIndex((lightboxIndex + 1) % galleryPhotos.length);
+  };
+
+  const handleLightboxTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0]?.clientX ?? null;
+  };
+
+  const handleLightboxTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || galleryPhotos.length <= 1) return;
+    const endX = e.changedTouches[0]?.clientX ?? touchStartX.current;
+    const diff = touchStartX.current - endX;
+    if (Math.abs(diff) > 45) {
+      if (diff > 0) {
+        handleNextPhoto();
+      } else {
+        handlePrevPhoto();
+      }
+    }
+    touchStartX.current = null;
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
@@ -872,8 +931,8 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => setLightboxImage(photo)}
-                  className="group relative rounded-2xl overflow-hidden border border-slate-200 aspect-[4/3] bg-slate-100 cursor-pointer"
+                  onClick={() => setLightboxIndex(idx)}
+                  className="group relative rounded-2xl overflow-hidden border border-slate-200 aspect-[4/3] bg-slate-100 cursor-pointer active:scale-[0.98] transition"
                 >
                   <img
                     src={photo}
@@ -927,23 +986,59 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
         )}
       </main>
 
-      {/* LIGHTBOX PARA AMPLIAR FOTO */}
-      {lightboxImage && (
+      {/* LIGHTBOX PARA AMPLIAR E NAVEGAR ENTRE AS FOTOS (SETAS + SWIPE NO CELULAR) */}
+      {lightboxIndex !== null && galleryPhotos[lightboxIndex] && (
         <div
-          onClick={() => setLightboxImage(null)}
-          className="fixed inset-0 z-50 bg-slate-950/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxIndex(null)}
+          onTouchStart={handleLightboxTouchStart}
+          onTouchEnd={handleLightboxTouchEnd}
+          className="fixed inset-0 z-50 bg-slate-950/92 flex items-center justify-center p-4 select-none"
         >
+          {/* Contador superior */}
+          {galleryPhotos.length > 1 && (
+            <div className="absolute top-4 left-4 bg-white/15 text-white text-xs font-extrabold px-3.5 py-2 rounded-full backdrop-blur-xs z-20">
+              Foto {lightboxIndex + 1} de {galleryPhotos.length}
+            </div>
+          )}
+
+          {/* Botão Fechar */}
           <button
             type="button"
-            onClick={() => setLightboxImage(null)}
-            className="absolute top-4 right-4 bg-white/15 hover:bg-white/25 text-white p-2.5 rounded-full"
+            onClick={() => setLightboxIndex(null)}
+            aria-label="Fechar foto"
+            className="absolute top-4 right-4 bg-white/15 hover:bg-white/25 active:scale-95 text-white p-2.5 rounded-full transition cursor-pointer z-20"
           >
             <X className="w-6 h-6" />
           </button>
+
+          {/* Setas Anterior e Próxima sempre visíveis no celular e desktop */}
+          {galleryPhotos.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={handlePrevPhoto}
+                aria-label="Foto anterior"
+                className="absolute left-2 sm:left-5 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-slate-900/75 hover:bg-slate-900 active:scale-90 text-white border border-white/25 shadow-xl flex items-center justify-center transition cursor-pointer z-20"
+              >
+                <ChevronLeft className="w-6 h-6 sm:w-7 sm:h-7" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleNextPhoto}
+                aria-label="Próxima foto"
+                className="absolute right-2 sm:right-5 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-slate-900/75 hover:bg-slate-900 active:scale-90 text-white border border-white/25 shadow-xl flex items-center justify-center transition cursor-pointer z-20"
+              >
+                <ChevronRight className="w-6 h-6 sm:w-7 sm:h-7" />
+              </button>
+            </>
+          )}
+
           <img
-            src={lightboxImage}
-            alt="Foto ampliada"
-            className="max-w-full max-h-[88vh] rounded-2xl object-contain shadow-2xl"
+            src={galleryPhotos[lightboxIndex]}
+            alt={`${business.name} - Foto ${lightboxIndex + 1}`}
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-full max-h-[84vh] rounded-2xl object-contain shadow-2xl"
           />
         </div>
       )}
