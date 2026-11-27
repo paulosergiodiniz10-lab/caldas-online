@@ -15,11 +15,11 @@ export async function compressAndUploadImage(file: File): Promise<string> {
     throw new Error("Configurações do Cloudinary ausentes nas variáveis de ambiente.");
   }
 
-  // Comprime automaticamente no navegador do usuário antes do envio (~300-450 KB em WebP nítido)
+  // Comprime automaticamente no navegador do usuário antes do envio (~140-230 KB em WebP nítido para 4G/5G)
   const compressedFile = await imageCompression(file, {
-    maxSizeMB: 0.45,
-    maxWidthOrHeight: 1536,
-    initialQuality: 0.88,
+    maxSizeMB: 0.25,
+    maxWidthOrHeight: 1400,
+    initialQuality: 0.84,
     useWebWorker: true,
     fileType: "image/webp",
   });
@@ -50,12 +50,11 @@ export async function compressAndUploadImage(file: File): Promise<string> {
 }
 
 /**
- * Otimiza URLs do Cloudinary para entrega leve no navegador.
- * - Se a imagem já estiver em .webp (comprimida no upload), retorna a URL direta
- *   para evitar gasto desnecessário de créditos de transformação no plano Free.
- * - Se for JPG/PNG antigo ou externo no Cloudinary, aplica f_auto,q_auto automaticamente.
+ * Otimiza URLs do Cloudinary para entrega ultra-leve no 4G/5G:
+ * - Se a imagem já estiver em .webp (já comprimida no upload), retorna direto sem gastar créditos de transformação.
+ * - Se for JPG/PNG antigo no Cloudinary, aplica f_auto,q_auto:good (e w_<maxWidth>,c_limit se informado).
  */
-export function optimizeCloudinaryUrl(url?: string): string {
+export function optimizeCloudinaryUrl(url?: string, maxWidth?: number): string {
   if (!url) return "";
   if (!url.includes("res.cloudinary.com") || !url.includes("/upload/")) {
     return url;
@@ -63,5 +62,6 @@ export function optimizeCloudinaryUrl(url?: string): string {
   if (url.includes("/upload/f_auto") || url.toLowerCase().endsWith(".webp")) {
     return url;
   }
-  return url.replace("/upload/", "/upload/f_auto,q_auto/");
+  const widthTransform = maxWidth ? `,w_${maxWidth},c_limit` : "";
+  return url.replace("/upload/", `/upload/f_auto,q_auto:good${widthTransform}/`);
 }
