@@ -162,6 +162,7 @@ export default function BusinessDashboardPage() {
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [fastTrackClicked, setFastTrackClicked] = useState(false);
   const [showExperienceModal, setShowExperienceModal] = useState(false);
+  const [showSavedSuccessModal, setShowSavedSuccessModal] = useState(false);
 
   // Campos da Empresa / Anúncio ativo
   const [name, setName] = useState("");
@@ -774,10 +775,8 @@ export default function BusinessDashboardPage() {
       if (!isApproved) {
         setFastTrackClicked(false);
         setShowApprovalModal(true);
-      } else if (hasSelectedExperience && !nextExperienceApproved) {
-        setShowExperienceModal(true);
       } else {
-        alert("✅ Alterações salvas e atualizadas na sua página!");
+        setShowSavedSuccessModal(true);
       }
     } catch (err: unknown) {
       console.error(err);
@@ -2356,6 +2355,62 @@ export default function BusinessDashboardPage() {
         )}
       </main>
 
+      {/* POP-UP CLEAN DE CONFIRMAÇÃO AO SALVAR ALTERAÇÕES */}
+      {showSavedSuccessModal && (
+        <div
+          onClick={() => setShowSavedSuccessModal(false)}
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-sm w-full p-6 sm:p-7 shadow-2xl border border-slate-100 relative space-y-4 text-center"
+          >
+            <button
+              type="button"
+              onClick={() => setShowSavedSuccessModal(false)}
+              aria-label="Fechar"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-full cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+
+            <h3 className="text-xl font-black text-slate-900">
+              Salvo com Sucesso!
+            </h3>
+
+            <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">
+              As informações de <strong>{name}</strong> foram atualizadas no guia <strong>Caldas Novas Online</strong>.
+            </p>
+
+            <div className="pt-1 flex flex-col gap-2">
+              {businessId && (
+                <Link
+                  href={`/empresa/${businessId}`}
+                  target="_blank"
+                  onClick={() => setShowSavedSuccessModal(false)}
+                  className="w-full bg-blue-50 hover:bg-blue-100 text-[#0A4D9C] font-extrabold text-xs py-3 px-4 rounded-xl inline-flex items-center justify-center gap-1.5 transition"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Visualizar Minha Página
+                </Link>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowSavedSuccessModal(false)}
+                className="w-full bg-[#0A4D9C] hover:bg-[#062F63] text-white font-extrabold text-sm py-3.5 px-5 rounded-2xl shadow-md transition cursor-pointer"
+              >
+                OK, Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* POP-UP EXCLUSIVO: CATEGORIA EXPERIÊNCIAS (ROTA ALÉM DAS ÁGUAS) */}
       {showExperienceModal && (
         <div
@@ -2370,12 +2425,12 @@ export default function BusinessDashboardPage() {
               type="button"
               onClick={() => setShowExperienceModal(false)}
               aria-label="Fechar"
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-full cursor-pointer"
+              className="absolute top-4 right-4 text-slate-500 hover:text-slate-800 p-1.5 rounded-full cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="w-14 h-14 rounded-2xl bg-cyan-100 text-cyan-700 flex items-center justify-center mx-auto">
+            <div className="w-14 h-14 rounded-2xl bg-cyan-100 text-cyan-800 flex items-center justify-center mx-auto">
               <Compass className="w-8 h-8" />
             </div>
 
@@ -2383,12 +2438,12 @@ export default function BusinessDashboardPage() {
               Categoria Exclusiva Rota Além das Águas
             </h3>
 
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              A categoria <strong>Experiências</strong> é exclusiva para empresas associadas da <strong>Rota Além das Águas</strong> e passa por validação manual antes de aparecer neste segmento.
+            <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">
+              A categoria <strong className="text-slate-950">Experiências</strong> é exclusiva para empresas associadas da <strong className="text-slate-950">Rota Além das Águas</strong> e passa por validação manual antes de aparecer neste segmento.
             </p>
 
-            <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200/80 rounded-xl p-3">
-              Fique tranquilo: sua página continua funcionando normalmente nas demais categorias enquanto nossa equipe valida sua associação. Lembre-se também de clicar em <strong>Salvar</strong> no formulário!
+            <p className="text-xs text-slate-800 font-medium bg-slate-100 border border-slate-300/90 rounded-xl p-3.5 leading-relaxed">
+              Fique tranquilo: sua página continua funcionando normalmente nas demais categorias enquanto nossa equipe valida sua associação. Lembre-se também de clicar em <strong className="text-slate-950">Salvar</strong> no formulário!
             </p>
 
             <div className="pt-1 space-y-2.5">
@@ -2406,7 +2461,7 @@ export default function BusinessDashboardPage() {
               <button
                 type="button"
                 onClick={() => setShowExperienceModal(false)}
-                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition cursor-pointer"
+                className="w-full bg-slate-200 hover:bg-slate-300 text-slate-900 font-extrabold text-xs py-3 rounded-xl transition cursor-pointer"
               >
                 Entendi, continuar editando
               </button>
