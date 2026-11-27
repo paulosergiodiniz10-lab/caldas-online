@@ -37,6 +37,16 @@ import { BannerSlider } from "@/components/BannerSlider";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { BusinessCard } from "@/components/BusinessCard";
 
+const HOME_CACHE_KEY = "cno_home_cache_v1";
+
+interface HomeCachePayload {
+  businesses: Business[];
+  banners: PromoBanner[];
+  categories: CategoryDoc[];
+  utilities: UtilityDoc[];
+  settings: SiteSettings;
+}
+
 // Embaralhamento justo (Fisher-Yates) para rotacionar empresas a cada acesso
 function shuffleArray<T>(items: T[]): T[] {
   const arr = [...items];
@@ -45,6 +55,20 @@ function shuffleArray<T>(items: T[]): T[] {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
+}
+
+// Mantém apenas os dados essenciais para os cards da Home (evita pesar a memória com arrays de 20 fotos no celular)
+function toLightweightBusiness(id: string, raw: Omit<Business, "id">): Business {
+  const firstGalleryPhoto =
+    Array.isArray(raw.gallery) && raw.gallery.length > 0 ? [raw.gallery[0]] : [];
+
+  return {
+    ...raw,
+    id,
+    gallery: firstGalleryPhoto,
+    youtubeHorizontal: "",
+    youtubeVerticals: [],
+  };
 }
 
 export default function HomePage() {
@@ -66,65 +90,124 @@ export default function HomePage() {
   const [locating, setLocating] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
+    // 1. Hidrata imediatamente do cache da sessão se o usuário já navegou no site (0 ms ao voltar)
+    try {
+      const cachedRaw = sessionStorage.getItem(HOME_CACHE_KEY);
+      if (cachedRaw) {
+        const parsed = JSON.parse(cachedRaw) as HomeCachePayload;
+        if (parsed.businesses?.length > 0) {
+          setBusinesses(shuffleArray(parsed.businesses));
+          setLoading(false);
+        }
+        if (parsed.banners) setBanners(parsed.banners);
+        if (parsed.categories?.length > 0) setCategories(parsed.categories);
+        if (parsed.utilities?.length > 0) setUtilities(parsed.utilities);
+        if (parsed.settings) {
+          setSettings((prev) => ({ ...prev, ...parsed.settings }));
+        }
+      }
+    } catch {
+      // Ignora falha de leitura de cache
+    }
+
     async function loadInitialData() {
       try {
-        // 1. Carregar empresas aprovadas e embaralhar a ordem a cada acesso
-        const qBiz = query(collection(db, "businesses"), where("isApproved", "==", true));
-        const snapBiz = await getDocs(qBiz);
-        const listBiz: Business[] = snapBiz.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<Business, "id">),
-        }));
-        setBusinesses(shuffleArray(listBiz));
+        // 2. Dispara TODAS as 5 consultas em paralelo (elimina cascata de latência no 4G/5G)
+        const [bizRes, banRes, catRes, utilRes, setRes] = await Promise.allSettled([
+          getDocs(query(collection(db, "businesses"), where("isApproved", "==", true))),
+          getDocs(
+            query(
+              collection(db, "banners"),
+              where("active", "==", true),
+              where("placement", "==", "home")
+            )
+          ),
+          getDocs(collection(db, "categories")),
+          getDocs(collection(db, "utilities")),
+          getDoc(doc(db, "settings", "global")),
+        ]);
 
-        // 2. Carregar banners ativos da Home
-        const qBan = query(
-          collection(db, "banners"),
-          where("active", "==", true),
-          where("placement", "==", "home")
-        );
-        const snapBan = await getDocs(qBan);
-        const listBan: PromoBanner[] = snapBan.docs
-          .map((d) => ({ id: d.id, ...(d.data() as Omit<PromoBanner, "id">) }))
-          .sort((a, b) => (a.order || 0) - (b.order || 0));
-        setBanners(listBan);
+        if (!isMounted) return;
 
-        // 3. Carregar Categorias dinâmicas
-        const snapCats = await getDocs(collection(db, "categories"));
-        if (!snapCats.empty) {
-          const listCats = snapCats.docs
+        let nextBusinesses = businesses;
+        let nextBanners = banners;
+        let nextCategories = categories;
+        let nextUtilities = utilities;
+        let nextSettings = settings;
+
+        if (bizRes.status === "fulfilled") {
+          const listBiz: Business[] = bizRes.value.docs.map((d) =>
+            toLightweightBusiness(d.id, d.data() as Omit<Business, "id">)
+          );
+          nextBusinesses = listBiz;
+          setBusinesses(shuffleArray(listBiz));
+        }
+
+        if (banRes.status === "fulfilled") {
+          const listBan: PromoBanner[] = banRes.value.docs
+            .map((d) => ({ id: d.id, ...(d.data() as Omit<PromoBanner, "id">) }))
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
+          nextBanners = listBan;
+          setBanners(listBan);
+        }
+
+        if (catRes.status === "fulfilled" && !catRes.value.empty) {
+          const listCats = catRes.value.docs
             .map((d) => ({ id: d.id, ...(d.data() as Omit<CategoryDoc, "id">) }))
             .filter((c) => c.active !== false)
             .sort((a, b) => (a.order || 0) - (b.order || 0));
-          if (listCats.length > 0) setCategories(listCats);
+          if (listCats.length > 0) {
+            nextCategories = listCats;
+            setCategories(listCats);
+          }
         }
 
-        // 4. Carregar Utilidades Rápidas dinâmicas
-        const snapUtils = await getDocs(collection(db, "utilities"));
-        if (!snapUtils.empty) {
-          const listUtils = snapUtils.docs
+        if (utilRes.status === "fulfilled" && !utilRes.value.empty) {
+          const listUtils = utilRes.value.docs
             .map((d) => ({ id: d.id, ...(d.data() as Omit<UtilityDoc, "id">) }))
             .filter((u) => u.active !== false)
             .sort((a, b) => (a.order || 0) - (b.order || 0));
-          if (listUtils.length > 0) setUtilities(listUtils);
+          if (listUtils.length > 0) {
+            nextUtilities = listUtils;
+            setUtilities(listUtils);
+          }
         }
 
-        // 5. Carregar configurações globais
-        const snapSettings = await getDoc(doc(db, "settings", "global"));
-        if (snapSettings.exists()) {
-          setSettings((prev) => ({
-            ...prev,
-            ...(snapSettings.data() as Partial<SiteSettings>),
-          }));
+        if (setRes.status === "fulfilled" && setRes.value.exists()) {
+          nextSettings = {
+            ...DEFAULT_SITE_SETTINGS,
+            ...(setRes.value.data() as Partial<SiteSettings>),
+          };
+          setSettings(nextSettings);
+        }
+
+        try {
+          const cachePayload: HomeCachePayload = {
+            businesses: nextBusinesses,
+            banners: nextBanners,
+            categories: nextCategories,
+            utilities: nextUtilities,
+            settings: nextSettings,
+          };
+          sessionStorage.setItem(HOME_CACHE_KEY, JSON.stringify(cachePayload));
+        } catch {
+          // Ignora limite de storage
         }
       } catch (err) {
         console.error("Erro ao carregar dados do guia:", err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     }
 
     loadInitialData();
+
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleActivateLocation = () => {
