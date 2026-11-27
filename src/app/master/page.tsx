@@ -75,9 +75,17 @@ import {
   Eye,
   EyeOff,
   FolderKanban,
+  Compass,
 } from "lucide-react";
 
 const MASTER_EMAIL = "caldasonline10@gmail.com";
+
+function hasExperienceCategorySelected(biz: Business): boolean {
+  const allCats = [biz.category, ...(biz.categories || [])]
+    .filter(Boolean)
+    .map((c) => c.toLowerCase().trim());
+  return allCats.includes("experiencias") || allCats.includes("experiencia");
+}
 
 type ExtendedBanner = PromoBanner & {
   actionType?: "link" | "whatsapp";
@@ -140,7 +148,9 @@ export default function MasterAdminPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loadingData, setLoadingData] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "pending" | "approved" | "experience_pending"
+  >("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   // Planos
@@ -228,8 +238,16 @@ export default function MasterAdminPage() {
         id: d.id,
       }));
       bizList.sort((a, b) => {
-        const aPending = a.isApproved === false ? 0 : 1;
-        const bPending = b.isApproved === false ? 0 : 1;
+        const aPending =
+          a.isApproved === false ||
+          (hasExperienceCategorySelected(a) && a.isExperienceApproved !== true)
+            ? 0
+            : 1;
+        const bPending =
+          b.isApproved === false ||
+          (hasExperienceCategorySelected(b) && b.isExperienceApproved !== true)
+            ? 0
+            : 1;
         if (aPending !== bPending) return aPending - bPending;
         return (b.createdAt || 0) - (a.createdAt || 0);
       });
@@ -372,6 +390,41 @@ export default function MasterAdminPage() {
     } catch (err) {
       console.error(err);
       alert("Erro ao bloquear empresa.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // LIBERAR / REVOGAR CATEGORIA EXPERIÊNCIAS (EXCLUSIVO ASSOCIADOS ROTA ALÉM DAS ÁGUAS)
+  const handleToggleExperienceApproval = async (biz: Business) => {
+    const nextApproved = biz.isExperienceApproved !== true;
+    const confirmed = window.confirm(
+      nextApproved
+        ? `🧭 LIBERAR CATEGORIA EXPERIÊNCIAS?\n\nConfirma que "${biz.name}" é associada da Rota Além das Águas e pode aparecer na categoria Experiências?`
+        : `⚠️ REVOGAR CATEGORIA EXPERIÊNCIAS?\n\nDeseja remover "${biz.name}" da categoria Experiências? (A empresa continuará visível normalmente nas demais categorias.)`
+    );
+    if (!confirmed) return;
+
+    setUpdatingId(biz.id);
+    try {
+      await updateDoc(doc(db, "businesses", biz.id), {
+        isExperienceApproved: nextApproved,
+      });
+      setBusinesses((prev) =>
+        prev.map((item) =>
+          item.id === biz.id
+            ? { ...item, isExperienceApproved: nextApproved }
+            : item
+        )
+      );
+      alert(
+        nextApproved
+          ? `✅ "${biz.name}" foi liberada para aparecer em Experiências!`
+          : `🔒 "${biz.name}" foi removida da categoria Experiências.`
+      );
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao atualizar status da categoria Experiências.");
     } finally {
       setUpdatingId(null);
     }
@@ -1250,16 +1303,27 @@ export default function MasterAdminPage() {
   }
 
   const pendingCount = businesses.filter((b) => b.isApproved === false).length;
+  const experiencePendingCount = businesses.filter(
+    (b) => hasExperienceCategorySelected(b) && b.isExperienceApproved !== true
+  ).length;
 
   const filteredBusinesses = businesses.filter((biz) => {
     const matchesSearch =
       biz.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (biz.neighborhood || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (biz.category || "").toLowerCase().includes(searchTerm.toLowerCase());
+      (biz.category || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (biz.categories || []).some((c) =>
+        c.toLowerCase().includes(searchTerm.toLowerCase())
+      );
 
     if (!matchesSearch) return false;
     if (statusFilter === "pending") return biz.isApproved === false;
     if (statusFilter === "approved") return biz.isApproved !== false;
+    if (statusFilter === "experience_pending") {
+      return (
+        hasExperienceCategorySelected(biz) && biz.isExperienceApproved !== true
+      );
+    }
     return true;
   });
 
@@ -1329,6 +1393,15 @@ export default function MasterAdminPage() {
                 <strong className="text-[#FFB800]">
                   {pendingCount} aguardando liberação
                 </strong>
+                {experiencePendingCount > 0 && (
+                  <>
+                    {" "}
+                    •{" "}
+                    <strong className="text-cyan-300">
+                      {experiencePendingCount} pedindo Experiência
+                    </strong>
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -1354,9 +1427,9 @@ export default function MasterAdminPage() {
           >
             <Building2 className="w-4 h-4" />
             Empresas & Moderação
-            {pendingCount > 0 && (
+            {(pendingCount > 0 || experiencePendingCount > 0) && (
               <span className="bg-[#FF7A00] text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full">
-                {pendingCount}
+                {pendingCount + experiencePendingCount}
               </span>
             )}
           </button>
@@ -1467,6 +1540,17 @@ export default function MasterAdminPage() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setStatusFilter("experience_pending")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold cursor-pointer ${
+                    statusFilter === "experience_pending"
+                      ? "bg-cyan-600 text-white"
+                      : "bg-cyan-50 text-cyan-900 border border-cyan-200"
+                  }`}
+                >
+                  🧭 Pendente Experiência ({experiencePendingCount})
+                </button>
+                <button
+                  type="button"
                   onClick={() => setStatusFilter("approved")}
                   className={`px-3.5 py-2 rounded-xl text-xs font-bold cursor-pointer ${
                     statusFilter === "approved"
@@ -1493,6 +1577,8 @@ export default function MasterAdminPage() {
                   const isPending = biz.isApproved === false;
                   const isBusy = updatingId === biz.id;
                   const isVerified = biz.isVerified !== false;
+                  const wantsExperience = hasExperienceCategorySelected(biz);
+                  const isExpApproved = biz.isExperienceApproved === true;
 
                   const freePlanDefaultPhotos =
                     plans.find((p) => p.id === "gratis")?.maxPhotos ?? 5;
@@ -1562,6 +1648,8 @@ export default function MasterAdminPage() {
                       className={`bg-white rounded-2xl p-5 shadow-sm border-2 transition space-y-4 ${
                         isPending
                           ? "border-amber-400 bg-amber-50/20"
+                          : wantsExperience && !isExpApproved
+                          ? "border-cyan-400 bg-cyan-50/20"
                           : "border-slate-100"
                       }`}
                     >
@@ -1576,6 +1664,21 @@ export default function MasterAdminPage() {
                             <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 text-xs font-extrabold uppercase tracking-wider px-3 py-1 rounded-full">
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               PUBLICADA NO SITE
+                            </span>
+                          )}
+
+                          {wantsExperience && (
+                            <span
+                              className={`inline-flex items-center gap-1.5 text-[11px] font-black uppercase px-2.5 py-1 rounded-full ${
+                                isExpApproved
+                                  ? "bg-cyan-100 text-cyan-900"
+                                  : "bg-cyan-600 text-white shadow-2xs"
+                              }`}
+                            >
+                              <Compass className="w-3.5 h-3.5" />
+                              {isExpApproved
+                                ? "Experiência Liberada (Rota)"
+                                : "Experiência Pendente (Rota)"}
                             </span>
                           )}
 
@@ -1813,6 +1916,25 @@ export default function MasterAdminPage() {
                       </div>
 
                       <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2.5">
+                        {wantsExperience && (
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleToggleExperienceApproval(biz)}
+                            title="Categoria exclusiva para associados Rota Além das Águas"
+                            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 transition cursor-pointer ${
+                              isExpApproved
+                                ? "bg-cyan-100 hover:bg-cyan-200 text-cyan-950 border border-cyan-300"
+                                : "bg-cyan-600 hover:bg-cyan-700 text-white shadow-sm"
+                            }`}
+                          >
+                            <Compass className="w-4 h-4" />
+                            {isExpApproved
+                              ? "Experiência Liberada (Revogar)"
+                              : "Liberar Experiência"}
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           disabled={isBusy || !isPending}
