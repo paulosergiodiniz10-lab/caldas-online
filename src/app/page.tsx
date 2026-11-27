@@ -79,6 +79,9 @@ export default function HomePage() {
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [loading, setLoading] = useState(true);
 
+  // Feedback visual imediato ao tocar em uma categoria no celular
+  const [openingCatId, setOpeningCatId] = useState<string | null>(null);
+
   // Modal de Utilidades Rápidas
   const [showUtilitiesModal, setShowUtilitiesModal] = useState(false);
 
@@ -383,7 +386,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => setOnlyOpenNow(!onlyOpenNow)}
-              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-full transition shadow-sm cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-full transition shadow-sm cursor-pointer active:scale-95 ${
                 onlyOpenNow
                   ? "bg-emerald-600 text-white"
                   : "bg-white/95 hover:bg-white text-slate-800"
@@ -400,7 +403,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={handleActivateLocation}
-              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-full transition shadow-sm cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-full transition shadow-sm cursor-pointer active:scale-95 ${
                 userCoords
                   ? "bg-emerald-500 text-white"
                   : "bg-white/95 hover:bg-white text-slate-800"
@@ -421,7 +424,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => setOnlyCoupons(!onlyCoupons)}
-              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-full transition shadow-sm cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-full transition shadow-sm cursor-pointer active:scale-95 ${
                 onlyCoupons
                   ? "bg-[#FF7A00] text-white"
                   : "bg-white/95 hover:bg-white text-slate-800"
@@ -437,7 +440,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* GRID DE SEGMENTOS DINÂMICOS */}
+        {/* GRID DE SEGMENTOS DINÂMICOS COM FEEDBACK INSTANTÂNEO AO TOQUE */}
         <div className="max-w-6xl mx-auto mt-7">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3.5">
             {categories.map((cat) => {
@@ -445,23 +448,34 @@ export default function HomePage() {
               const isUtilitiesCard =
                 catSlug === "utilidades" ||
                 cat.name.toLowerCase().includes("utilidade");
+              const isOpeningThis = openingCatId === cat.id;
 
               const cardContent = (
                 <>
                   <div
-                    className={`w-12 h-12 rounded-2xl ${cat.bgColor} flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform`}
+                    className={`w-12 h-12 rounded-2xl ${cat.bgColor} flex items-center justify-center shadow-sm transition-transform duration-150 ${
+                      isOpeningThis ? "scale-95" : "group-hover:scale-105 group-active:scale-95"
+                    }`}
                   >
-                    <CategoryIcon
-                      name={cat.iconName}
-                      customIconUrl={cat.customIconUrl}
-                      className="w-6 h-6 text-white"
-                    />
+                    {isOpeningThis ? (
+                      <Loader2 className="w-6 h-6 text-white animate-spin" />
+                    ) : (
+                      <CategoryIcon
+                        name={cat.iconName}
+                        customIconUrl={cat.customIconUrl}
+                        className="w-6 h-6 text-white"
+                      />
+                    )}
                   </div>
                   <span className="font-bold text-slate-900 text-sm mt-2.5 leading-tight">
                     {cat.name}
                   </span>
-                  <span className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
-                    {cat.subtitle}
+                  <span
+                    className={`text-[11px] mt-0.5 line-clamp-1 ${
+                      isOpeningThis ? "text-[#0A4D9C] font-bold" : "text-slate-500"
+                    }`}
+                  >
+                    {isOpeningThis ? "Abrindo..." : cat.subtitle}
                   </span>
                 </>
               );
@@ -472,7 +486,7 @@ export default function HomePage() {
                     key={cat.id}
                     type="button"
                     onClick={() => setShowUtilitiesModal(true)}
-                    className="bg-white rounded-2xl p-3.5 shadow-sm hover:shadow-md border border-slate-100 flex flex-col items-center text-center transition-all hover:-translate-y-0.5 group cursor-pointer"
+                    className="bg-white active:bg-blue-50/80 rounded-2xl p-3.5 shadow-sm hover:shadow-md border border-slate-100 active:border-[#0A4D9C]/40 flex flex-col items-center text-center transition-all duration-150 hover:-translate-y-0.5 active:scale-[0.96] select-none touch-manipulation group cursor-pointer"
                   >
                     {cardContent}
                   </button>
@@ -483,7 +497,13 @@ export default function HomePage() {
                 <Link
                   key={cat.id}
                   href={`/categoria/${cat.slug || cat.id}`}
-                  className="bg-white rounded-2xl p-3.5 shadow-sm hover:shadow-md border border-slate-100 flex flex-col items-center text-center transition-all hover:-translate-y-0.5 group"
+                  prefetch={true}
+                  onClick={() => setOpeningCatId(cat.id)}
+                  className={`rounded-2xl p-3.5 shadow-sm hover:shadow-md border flex flex-col items-center text-center transition-all duration-150 hover:-translate-y-0.5 active:scale-[0.96] select-none touch-manipulation group ${
+                    isOpeningThis
+                      ? "bg-blue-50/90 border-[#0A4D9C] ring-2 ring-[#0A4D9C]/30 scale-[0.98]"
+                      : "bg-white active:bg-blue-50/80 border-slate-100 active:border-[#0A4D9C]/40"
+                  }`}
                 >
                   {cardContent}
                 </Link>
@@ -568,7 +588,7 @@ export default function HomePage() {
                 <button
                   key={idx}
                   onClick={() => setSearchTerm(item.query || item.label)}
-                  className="bg-white hover:bg-blue-50 border border-slate-200 text-slate-800 font-bold text-sm px-4 py-2.5 rounded-xl shadow-sm whitespace-nowrap transition cursor-pointer"
+                  className="bg-white hover:bg-blue-50 active:scale-95 border border-slate-200 text-slate-800 font-bold text-sm px-4 py-2.5 rounded-xl shadow-sm whitespace-nowrap transition cursor-pointer"
                 >
                   {item.label}
                 </button>
@@ -690,7 +710,7 @@ export default function HomePage() {
                 <a
                   key={util.id}
                   href={`tel:${util.number.replace(/\D/g, "")}`}
-                  className="bg-slate-50 hover:bg-blue-50/70 border border-slate-200/80 hover:border-[#0A4D9C]/40 rounded-2xl p-3.5 flex flex-col items-center text-center shadow-2xs transition group"
+                  className="bg-slate-50 hover:bg-blue-50/70 active:scale-95 border border-slate-200/80 hover:border-[#0A4D9C]/40 rounded-2xl p-3.5 flex flex-col items-center text-center shadow-2xs transition group"
                 >
                   <div
                     className={`w-11 h-11 rounded-xl ${util.color} text-white flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform`}
