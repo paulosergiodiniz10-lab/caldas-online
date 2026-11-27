@@ -68,6 +68,7 @@ import {
   Plus,
   FolderKanban,
   Edit3,
+  Compass,
 } from "lucide-react";
 
 type ExtendedBusinessDoc = Business & {
@@ -81,6 +82,11 @@ type ExtendedBusinessDoc = Business & {
 type ExtendedPlanDoc = PlanDoc & {
   priceDisplay?: string;
 };
+
+function isExperienceSlug(slugOrId: string): boolean {
+  const clean = (slugOrId || "").toLowerCase().trim();
+  return clean === "experiencias" || clean === "experiencia";
+}
 
 function createSlug(text: string) {
   return text
@@ -148,12 +154,14 @@ export default function BusinessDashboardPage() {
   const [saving, setSaving] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
 
-  // Status de aprovação e Pop-up pós-salvamento
+  // Status de aprovação e Pop-ups
   const [isApproved, setIsApproved] = useState(false);
+  const [isExperienceApproved, setIsExperienceApproved] = useState(false);
   const [isFeatured, setIsFeatured] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [fastTrackClicked, setFastTrackClicked] = useState(false);
+  const [showExperienceModal, setShowExperienceModal] = useState(false);
 
   // Campos da Empresa / Anúncio ativo
   const [name, setName] = useState("");
@@ -225,7 +233,6 @@ export default function BusinessDashboardPage() {
     setCategory(primaryCat);
     setMaxCategories(allowedCats);
     setExtraCategories(clippedExtras);
-    // Inicia aberto apenas se ainda não houver nenhuma categoria extra salva; se já houver, inicia fechado com o botão "Alterar Categorias"
     setIsEditingExtraCategories(clippedExtras.length === 0);
     setHasUnsavedCategoryChanges(false);
 
@@ -246,6 +253,7 @@ export default function BusinessDashboardPage() {
     setMaxPhotos(data.maxPhotos ?? freePlanMaxPhotos);
     setMaxVideos(data.maxVideos ?? 0);
     setIsApproved(Boolean(data.isApproved));
+    setIsExperienceApproved(Boolean(data.isExperienceApproved));
     setIsFeatured(Boolean(data.isFeatured));
     setAcceptedTerms(Boolean(data.acceptedTerms ?? data.isApproved));
     setViewsCount(data.viewsCount || 0);
@@ -305,6 +313,7 @@ export default function BusinessDashboardPage() {
     setMaxPhotos(freePlanMaxPhotos);
     setMaxVideos(0);
     setIsApproved(false);
+    setIsExperienceApproved(false);
     setIsFeatured(false);
     setAcceptedTerms(false);
     setViewsCount(0);
@@ -418,28 +427,37 @@ export default function BusinessDashboardPage() {
     setCategory(newPrimarySlug);
     setExtraCategories((prev) => prev.filter((c) => c !== newPrimarySlug));
     setHasUnsavedCategoryChanges(true);
+
+    if (isExperienceSlug(newPrimarySlug) && !isExperienceApproved) {
+      setShowExperienceModal(true);
+    }
   };
 
   const handleToggleExtraCategory = (catSlug: string) => {
     const maxExtrasAllowed = Math.max(0, maxCategories - 1);
     if (maxExtrasAllowed <= 0) return;
 
-    setExtraCategories((prev) => {
-      if (prev.includes(catSlug)) {
-        setHasUnsavedCategoryChanges(true);
-        return prev.filter((c) => c !== catSlug);
-      }
-      if (prev.length >= maxExtrasAllowed) {
-        alert(
-          `Seu plano atual permite escolher até ${maxCategories} categorias no total (1 principal + ${maxExtrasAllowed} extra${
-            maxExtrasAllowed > 1 ? "s" : ""
-          }).`
-        );
-        return prev;
-      }
+    if (extraCategories.includes(catSlug)) {
       setHasUnsavedCategoryChanges(true);
-      return [...prev, catSlug];
-    });
+      setExtraCategories((prev) => prev.filter((c) => c !== catSlug));
+      return;
+    }
+
+    if (extraCategories.length >= maxExtrasAllowed) {
+      alert(
+        `Seu plano atual permite escolher até ${maxCategories} categorias no total (1 principal + ${maxExtrasAllowed} extra${
+          maxExtrasAllowed > 1 ? "s" : ""
+        }).`
+      );
+      return;
+    }
+
+    setHasUnsavedCategoryChanges(true);
+    setExtraCategories((prev) => [...prev, catSlug]);
+
+    if (isExperienceSlug(catSlug) && !isExperienceApproved) {
+      setShowExperienceModal(true);
+    }
   };
 
   const getCategoryNameBySlug = (slugOrId: string) => {
@@ -552,6 +570,7 @@ export default function BusinessDashboardPage() {
           youtubeVerticals: [],
           coupon: { active: false, title: "", code: "", rules: "" },
           isVerified: true,
+          isExperienceApproved: false,
           isFeatured: false,
           isApproved: false,
           acceptedTerms: false,
@@ -677,6 +696,13 @@ export default function BusinessDashboardPage() {
         ])
       );
 
+      const hasSelectedExperience = allSelectedCategories.some((c) =>
+        isExperienceSlug(c)
+      );
+      const nextExperienceApproved = hasSelectedExperience
+        ? Boolean(isExperienceApproved)
+        : false;
+
       const payload = {
         ownerId: user.uid,
         name: name.trim(),
@@ -702,6 +728,7 @@ export default function BusinessDashboardPage() {
         maxVideos,
         youtubeHorizontal: maxVideos >= 1 ? youtubeHorizontal.trim() : "",
         youtubeVerticals: verticalVideos,
+        isExperienceApproved: nextExperienceApproved,
         acceptedTerms: true,
         acceptedTermsAt: Date.now(),
         coupon: {
@@ -747,6 +774,8 @@ export default function BusinessDashboardPage() {
       if (!isApproved) {
         setFastTrackClicked(false);
         setShowApprovalModal(true);
+      } else if (hasSelectedExperience && !nextExperienceApproved) {
+        setShowExperienceModal(true);
       } else {
         alert("✅ Alterações salvas e atualizadas na sua página!");
       }
@@ -942,10 +971,17 @@ export default function BusinessDashboardPage() {
     `Olá! Sou da empresa "${name || "cadastrada"}" no Caldas Novas Online e quero anunciar em 2 ou mais categorias ao mesmo tempo.`
   )}`;
 
+  const experienceApprovalWaUrl = `https://wa.me/${cleanMasterPhone}?text=${encodeURIComponent(
+    `Olá! Sou da empresa "${name || "cadastrada"}" no Caldas Novas Online. Selecionei a categoria *Experiências* (exclusiva para associados da Rota Além das Águas) e solicito a verificação e liberação.`
+  )}`;
+
   const unlockedVerticalVideos = Math.max(0, maxVideos - 1);
   const maxExtrasAllowed = Math.max(0, maxCategories - 1);
   const availableExtraCategories = categories.filter(
     (c) => (c.slug || c.id) !== category
+  );
+  const hasSelectedExperience = [category, ...extraCategories].some((c) =>
+    isExperienceSlug(c)
   );
 
   return (
@@ -1197,6 +1233,33 @@ export default function BusinessDashboardPage() {
                   </select>
                 </div>
 
+                {/* AVISO EXCLUSIVO ROTA ALÉM DAS ÁGUAS (QUANDO EXPERIÊNCIAS ESTÁ PENDENTE) */}
+                {hasSelectedExperience && !isExperienceApproved && (
+                  <div className="sm:col-span-2 rounded-2xl bg-cyan-50 border border-cyan-300 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <Compass className="w-5 h-5 text-cyan-700 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-extrabold text-cyan-950">
+                          Categoria &ldquo;Experiências&rdquo; aguardando liberação (Rota Além das Águas)
+                        </p>
+                        <p className="text-[11px] text-cyan-900 mt-0.5">
+                          Esta categoria é exclusiva para associados da <strong>Rota Além das Águas</strong>. Sua empresa continua visível normalmente nas demais categorias enquanto aguarda liberação.
+                        </p>
+                      </div>
+                    </div>
+
+                    <a
+                      href={experienceApprovalWaUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl inline-flex items-center justify-center gap-1.5 shrink-0 transition shadow-2xs"
+                    >
+                      <MessageCircle className="w-4 h-4 fill-white" />
+                      Solicitar Liberação no WhatsApp
+                    </a>
+                  </div>
+                )}
+
                 {/* CATEGORIAS EXTRAS (RESUMO ATIVO + BOTÃO ALTERAR CATEGORIA) */}
                 <div className="sm:col-span-2 rounded-2xl bg-slate-50 border border-slate-200/90 p-4 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -1263,30 +1326,54 @@ export default function BusinessDashboardPage() {
 
                   {/* RESUMO VISUAL DAS CATEGORIAS MARCADAS */}
                   <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200/80 rounded-xl p-2.5">
-                    <span className="inline-flex items-center gap-1.5 bg-[#0A4D9C] text-white text-xs font-extrabold px-3 py-1.5 rounded-lg">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg ${
+                        isExperienceSlug(category) && !isExperienceApproved
+                          ? "bg-cyan-700"
+                          : "bg-[#0A4D9C]"
+                      }`}
+                    >
+                      {isExperienceSlug(category) && !isExperienceApproved ? (
+                        <Clock className="w-3.5 h-3.5" />
+                      ) : (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      )}
                       Principal: {getCategoryNameBySlug(category)}
+                      {isExperienceSlug(category) && !isExperienceApproved
+                        ? " (Aguardando Liberação)"
+                        : ""}
                     </span>
 
-                    {extraCategories.map((extraSlug) => (
-                      <span
-                        key={extraSlug}
-                        className="inline-flex items-center gap-1.5 bg-purple-600 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        {getCategoryNameBySlug(extraSlug)}
-                        {isEditingExtraCategories && (
-                          <button
-                            type="button"
-                            onClick={() => handleToggleExtraCategory(extraSlug)}
-                            title="Remover esta categoria"
-                            className="ml-0.5 hover:text-purple-200 cursor-pointer"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </span>
-                    ))}
+                    {extraCategories.map((extraSlug) => {
+                      const isExpPending =
+                        isExperienceSlug(extraSlug) && !isExperienceApproved;
+                      return (
+                        <span
+                          key={extraSlug}
+                          className={`inline-flex items-center gap-1.5 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg ${
+                            isExpPending ? "bg-cyan-700" : "bg-purple-600"
+                          }`}
+                        >
+                          {isExpPending ? (
+                            <Clock className="w-3.5 h-3.5" />
+                          ) : (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          )}
+                          {getCategoryNameBySlug(extraSlug)}
+                          {isExpPending ? " (Aguardando)" : ""}
+                          {isEditingExtraCategories && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleExtraCategory(extraSlug)}
+                              title="Remover esta categoria"
+                              className="ml-0.5 hover:text-purple-200 cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </span>
+                      );
+                    })}
 
                     {maxExtrasAllowed > 0 && extraCategories.length === 0 && (
                       <span className="text-xs text-slate-400 font-semibold px-1">
@@ -2268,6 +2355,65 @@ export default function BusinessDashboardPage() {
           </div>
         )}
       </main>
+
+      {/* POP-UP EXCLUSIVO: CATEGORIA EXPERIÊNCIAS (ROTA ALÉM DAS ÁGUAS) */}
+      {showExperienceModal && (
+        <div
+          onClick={() => setShowExperienceModal(false)}
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 relative space-y-4 text-center"
+          >
+            <button
+              type="button"
+              onClick={() => setShowExperienceModal(false)}
+              aria-label="Fechar"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-full cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-14 h-14 rounded-2xl bg-cyan-100 text-cyan-700 flex items-center justify-center mx-auto">
+              <Compass className="w-8 h-8" />
+            </div>
+
+            <h3 className="text-xl font-black text-slate-900">
+              Categoria Exclusiva Rota Além das Águas
+            </h3>
+
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              A categoria <strong>Experiências</strong> é exclusiva para empresas associadas da <strong>Rota Além das Águas</strong> e passa por validação manual antes de aparecer neste segmento.
+            </p>
+
+            <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200/80 rounded-xl p-3">
+              Fique tranquilo: sua página continua funcionando normalmente nas demais categorias enquanto nossa equipe valida sua associação. Lembre-se também de clicar em <strong>Salvar</strong> no formulário!
+            </p>
+
+            <div className="pt-1 space-y-2.5">
+              <a
+                href={experienceApprovalWaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShowExperienceModal(false)}
+                className="w-full bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-xs sm:text-sm py-3.5 px-5 rounded-2xl shadow-md inline-flex items-center justify-center gap-2 transition"
+              >
+                <MessageCircle className="w-5 h-5 fill-white" />
+                Solicitar Liberação no WhatsApp
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setShowExperienceModal(false)}
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition cursor-pointer"
+              >
+                Entendi, continuar editando
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* POP-UP DE CADASTRO RECEBIDO / CONFIRMAÇÃO APÓS CLICAR NO WHATSAPP */}
       {showApprovalModal && (
