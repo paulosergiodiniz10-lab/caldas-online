@@ -112,6 +112,8 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
 
   const [copied, setCopied] = useState(false);
   const [sharedCopied, setSharedCopied] = useState(false);
+  const [downloadingCoupon, setDownloadingCoupon] = useState(false);
+  const [couponPreviewImage, setCouponPreviewImage] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const touchStartX = useRef<number | null>(null);
   const [issuedAt, setIssuedAt] = useState<Date | null>(null);
@@ -365,7 +367,7 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
     }
   };
 
-  const handleDownloadCouponImage = () => {
+  const buildCouponCanvas = (): HTMLCanvasElement | null => {
     const emitNow = new Date();
     const expire24h = new Date(emitNow.getTime() + 24 * 60 * 60 * 1000);
 
@@ -373,7 +375,7 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
     canvas.width = 1080;
     canvas.height = 1080;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) return null;
 
     const bgGrad = ctx.createLinearGradient(0, 0, 1080, 1080);
     bgGrad.addColorStop(0, "#0A4D9C");
@@ -383,7 +385,11 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
 
     ctx.fillStyle = "#FFFFFF";
     ctx.beginPath();
-    ctx.roundRect(70, 70, 940, 940, 44);
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(70, 70, 940, 940, 44);
+    } else {
+      ctx.rect(70, 70, 940, 940);
+    }
     ctx.fill();
 
     const topGrad = ctx.createLinearGradient(70, 70, 1010, 210);
@@ -391,7 +397,11 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
     topGrad.addColorStop(1, "#FFB800");
     ctx.fillStyle = topGrad;
     ctx.beginPath();
-    ctx.roundRect(70, 70, 940, 130, [44, 44, 0, 0]);
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(70, 70, 940, 130, [44, 44, 0, 0]);
+    } else {
+      ctx.rect(70, 70, 940, 130);
+    }
     ctx.fill();
 
     ctx.fillStyle = "#0F172A";
@@ -420,7 +430,11 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
     ctx.lineWidth = 5;
     ctx.setLineDash([16, 12]);
     ctx.beginPath();
-    ctx.roundRect(170, boxY, 740, 160, 28);
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(170, boxY, 740, 160, 28);
+    } else {
+      ctx.rect(170, boxY, 740, 160);
+    }
     ctx.fill();
     ctx.stroke();
     ctx.setLineDash([]);
@@ -451,7 +465,11 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
     const badgeY = Math.min(865, nextY + 32);
     ctx.fillStyle = "#FEF2F2";
     ctx.beginPath();
-    ctx.roundRect(140, badgeY, 800, 52, 16);
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(140, badgeY, 800, 52, 16);
+    } else {
+      ctx.rect(140, badgeY, 800, 52);
+    }
     ctx.fill();
 
     ctx.fillStyle = "#B91C1C";
@@ -466,10 +484,82 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
     ctx.font = "600 21px sans-serif";
     ctx.fillText("Guia Comercial de Caldas Novas - GO", 540, 968);
 
-    const link = document.createElement("a");
-    link.download = `cupom-${couponCode.toLowerCase()}-${business.slug || "caldas-novas-online"}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+    return canvas;
+  };
+
+  const handleDownloadCouponImage = async () => {
+    if (downloadingCoupon) return;
+    setDownloadingCoupon(true);
+
+    try {
+      const canvas = buildCouponCanvas();
+      if (!canvas) {
+        setDownloadingCoupon(false);
+        return;
+      }
+
+      const fileName = `cupom-${couponCode.toLowerCase()}-${
+        business.slug || "caldas-novas-online"
+      }.png`;
+
+      const blob: Blob | null = await new Promise((resolve) =>
+        canvas.toBlob((b) => resolve(b), "image/png", 0.95)
+      );
+
+      if (!blob) {
+        const fallbackDataUrl = canvas.toDataURL("image/png");
+        setCouponPreviewImage(fallbackDataUrl);
+        return;
+      }
+
+      const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+      const isInAppWebView = /Instagram|FBAN|FBAV|WhatsApp/i.test(ua);
+      const isIOS = /iPad|iPhone|iPod/i.test(ua);
+
+      // No navegador interno do Instagram/WhatsApp ou iOS, prioriza compartilhar/salvar direto na Galeria
+      if (
+        (isInAppWebView || isIOS) &&
+        typeof navigator !== "undefined" &&
+        typeof navigator.canShare === "function"
+      ) {
+        try {
+          const imageFile = new File([blob], fileName, { type: "image/png" });
+          if (navigator.canShare({ files: [imageFile] })) {
+            await navigator.share({
+              files: [imageFile],
+              title: `Cupom ${couponCode} • ${business.name}`,
+              text: fullCouponMessage,
+            });
+            return;
+          }
+        } catch {
+          // Se o usuário cancelar ou não suportar, segue para download/visualização
+        }
+      }
+
+      // Download padrão via Blob URL (100% compatível com Chrome Android e Desktop)
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName;
+      link.rel = "noopener";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Em WebViews que bloqueiam <a download>, exibe também a imagem pronta para segurar e salvar na galeria
+      if (isInAppWebView) {
+        setCouponPreviewImage(blobUrl);
+      } else {
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+      }
+    } catch (err) {
+      console.error("Erro ao gerar imagem do cupom:", err);
+      alert("Não foi possível baixar automaticamente. Use o botão 'Copiar Cupom' ou 'Enviar no WhatsApp'.");
+    } finally {
+      setDownloadingCoupon(false);
+    }
   };
 
   // Regras de privacidade de endereço e localização
@@ -719,7 +809,7 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
                     </p>
                   )}
                   <p className="text-xs font-semibold text-slate-950/85 pt-1">
-                    💡 Copie a mensagem para enviar no WhatsApp ou baixe o cupom (válido por 24h até {validUntilText}).
+                    💡 Copie a mensagem para enviar no WhatsApp ou salve a imagem do cupom (válido por 24h até {validUntilText}).
                   </p>
                 </div>
               </div>
@@ -758,11 +848,16 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
 
                 <button
                   type="button"
+                  disabled={downloadingCoupon}
                   onClick={handleDownloadCouponImage}
-                  className="bg-white/90 hover:bg-white text-slate-950 font-extrabold text-xs px-4 py-3.5 rounded-xl shadow inline-flex items-center justify-center gap-2 transition cursor-pointer"
+                  className="bg-white/95 hover:bg-white text-slate-950 font-extrabold text-xs px-4 py-3.5 rounded-xl shadow inline-flex items-center justify-center gap-2 transition cursor-pointer active:scale-95"
                 >
-                  <Download className="w-4 h-4 text-[#0A4D9C]" />
-                  Baixar Cupom
+                  {downloadingCoupon ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-[#0A4D9C]" />
+                  ) : (
+                    <Download className="w-4 h-4 text-[#0A4D9C]" />
+                  )}
+                  {downloadingCoupon ? "Gerando Imagem..." : "Baixar Cupom (Imagem)"}
                 </button>
               </div>
             </div>
@@ -985,6 +1080,45 @@ export function BusinessProfileClient({ initialSlug }: { initialSlug?: string })
           </div>
         )}
       </main>
+
+      {/* MODAL FALLBACK PARA NAVEGADORES INTERNOS (INSTAGRAM / WHATSAPP) SALVAREM A IMAGEM DO CUPOM */}
+      {couponPreviewImage && (
+        <div
+          onClick={() => {
+            if (couponPreviewImage.startsWith("blob:")) {
+              URL.revokeObjectURL(couponPreviewImage);
+            }
+            setCouponPreviewImage(null);
+          }}
+          className="fixed inset-0 z-50 bg-slate-950/90 flex flex-col items-center justify-center p-4 gap-3"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-sm w-full p-4 shadow-2xl space-y-3 text-center"
+          >
+            <p className="text-xs font-extrabold text-slate-800">
+              📲 Pressione e segure a imagem abaixo para salvar na Galeria do seu celular:
+            </p>
+            <img
+              src={couponPreviewImage}
+              alt={`Cupom ${couponCode}`}
+              className="w-full rounded-2xl border border-slate-200 shadow-sm"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (couponPreviewImage.startsWith("blob:")) {
+                  URL.revokeObjectURL(couponPreviewImage);
+                }
+                setCouponPreviewImage(null);
+              }}
+              className="w-full bg-[#0A4D9C] text-white font-extrabold text-xs py-3 rounded-xl cursor-pointer"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* LIGHTBOX PARA AMPLIAR E NAVEGAR ENTRE AS FOTOS (SETAS + SWIPE NO CELULAR) */}
       {lightboxIndex !== null && galleryPhotos[lightboxIndex] && (
