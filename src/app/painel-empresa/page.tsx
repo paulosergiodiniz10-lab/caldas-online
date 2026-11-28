@@ -71,6 +71,7 @@ import {
   Edit3,
   Compass,
   ArrowLeft,
+  Layers,
 } from "lucide-react";
 
 const MASTER_EMAIL = "caldasonline10@gmail.com";
@@ -167,6 +168,7 @@ function BusinessDashboardContent() {
   const [isExperienceApproved, setIsExperienceApproved] = useState(false);
   const [isFeatured, setIsFeatured] = useState(false);
   const [planId, setPlanId] = useState("");
+  const [planName, setPlanName] = useState("");
   const [showCouponOnCard, setShowCouponOnCard] = useState<boolean | undefined>(
     undefined
   );
@@ -206,7 +208,7 @@ function BusinessDashboardContent() {
   // Limites controlados pelo Master
   const [maxCategories, setMaxCategories] = useState(1);
   const [maxPhotos, setMaxPhotos] = useState(
-    DEFAULT_PLANS.find((p) => p.id === "gratis")?.maxPhotos ?? 6
+    DEFAULT_PLANS.find((p) => p.id === "gratis")?.maxPhotos ?? 5
   );
   const [maxVideos, setMaxVideos] = useState(0);
   const [viewsCount, setViewsCount] = useState(0);
@@ -234,15 +236,42 @@ function BusinessDashboardContent() {
   const isAdminSupportMode = Boolean(isMasterUser && adminEditId);
 
   const freePlanMaxPhotos =
-    plans.find((p) => p.id === "gratis")?.maxPhotos ?? 6;
+    plans.find((p) => p.id === "gratis")?.maxPhotos ?? 5;
 
-  // Define se o lojista tem direito ao cupom (plano pago OU liberado avulso pelo Master)
+  // Detecta o plano atual cadastrado para exibir no topo do painel
+  const matchedPlanDoc =
+    plans.find((p) => p.id === planId) ||
+    plans.find(
+      (p) =>
+        p.maxPhotos === maxPhotos &&
+        p.maxVideos === maxVideos &&
+        (p.maxCategories ?? 1) === maxCategories
+    ) ||
+    plans.find((p) => p.maxPhotos === maxPhotos && p.maxVideos === maxVideos);
+
+  const isExplicitlyFree =
+    planId === "gratis" ||
+    planId === "free" ||
+    (matchedPlanDoc ? (matchedPlanDoc.price ?? 0) <= 0 : false);
+
+  const currentPlanLabel =
+    planName.trim() ||
+    matchedPlanDoc?.name ||
+    (maxVideos > 0 || maxCategories > 1 || maxPhotos > 6 || isFeatured
+      ? "Plano Personalizado"
+      : "Grátis");
+
+  // Define se a empresa tem direito ao cupom:
+  // 1) Se você liberou/bloqueou explicitamente no Master (showCouponOnCard === true/false), obedece
+  // 2) Se estiver no plano Grátis, fica BLOQUEADO (mesmo que tenha 5 ou 6 fotos antigas)
+  // 3) Se estiver em qualquer plano pago, fica LIBERADO
   const hasPaidTier =
-    (Boolean(planId) && planId !== "gratis" && planId !== "free") ||
-    maxPhotos > freePlanMaxPhotos ||
-    maxVideos > 0 ||
-    maxCategories > 1 ||
-    isFeatured;
+    !isExplicitlyFree &&
+    ((Boolean(planId) && planId !== "gratis" && planId !== "free") ||
+      maxPhotos > Math.max(6, freePlanMaxPhotos) ||
+      maxVideos > 0 ||
+      maxCategories > 1 ||
+      isFeatured);
 
   const canUseCoupon =
     typeof showCouponOnCard === "boolean" ? showCouponOnCard : hasPaidTier;
@@ -286,6 +315,7 @@ function BusinessDashboardContent() {
     setIsExperienceApproved(Boolean(data.isExperienceApproved));
     setIsFeatured(Boolean(data.isFeatured));
     setPlanId(data.planId || "");
+    setPlanName(data.planName || "");
     setShowCouponOnCard(
       typeof data.showCouponOnCard === "boolean"
         ? data.showCouponOnCard
@@ -353,6 +383,7 @@ function BusinessDashboardContent() {
     setIsExperienceApproved(false);
     setIsFeatured(false);
     setPlanId("gratis");
+    setPlanName("Grátis");
     setShowCouponOnCard(false);
     setAcceptedTerms(false);
     setViewsCount(0);
@@ -655,6 +686,7 @@ function BusinessDashboardContent() {
           gallery: [],
           businessHours: DEFAULT_BUSINESS_HOURS,
           planId: "gratis",
+          planName: "Grátis",
           showCouponOnCard: false,
           maxCategories: 1,
           maxPhotos: freePlanMaxPhotos,
@@ -848,6 +880,7 @@ function BusinessDashboardContent() {
           ...payload,
           slug: newSlug,
           planId: "gratis",
+          planName: "Grátis",
           showCouponOnCard: false,
           lat: null,
           lng: null,
@@ -1169,7 +1202,7 @@ function BusinessDashboardContent() {
           </span>
         </div>
 
-        {/* Topo do Painel com Nome da Empresa Selecionada e Status de Publicação */}
+        {/* Topo do Painel com Nome da Empresa Selecionada, Status e Plano Cadastrado */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-blue-50 text-[#0A4D9C] flex items-center justify-center shrink-0">
@@ -1193,6 +1226,21 @@ function BusinessDashboardContent() {
                     <Clock className="w-3 h-3" /> Em Análise (Aguardando Liberação)
                   </span>
                 )}
+
+                {/* BADGE DO PLANO ATUAL DA EMPRESA */}
+                <button
+                  type="button"
+                  onClick={() => setPanelTab("plans")}
+                  title="Clique para ver detalhes ou fazer upgrade de plano"
+                  className={`inline-flex items-center gap-1 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full transition cursor-pointer ${
+                    isExplicitlyFree
+                      ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300/80"
+                      : "bg-indigo-100 hover:bg-indigo-200 text-indigo-900 border border-indigo-200"
+                  }`}
+                >
+                  <Layers className="w-3 h-3" /> Plano: {currentPlanLabel}
+                </button>
+
                 {isFeatured && !isCreatingNewAd && (
                   <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-900 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full">
                     <Star className="w-3 h-3 fill-[#FFB800] text-[#FFB800]" /> Destaque VIP
@@ -2333,13 +2381,8 @@ function BusinessDashboardContent() {
                   Aumente a visibilidade da {name || "sua empresa"}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Seu limite atual neste anúncio é de{" "}
-                  <strong>
-                    {maxCategories}{" "}
-                    {maxCategories === 1 ? "categoria" : "categorias"}
-                  </strong>
-                  , <strong>{maxPhotos} fotos</strong> e{" "}
-                  <strong>{maxVideos} vídeo(s)</strong>. Escolha um pacote abaixo para aparecer em mais categorias e liberar mais mídia.
+                  Seu plano atual é <strong>{currentPlanLabel}</strong> ({maxCategories}{" "}
+                  {maxCategories === 1 ? "categoria" : "categorias"}, {maxPhotos} fotos e {maxVideos} vídeo(s)). Escolha um pacote abaixo para liberar mais recursos.
                 </p>
               </div>
 
@@ -2365,6 +2408,9 @@ function BusinessDashboardContent() {
                   Boolean(plan.highlight) && !isMasterOrPurple;
                 const formattedPrice = formatPlanPrice(plan);
                 const planCats = Math.max(1, Number(plan.maxCategories) || 1);
+                const isCurrentPlanCard =
+                  (Boolean(planId) && plan.id === planId) ||
+                  (!planId && isFree && isExplicitlyFree);
 
                 const waMessage = `Olá! Sou da empresa *${
                   name || "cadastrada"
@@ -2484,9 +2530,13 @@ function BusinessDashboardContent() {
                     </div>
 
                     <div className="pt-4 mt-4 border-t border-slate-100">
-                      {isFree ? (
+                      {isCurrentPlanCard ? (
+                        <div className="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-extrabold text-[11px] py-2.5 px-3 rounded-xl text-center">
+                          ✓ Seu Plano Atual
+                        </div>
+                      ) : isFree ? (
                         <div className="w-full bg-slate-100 text-slate-500 font-extrabold text-[11px] py-2.5 px-3 rounded-xl text-center">
-                          Plano Base Ativo
+                          Plano Base
                         </div>
                       ) : (
                         <a
