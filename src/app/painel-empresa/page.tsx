@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -69,7 +70,10 @@ import {
   FolderKanban,
   Edit3,
   Compass,
+  ArrowLeft,
 } from "lucide-react";
+
+const MASTER_EMAIL = "caldasonline10@gmail.com";
 
 type ExtendedBusinessDoc = Business & {
   id: string;
@@ -125,7 +129,10 @@ function formatPlanPrice(plan: ExtendedPlanDoc): string {
   });
 }
 
-export default function BusinessDashboardPage() {
+function BusinessDashboardContent() {
+  const searchParams = useSearchParams();
+  const adminEditId = (searchParams.get("adminEdit") || "").trim();
+
   const [user, setUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -151,6 +158,7 @@ export default function BusinessDashboardPage() {
   const [isCreatingNewAd, setIsCreatingNewAd] = useState(false);
 
   const [businessId, setBusinessId] = useState<string | null>(null);
+  const [businessOwnerId, setBusinessOwnerId] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
 
@@ -221,6 +229,10 @@ export default function BusinessDashboardPage() {
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
 
+  const isMasterUser =
+    Boolean(user) && (user?.email || "").toLowerCase() === MASTER_EMAIL;
+  const isAdminSupportMode = Boolean(isMasterUser && adminEditId);
+
   const freePlanMaxPhotos =
     plans.find((p) => p.id === "gratis")?.maxPhotos ?? 6;
 
@@ -238,6 +250,7 @@ export default function BusinessDashboardPage() {
   function applyBusinessToForm(data: ExtendedBusinessDoc) {
     setIsCreatingNewAd(false);
     setBusinessId(data.id);
+    setBusinessOwnerId(data.ownerId || "");
     setName(data.name || "");
 
     const primaryCat = data.category || "onde-comer";
@@ -312,6 +325,7 @@ export default function BusinessDashboardPage() {
     setIsCreatingNewAd(true);
     setPanelTab("edit");
     setBusinessId(null);
+    setBusinessOwnerId(user?.uid || "");
     setName("");
     setCategory(defaultCat);
     setExtraCategories([]);
@@ -411,16 +425,60 @@ export default function BusinessDashboardPage() {
     const unsub = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        await loadUserBusinesses(currentUser.uid);
+        const isMaster =
+          (currentUser.email || "").toLowerCase() === MASTER_EMAIL;
+        if (isMaster && adminEditId) {
+          await loadAdminTargetBusiness(adminEditId);
+        } else {
+          await loadUserBusinesses(currentUser.uid);
+        }
       } else {
         setUserBusinesses([]);
         setBusinessId(null);
+        setBusinessOwnerId("");
       }
       setLoadingAuth(false);
     });
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [adminEditId]);
+
+  async function loadAdminTargetBusiness(targetDocId: string) {
+    try {
+      const targetSnap = await getDoc(doc(db, "businesses", targetDocId));
+      if (!targetSnap.exists()) {
+        alert("Empresa não encontrada para edição.");
+        return;
+      }
+
+      const targetData: ExtendedBusinessDoc = {
+        ...(targetSnap.data() as Omit<ExtendedBusinessDoc, "id">),
+        id: targetSnap.id,
+      };
+
+      if (targetData.ownerId) {
+        const q = query(
+          collection(db, "businesses"),
+          where("ownerId", "==", targetData.ownerId)
+        );
+        const snap = await getDocs(q);
+        const list: ExtendedBusinessDoc[] = snap.docs
+          .map((d) => ({
+            ...(d.data() as Omit<ExtendedBusinessDoc, "id">),
+            id: d.id,
+          }))
+          .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+        setUserBusinesses(list.length > 0 ? list : [targetData]);
+      } else {
+        setUserBusinesses([targetData]);
+      }
+
+      applyBusinessToForm(targetData);
+    } catch (err) {
+      console.error("Erro ao carregar empresa no modo suporte Master:", err);
+    }
+  }
 
   async function loadUserBusinesses(uid: string, preferredSelectId?: string) {
     try {
@@ -694,7 +752,7 @@ export default function BusinessDashboardPage() {
       return;
     }
 
-    if (!acceptedTerms) {
+    if (!acceptedTerms && !isMasterUser) {
       alert("Você precisa marcar a caixa concordando com as Regras e Termos de Responsabilidade do Guia.");
       return;
     }
@@ -740,8 +798,11 @@ export default function BusinessDashboardPage() {
 
       const finalCouponActive = canUseCoupon ? couponActive : false;
 
+      // Preserva sempre o ownerId original do cliente quando editado pelo Master
+      const effectiveOwnerId = businessOwnerId || user.uid;
+
       const payload = {
-        ownerId: user.uid,
+        ownerId: effectiveOwnerId,
         name: name.trim(),
         category,
         categories: allSelectedCategories,
@@ -807,10 +868,16 @@ export default function BusinessDashboardPage() {
       setIsEditingExtraCategories(false);
 
       if (savedDocId) {
-        await loadUserBusinesses(user.uid, savedDocId);
+        if (isAdminSupportMode) {
+          await loadAdminTargetBusiness(savedDocId);
+        } else {
+          await loadUserBusinesses(user.uid, savedDocId);
+        }
       }
 
-      if (!isApproved) {
+      if (isMasterUser) {
+        setShowSavedSuccessModal(true);
+      } else if (!isApproved) {
         setFastTrackClicked(false);
         setShowApprovalModal(true);
       } else {
@@ -1029,6 +1096,29 @@ export default function BusinessDashboardPage() {
     <div className="min-h-screen flex flex-col">
       <Navbar vipGroupUrl={settings.vipGroupUrl} masterWhatsApp={settings.masterWhatsApp} />
 
+      {/* TARJA DE MODO SUPORTE MASTER (QUANDO EDITANDO CONTA DE CLIENTE PELO MASTER) */}
+      {isAdminSupportMode && (
+        <div className="bg-slate-900 text-white px-4 py-3 border-b border-slate-800">
+          <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 text-xs">
+              <span className="bg-[#FF7A00] text-slate-950 font-black uppercase px-2.5 py-1 rounded-lg inline-flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5" /> Modo Suporte Master
+              </span>
+              <span className="text-slate-200 font-semibold">
+                Editando cadastro de <strong>{name || businessId}</strong> • O e-mail e acesso do cliente permanecem intactos.
+              </span>
+            </div>
+
+            <Link
+              href="/master"
+              className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl transition"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> Voltar ao Master
+            </Link>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-5xl w-full mx-auto px-4 py-6 space-y-6 flex-1">
         {/* SELETOR MULTI-ANÚNCIOS / MULTI-EMPRESAS DA MESMA CONTA */}
         <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-2.5">
@@ -1058,18 +1148,20 @@ export default function BusinessDashboardPage() {
               );
             })}
 
-            <button
-              type="button"
-              onClick={handleStartNewAd}
-              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 transition cursor-pointer ${
-                isCreatingNewAd
-                  ? "bg-[#FF7A00] text-slate-950 shadow-xs"
-                  : "bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200"
-              }`}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Novo Anúncio
-            </button>
+            {!isAdminSupportMode && (
+              <button
+                type="button"
+                onClick={handleStartNewAd}
+                className={`px-3.5 py-2 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 transition cursor-pointer ${
+                  isCreatingNewAd
+                    ? "bg-[#FF7A00] text-slate-950 shadow-xs"
+                    : "bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200"
+                }`}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Novo Anúncio
+              </button>
+            )}
           </div>
 
           <span className="text-[11px] font-semibold text-slate-400 px-1">
@@ -1123,13 +1215,14 @@ export default function BusinessDashboardPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {businessId && isApproved && !isCreatingNewAd && (
+            {businessId && (isApproved || isMasterUser) && !isCreatingNewAd && (
               <Link
                 href={`/empresa/${businessId}`}
                 target="_blank"
                 className="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-50 text-[#0A4D9C] px-3.5 py-2.5 rounded-xl hover:bg-blue-100"
               >
-                <ExternalLink className="w-3.5 h-3.5" /> Ver Minha Página
+                <ExternalLink className="w-3.5 h-3.5" />{" "}
+                {isApproved ? "Ver Minha Página" : "Vistoriar Página"}
               </Link>
             )}
             <button
@@ -1142,7 +1235,7 @@ export default function BusinessDashboardPage() {
         </div>
 
         {/* Aviso caso esteja pendente de aprovação */}
-        {!isApproved && !isCreatingNewAd && (
+        {!isApproved && !isCreatingNewAd && !isAdminSupportMode && (
           <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start gap-3">
               <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
@@ -2224,7 +2317,7 @@ export default function BusinessDashboardPage() {
                 ? "SALVANDO E ENVIANDO..."
                 : isCreatingNewAd
                 ? "CADASTRAR NOVO ANÚNCIO"
-                : isApproved
+                : isApproved || isMasterUser
                 ? "SALVAR ALTERAÇÕES"
                 : "SALVAR E ENVIAR PARA APROVAÇÃO"}
             </button>
@@ -2684,5 +2777,19 @@ export default function BusinessDashboardPage() {
 
       <Footer settings={settings} />
     </div>
+  );
+}
+
+export default function BusinessDashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-[#0A4D9C]" />
+        </div>
+      }
+    >
+      <BusinessDashboardContent />
+    </Suspense>
   );
 }
