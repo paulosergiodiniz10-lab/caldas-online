@@ -154,15 +154,20 @@ export default function BusinessDashboardPage() {
   const [saving, setSaving] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
 
-  // Status de aprovação e Pop-ups
+  // Status de aprovação, Plano e Pop-ups
   const [isApproved, setIsApproved] = useState(false);
   const [isExperienceApproved, setIsExperienceApproved] = useState(false);
   const [isFeatured, setIsFeatured] = useState(false);
+  const [planId, setPlanId] = useState("");
+  const [showCouponOnCard, setShowCouponOnCard] = useState<boolean | undefined>(
+    undefined
+  );
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [fastTrackClicked, setFastTrackClicked] = useState(false);
   const [showExperienceModal, setShowExperienceModal] = useState(false);
   const [showSavedSuccessModal, setShowSavedSuccessModal] = useState(false);
+  const [showCouponUpgradeModal, setShowCouponUpgradeModal] = useState(false);
 
   // Campos da Empresa / Anúncio ativo
   const [name, setName] = useState("");
@@ -219,6 +224,17 @@ export default function BusinessDashboardPage() {
   const freePlanMaxPhotos =
     plans.find((p) => p.id === "gratis")?.maxPhotos ?? 6;
 
+  // Define se o lojista tem direito ao cupom (plano pago OU liberado avulso pelo Master)
+  const hasPaidTier =
+    (Boolean(planId) && planId !== "gratis" && planId !== "free") ||
+    maxPhotos > freePlanMaxPhotos ||
+    maxVideos > 0 ||
+    maxCategories > 1 ||
+    isFeatured;
+
+  const canUseCoupon =
+    typeof showCouponOnCard === "boolean" ? showCouponOnCard : hasPaidTier;
+
   function applyBusinessToForm(data: ExtendedBusinessDoc) {
     setIsCreatingNewAd(false);
     setBusinessId(data.id);
@@ -256,6 +272,12 @@ export default function BusinessDashboardPage() {
     setIsApproved(Boolean(data.isApproved));
     setIsExperienceApproved(Boolean(data.isExperienceApproved));
     setIsFeatured(Boolean(data.isFeatured));
+    setPlanId(data.planId || "");
+    setShowCouponOnCard(
+      typeof data.showCouponOnCard === "boolean"
+        ? data.showCouponOnCard
+        : undefined
+    );
     setAcceptedTerms(Boolean(data.acceptedTerms ?? data.isApproved));
     setViewsCount(data.viewsCount || 0);
     setWhatsappClicks(data.whatsappClicks || 0);
@@ -316,6 +338,8 @@ export default function BusinessDashboardPage() {
     setIsApproved(false);
     setIsExperienceApproved(false);
     setIsFeatured(false);
+    setPlanId("gratis");
+    setShowCouponOnCard(false);
     setAcceptedTerms(false);
     setViewsCount(0);
     setWhatsappClicks(0);
@@ -461,6 +485,14 @@ export default function BusinessDashboardPage() {
     }
   };
 
+  const handleToggleCouponCheckbox = (checked: boolean) => {
+    if (!canUseCoupon) {
+      setShowCouponUpgradeModal(true);
+      return;
+    }
+    setCouponActive(checked);
+  };
+
   const getCategoryNameBySlug = (slugOrId: string) => {
     const found = categories.find(
       (c) => (c.slug || c.id) === slugOrId || c.id === slugOrId
@@ -564,6 +596,8 @@ export default function BusinessDashboardPage() {
           coverUrl: "",
           gallery: [],
           businessHours: DEFAULT_BUSINESS_HOURS,
+          planId: "gratis",
+          showCouponOnCard: false,
           maxCategories: 1,
           maxPhotos: freePlanMaxPhotos,
           maxVideos: 0,
@@ -704,6 +738,8 @@ export default function BusinessDashboardPage() {
         ? Boolean(isExperienceApproved)
         : false;
 
+      const finalCouponActive = canUseCoupon ? couponActive : false;
+
       const payload = {
         ownerId: user.uid,
         name: name.trim(),
@@ -733,7 +769,7 @@ export default function BusinessDashboardPage() {
         acceptedTerms: true,
         acceptedTermsAt: Date.now(),
         coupon: {
-          active: couponActive,
+          active: finalCouponActive,
           title: couponTitle.trim(),
           code: couponCode.trim().toUpperCase(),
           rules: couponRules.trim(),
@@ -750,6 +786,8 @@ export default function BusinessDashboardPage() {
         await setDoc(doc(db, "businesses", newSlug), {
           ...payload,
           slug: newSlug,
+          planId: "gratis",
+          showCouponOnCard: false,
           lat: null,
           lng: null,
           isVerified: true,
@@ -972,6 +1010,10 @@ export default function BusinessDashboardPage() {
 
   const experienceApprovalWaUrl = `https://wa.me/${cleanMasterPhone}?text=${encodeURIComponent(
     `Olá! Sou da empresa "${name || "cadastrada"}" no Caldas Novas Online. Selecionei a categoria *Experiências* (exclusiva para associados da Rota Além das Águas) e solicito a verificação e liberação.`
+  )}`;
+
+  const couponUnlockWaUrl = `https://wa.me/${cleanMasterPhone}?text=${encodeURIComponent(
+    `Olá! Sou da empresa "${name || "cadastrada"}" no Caldas Novas Online e gostaria de liberar a função de *Cupom de Desconto Exclusivo* na minha página.`
   )}`;
 
   const unlockedVerticalVideos = Math.max(0, maxVideos - 1);
@@ -2052,65 +2094,89 @@ export default function BusinessDashboardPage() {
 
             {/* 5. CUPOM DE DESCONTO */}
             <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Ticket className="w-5 h-5 text-[#FF7A00]" />
                   <h2 className="font-extrabold text-slate-900">
                     5. Cupom de Desconto Exclusivo
                   </h2>
+                  {!canUseCoupon && (
+                    <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-900 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full">
+                      <Lock className="w-3 h-3" /> Exclusivo Planos / Avulso
+                    </span>
+                  )}
                 </div>
-                <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-800 cursor-pointer">
+
+                <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-800 cursor-pointer select-none">
                   <input
                     type="checkbox"
-                    checked={couponActive}
-                    onChange={(e) => setCouponActive(e.target.checked)}
+                    checked={canUseCoupon ? couponActive : false}
+                    onChange={(e) => handleToggleCouponCheckbox(e.target.checked)}
                     className="w-4 h-4 accent-[#FF7A00]"
                   />
                   Ativar Cupom na Minha Página
                 </label>
               </div>
 
-              {couponActive && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Oferta do Cupom (inclua % ou R$) *
-                    </label>
-                    <input
-                      type="text"
-                      required={couponActive}
-                      value={couponTitle}
-                      onChange={(e) => setCouponTitle(e.target.value)}
-                      placeholder="Ex: 5% OFF na Hospedagem à vista"
-                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                    />
+              {!canUseCoupon ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-[#FF7A00] shrink-0" />
+                    <span>
+                      No plano <strong>Grátis</strong> o cupom de desconto fica bloqueado. Ative um plano pago ou contrate a liberação avulsa.
+                    </span>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Código do Cupom *
-                    </label>
-                    <input
-                      type="text"
-                      required={couponActive}
-                      value={couponCode}
-                      onChange={(e) => setCouponCode(e.target.value)}
-                      placeholder="Ex: CALDAS05"
-                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm uppercase"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Regras (opcional)
-                    </label>
-                    <input
-                      type="text"
-                      value={couponRules}
-                      onChange={(e) => setCouponRules(e.target.value)}
-                      placeholder="Válido de domingo a quinta"
-                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCouponUpgradeModal(true)}
+                    className="bg-[#FF7A00] hover:bg-orange-500 text-slate-950 font-extrabold text-[11px] px-3.5 py-2 rounded-xl shrink-0 transition cursor-pointer self-start sm:self-auto"
+                  >
+                    Liberar Cupom
+                  </button>
                 </div>
+              ) : (
+                couponActive && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Oferta do Cupom (inclua % ou R$) *
+                      </label>
+                      <input
+                        type="text"
+                        required={couponActive}
+                        value={couponTitle}
+                        onChange={(e) => setCouponTitle(e.target.value)}
+                        placeholder="Ex: 5% OFF na Hospedagem à vista"
+                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Código do Cupom *
+                      </label>
+                      <input
+                        type="text"
+                        required={couponActive}
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value)}
+                        placeholder="Ex: CALDAS05"
+                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm uppercase"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Regras (opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={couponRules}
+                        onChange={(e) => setCouponRules(e.target.value)}
+                        placeholder="Válido de domingo a quinta"
+                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                      />
+                    </div>
+                  </div>
+                )
               )}
             </div>
 
@@ -2354,6 +2420,73 @@ export default function BusinessDashboardPage() {
           </div>
         )}
       </main>
+
+      {/* POP-UP CLEAN: LIBERAR CUPOM DE DESCONTO (EXCLUSIVO PLANOS / AVULSO) */}
+      {showCouponUpgradeModal && (
+        <div
+          onClick={() => setShowCouponUpgradeModal(false)}
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 relative space-y-4 text-center"
+          >
+            <button
+              type="button"
+              onClick={() => setShowCouponUpgradeModal(false)}
+              aria-label="Fechar"
+              className="absolute top-4 right-4 text-slate-500 hover:text-slate-800 p-1.5 rounded-full cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-14 h-14 rounded-2xl bg-orange-100 text-[#FF7A00] flex items-center justify-center mx-auto">
+              <Ticket className="w-8 h-8" />
+            </div>
+
+            <h3 className="text-xl font-black text-slate-900">
+              Cupom de Desconto Exclusivo
+            </h3>
+
+            <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">
+              No plano <strong className="text-slate-950">Grátis</strong> o cadastro de cupons promocionais não está ativo. Você pode ativar um de nossos planos pagos ou solicitar a <strong className="text-slate-950">liberação avulsa do cupom</strong> diretamente com nossa equipe!
+            </p>
+
+            <div className="pt-1 space-y-2.5">
+              <a
+                href={couponUnlockWaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShowCouponUpgradeModal(false)}
+                className="w-full bg-[#1DB954] hover:bg-[#18a349] text-white font-extrabold text-xs sm:text-sm py-3.5 px-5 rounded-2xl shadow-md inline-flex items-center justify-center gap-2 transition"
+              >
+                <MessageCircle className="w-5 h-5 fill-white" />
+                Chamar no WhatsApp para Liberar
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCouponUpgradeModal(false);
+                  setPanelTab("plans");
+                }}
+                className="w-full bg-[#FF7A00] hover:bg-orange-500 text-slate-950 font-extrabold text-xs py-3 rounded-xl inline-flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4" />
+                Ver Planos Disponíveis
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowCouponUpgradeModal(false)}
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2.5 rounded-xl transition cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* POP-UP CLEAN DE CONFIRMAÇÃO AO SALVAR ALTERAÇÕES */}
       {showSavedSuccessModal && (
