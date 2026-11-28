@@ -372,8 +372,24 @@ export function BusinessProfileClient({
   );
   const todayKey = JS_DAY_TO_KEY[localCaldasNow.getDay()];
 
+  // Regra de liberação do Cupom: exclusivo de planos pagos ou liberação avulsa pelo Master
+  const hasPaidTierFallback =
+    (Boolean(business.planId) &&
+      business.planId !== "gratis" &&
+      business.planId !== "free") ||
+    (business.maxPhotos ?? 6) > 6 ||
+    (business.maxVideos ?? 0) > 0 ||
+    (business.maxCategories ?? 1) > 1 ||
+    Boolean(business.isFeatured);
+
+  const isCouponEligible =
+    typeof business.showCouponOnCard === "boolean"
+      ? business.showCouponOnCard
+      : hasPaidTierFallback;
+
   const hasCoupon = Boolean(
-    business.coupon?.active &&
+    isCouponEligible &&
+      business.coupon?.active &&
       (business.coupon?.code || business.coupon?.title)
   );
 
