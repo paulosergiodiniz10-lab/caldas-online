@@ -1743,20 +1743,32 @@ export default function MasterAdminPage() {
                             >
                               <Ticket className="w-3 h-3" />{" "}
                               {isCouponAllowedOnCard
-                                ? "Cupom Liberado no Card"
-                                : "Cupom Só Página Interna"}
+                                ? "Cupom Liberado"
+                                : "Cupom Bloqueado"}
                             </span>
                           )}
                         </div>
 
-                        <Link
-                          href={`/empresa/${biz.id}`}
-                          target="_blank"
-                          className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-[#0A4D9C] font-extrabold text-xs px-3.5 py-2 rounded-xl transition"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          Vistoriar Página
-                        </Link>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Link
+                            href={`/painel-empresa?adminEdit=${biz.id}`}
+                            target="_blank"
+                            className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-[#FFB800] font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-2xs transition"
+                            title="Entrar no painel desta empresa para cadastrar fotos, textos e banners sem alterar o e-mail do cliente"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            Editar Página / Fotos
+                          </Link>
+
+                          <Link
+                            href={`/empresa/${biz.id}`}
+                            target="_blank"
+                            className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-[#0A4D9C] font-extrabold text-xs px-3.5 py-2 rounded-xl transition"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            Vistoriar Página
+                          </Link>
+                        </div>
                       </div>
 
                       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
@@ -1889,7 +1901,7 @@ export default function MasterAdminPage() {
                                 showCouponOnCard: !isCouponAllowedOnCard,
                               })
                             }
-                            title="Define se o cupom aparece no card da Home/Categorias (na página interna sempre aparece quando ativo)"
+                            title="Libera ou bloqueia a função de Cupom de Desconto para esta empresa"
                             className={`px-3 py-1.5 rounded-lg text-xs font-extrabold inline-flex items-center gap-1 transition cursor-pointer ${
                               isCouponAllowedOnCard
                                 ? "bg-[#FF7A00] text-white"
@@ -1898,8 +1910,8 @@ export default function MasterAdminPage() {
                           >
                             <Ticket className="w-3.5 h-3.5" />
                             {isCouponAllowedOnCard
-                              ? "Cupom no Card"
-                              : "Sem Cupom Card"}
+                              ? "Cupom Liberado"
+                              : "Sem Cupom"}
                           </button>
 
                           <button
